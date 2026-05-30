@@ -1,0 +1,27 @@
+[package]
+name = "dairo"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Official Dairo command-line interface"
+repository = "https://github.com/dairo-ai/dairo-cli"
+
+[[bin]]
+name = "dairo"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive", "env"] }
+dirs = "6.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1.45", features = ["macros", "rt-multi-thread"] }
+toml = "0.8"
+url = "2.5"
+uuid = { version = "1.17", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3.20"

@@ -2,15 +2,97 @@
 
 Official Dairo command-line interface.
 
-Status: repository scaffold only. Implementation will be added later.
+Status: initial Rust implementation.
 
-Planned:
+## Install
 
-- Rust CLI
-- `dairo inbox create`
-- `dairo inbox list`
-- `dairo domain list`
-- `dairo domain recheck`
-- `dairo send`
+```sh
+cargo install --path .
+```
+
+Or run from the repository:
+
+```sh
+cargo run -- --help
+```
+
+## Authentication
+
+The CLI authenticates with a Dairo API key using bearer auth.
+
+Token lookup order:
+
+1. `DAIRO_API_KEY`
+2. local config file set by `dairo auth token set`
+
+Save a token locally:
+
+```sh
+printf '%s' "$DAIRO_API_KEY" | dairo auth token set
+```
+
+You can also pass the token as an argument:
+
+```sh
+dairo auth token set dairo_test_...
+```
+
+The config file is written under the platform config directory, for example
+`~/.config/dairo/config.toml` on Linux.
+
+## Commands
+
+List domains:
+
+```sh
+dairo domain list
+```
+
+Add a domain:
+
+```sh
+dairo domain add example.com
+```
+
+Recheck a domain's DNS/SES status:
+
+```sh
+dairo domain recheck example.com
+```
+
+List inboxes:
+
+```sh
+dairo inbox list
+```
+
+Create an inbox:
+
+```sh
+dairo inbox create billing --domain example.com
+```
+
+Send an email:
+
+```sh
+dairo send \
+  --inbox-id 018f0000-0000-0000-0000-000000000000 \
+  --to max@example.com \
+  --subject "Hello from Dairo" \
+  --text "This was sent with the Dairo CLI."
+```
+
+Use `--json` for machine-readable output where supported:
+
+```sh
+dairo --json domain list
+```
+
+## Development
+
+```sh
+cargo fmt --check
+cargo test
+```
 
 License: MIT
