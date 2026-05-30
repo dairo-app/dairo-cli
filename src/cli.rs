@@ -38,6 +38,17 @@ pub enum Command {
         #[command(subcommand)]
         command: InboxCommand,
     },
+    /// Manage webhook subscriptions.
+    Webhook {
+        #[command(subcommand)]
+        command: WebhookCommand,
+    },
+    /// Manage API keys.
+    #[command(name = "api-key")]
+    ApiKey {
+        #[command(subcommand)]
+        command: ApiKeyCommand,
+    },
     /// Send an email from a Dairo inbox.
     Send {
         #[arg(long = "inbox-id")]
@@ -125,6 +136,36 @@ pub enum InboxCommand {
     },
 }
 
+#[derive(Debug, Subcommand)]
+pub enum WebhookCommand {
+    /// List webhook subscriptions.
+    List,
+    /// Create a webhook subscription and print its one-time signing secret.
+    Create {
+        #[arg(long)]
+        url: String,
+        #[arg(long = "event", required = true)]
+        events: Vec<String>,
+    },
+    /// Delete a webhook by ID or URL.
+    Delete { webhook: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ApiKeyCommand {
+    /// List API keys.
+    List,
+    /// Create an API key and print its one-time secret.
+    Create {
+        #[arg(long)]
+        name: String,
+        #[arg(long = "scope", required = true)]
+        scopes: Vec<String>,
+    },
+    /// Revoke an API key by ID.
+    Revoke { api_key_id: String },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,6 +204,51 @@ mod tests {
                 assert_eq!(text, "Body");
             }
             _ => panic!("expected send command"),
+        }
+    }
+
+    #[test]
+    fn parses_webhook_and_api_key_arguments() {
+        let webhook = Cli::parse_from([
+            "dairo",
+            "webhook",
+            "create",
+            "--url",
+            "https://example.com/hook",
+            "--event",
+            "message.received",
+            "--event",
+            "email.delivered",
+        ]);
+        match webhook.command {
+            Command::Webhook {
+                command: WebhookCommand::Create { url, events },
+            } => {
+                assert_eq!(url, "https://example.com/hook");
+                assert_eq!(events, vec!["message.received", "email.delivered"]);
+            }
+            _ => panic!("expected webhook create command"),
+        }
+
+        let api_key = Cli::parse_from([
+            "dairo",
+            "api-key",
+            "create",
+            "--name",
+            "CI",
+            "--scope",
+            "mail:send",
+            "--scope",
+            "mail:read",
+        ]);
+        match api_key.command {
+            Command::ApiKey {
+                command: ApiKeyCommand::Create { name, scopes },
+            } => {
+                assert_eq!(name, "CI");
+                assert_eq!(scopes, vec!["mail:send", "mail:read"]);
+            }
+            _ => panic!("expected api-key create command"),
         }
     }
 }

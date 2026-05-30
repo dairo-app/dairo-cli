@@ -70,6 +70,47 @@ impl ApiClient {
             .await
     }
 
+    pub async fn list_webhooks(&self) -> Result<WebhookListResponse> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "webhooks"], None::<&()>)?)
+            .await
+    }
+
+    pub async fn create_webhook(
+        &self,
+        body: &CreateWebhookRequest,
+    ) -> Result<CreateWebhookResponse> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "webhooks"], Some(body))?)
+            .await
+    }
+
+    pub async fn delete_webhook(&self, webhook: &str) -> Result<DeleteResponse> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "webhooks", webhook],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    pub async fn list_api_keys(&self) -> Result<ApiKeyListResponse> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "api-keys"], None::<&()>)?)
+            .await
+    }
+
+    pub async fn create_api_key(&self, body: &CreateApiKeyRequest) -> Result<CreateApiKeyResponse> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "api-keys"], Some(body))?)
+            .await
+    }
+
+    pub async fn revoke_api_key(&self, api_key_id: &str) -> Result<DeleteResponse> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "api-keys", api_key_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
     pub(crate) fn build_request<T: Serialize>(
         &self,
         method: Method,
@@ -223,6 +264,88 @@ pub struct SendEmailResponse {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateWebhookRequest {
+    pub url: String,
+    pub events: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WebhookListResponse {
+    pub webhooks: Vec<Webhook>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Webhook {
+    pub id: String,
+    pub url: String,
+    pub events: Vec<String>,
+    pub status: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateWebhookResponse {
+    pub webhook: Webhook,
+    pub secret: String,
+}
+
+impl std::fmt::Debug for CreateWebhookResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CreateWebhookResponse")
+            .field("webhook", &self.webhook)
+            .field("secret", &"[REDACTED]")
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateApiKeyRequest {
+    pub name: String,
+    pub scopes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApiKeyListResponse {
+    #[serde(rename = "apiKeys")]
+    pub api_keys: Vec<ApiKey>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApiKey {
+    pub id: String,
+    pub name: String,
+    pub prefix: String,
+    pub scopes: Vec<String>,
+    pub status: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "lastUsedAt")]
+    pub last_used_at: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateApiKeyResponse {
+    #[serde(rename = "apiKey")]
+    pub api_key: ApiKey,
+    pub secret: String,
+}
+
+impl std::fmt::Debug for CreateApiKeyResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CreateApiKeyResponse")
+            .field("api_key", &self.api_key)
+            .field("secret", &"[REDACTED]")
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeleteResponse {
+    pub deleted: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 struct ErrorResponse {
     error: ErrorBody,
@@ -317,5 +440,58 @@ mod tests {
         assert_eq!(value["to"][0], "max@example.com");
         assert_eq!(value["subject"], "Hello");
         assert!(value.get("cc").is_none());
+    }
+
+    #[test]
+    fn constructs_webhook_and_api_key_requests() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let webhook = client
+            .build_request(
+                Method::DELETE,
+                &["v1", "webhooks", "https://example.com/hook"],
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(
+            webhook.url().as_str(),
+            "https://api.example.test/v1/webhooks/https:%2F%2Fexample.com%2Fhook"
+        );
+
+        let api_key = client
+            .build_request(Method::DELETE, &["v1", "api-keys", "key_123"], None::<&()>)
+            .unwrap();
+        assert_eq!(
+            api_key.url().as_str(),
+            "https://api.example.test/v1/api-keys/key_123"
+        );
+    }
+
+    #[test]
+    fn secret_response_debug_is_redacted() {
+        let webhook = CreateWebhookResponse {
+            webhook: Webhook {
+                id: "wh_123".to_string(),
+                url: "https://example.com/hook".to_string(),
+                events: vec!["message.received".to_string()],
+                status: "active".to_string(),
+                created_at: "2026-01-01T00:00:00Z".to_string(),
+            },
+            secret: "whsec_real_secret".to_string(),
+        };
+        assert!(!format!("{webhook:?}").contains("whsec_real_secret"));
+
+        let api_key = CreateApiKeyResponse {
+            api_key: ApiKey {
+                id: "key_123".to_string(),
+                name: "CI".to_string(),
+                prefix: "dairo_test_abc".to_string(),
+                scopes: vec!["mail:send".to_string()],
+                status: "active".to_string(),
+                created_at: "2026-01-01T00:00:00Z".to_string(),
+                last_used_at: None,
+            },
+            secret: "dairo_real_secret".to_string(),
+        };
+        assert!(!format!("{api_key:?}").contains("dairo_real_secret"));
     }
 }

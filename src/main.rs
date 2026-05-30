@@ -4,9 +4,12 @@ mod config;
 mod output;
 
 use anyhow::{Context, Result};
-use api::{ApiClient, CreateDomainRequest, CreateInboxRequest, SendEmailRequest};
+use api::{
+    ApiClient, CreateApiKeyRequest, CreateDomainRequest, CreateInboxRequest, CreateWebhookRequest,
+    SendEmailRequest,
+};
 use clap::Parser;
-use cli::{AuthCommand, Cli, Command, DomainCommand, InboxCommand};
+use cli::{ApiKeyCommand, AuthCommand, Cli, Command, DomainCommand, InboxCommand, WebhookCommand};
 use config::Config;
 use output::OutputFormat;
 
@@ -73,6 +76,38 @@ async fn run(cli: Cli) -> Result<()> {
                             })
                             .await?;
                         output::print_inbox(&response.inbox, format)
+                    }
+                },
+                Command::Webhook { command } => match command {
+                    WebhookCommand::List => {
+                        let response = client.list_webhooks().await?;
+                        output::print_webhooks(&response.webhooks, format)
+                    }
+                    WebhookCommand::Create { url, events } => {
+                        let response = client
+                            .create_webhook(&CreateWebhookRequest { url, events })
+                            .await?;
+                        output::print_created_webhook(&response, format)
+                    }
+                    WebhookCommand::Delete { webhook } => {
+                        let response = client.delete_webhook(&webhook).await?;
+                        output::print_delete_response(&response, "webhook", format)
+                    }
+                },
+                Command::ApiKey { command } => match command {
+                    ApiKeyCommand::List => {
+                        let response = client.list_api_keys().await?;
+                        output::print_api_keys(&response.api_keys, format)
+                    }
+                    ApiKeyCommand::Create { name, scopes } => {
+                        let response = client
+                            .create_api_key(&CreateApiKeyRequest { name, scopes })
+                            .await?;
+                        output::print_created_api_key(&response, format)
+                    }
+                    ApiKeyCommand::Revoke { api_key_id } => {
+                        let response = client.revoke_api_key(&api_key_id).await?;
+                        output::print_delete_response(&response, "API key", format)
                     }
                 },
                 Command::Send {
