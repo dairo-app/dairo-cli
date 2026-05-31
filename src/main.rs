@@ -6,10 +6,13 @@ mod output;
 use anyhow::{Context, Result};
 use api::{
     ApiClient, CreateApiKeyRequest, CreateDomainRequest, CreateInboxRequest, CreateWebhookRequest,
-    SendEmailRequest,
+    MessageListQuery, SendEmailRequest, ThreadListQuery,
 };
 use clap::Parser;
-use cli::{ApiKeyCommand, AuthCommand, Cli, Command, DomainCommand, InboxCommand, WebhookCommand};
+use cli::{
+    ApiKeyCommand, AuthCommand, Cli, Command, DomainCommand, InboxCommand, MessageCommand,
+    ThreadCommand, WebhookCommand,
+};
 use config::Config;
 use output::OutputFormat;
 use serde_json::json;
@@ -96,6 +99,10 @@ async fn run(cli: Cli) -> Result<()> {
                         let response = client.recheck_domain(&domain).await?;
                         output::print_domains(&response.domains, format)
                     }
+                    DomainCommand::Delete { domain } => {
+                        let response = client.delete_domain(&domain).await?;
+                        output::print_domains(&response.domains, format)
+                    }
                 },
                 Command::Inbox { command } => match command {
                     InboxCommand::List => {
@@ -112,6 +119,54 @@ async fn run(cli: Cli) -> Result<()> {
                             })
                             .await?;
                         output::print_inbox(&response.inbox, format)
+                    }
+                    InboxCommand::Delete { inbox_id } => {
+                        let response = client.delete_inbox(&inbox_id).await?;
+                        output::print_delete_response(&response, "inbox", format)
+                    }
+                },
+                Command::Message { command } => match command {
+                    MessageCommand::List {
+                        inbox_id,
+                        thread_id,
+                        direction,
+                        limit,
+                        cursor,
+                    } => {
+                        let response = client
+                            .list_messages(&MessageListQuery {
+                                inbox_id,
+                                thread_id,
+                                direction,
+                                limit,
+                                cursor,
+                            })
+                            .await?;
+                        output::print_messages(&response.messages, format)
+                    }
+                    MessageCommand::Get { message_id } => {
+                        let response = client.get_message(&message_id).await?;
+                        output::print_message(&response.message, format)
+                    }
+                },
+                Command::Thread { command } => match command {
+                    ThreadCommand::List {
+                        inbox_id,
+                        limit,
+                        cursor,
+                    } => {
+                        let response = client
+                            .list_threads(&ThreadListQuery {
+                                inbox_id,
+                                limit,
+                                cursor,
+                            })
+                            .await?;
+                        output::print_threads(&response.threads, format)
+                    }
+                    ThreadCommand::Get { thread_id } => {
+                        let response = client.get_thread(&thread_id).await?;
+                        output::print_thread(&response.thread, format)
                     }
                 },
                 Command::Webhook { command } => match command {

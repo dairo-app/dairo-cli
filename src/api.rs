@@ -46,6 +46,15 @@ impl ApiClient {
             .await
     }
 
+    pub async fn delete_domain(&self, domain: &str) -> Result<DomainListResponse> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "domains", domain],
+            None::<&()>,
+        )?)
+        .await
+    }
+
     pub async fn recheck_domain(&self, domain: &str) -> Result<DomainListResponse> {
         self.execute_json(self.build_request(
             Method::POST,
@@ -63,6 +72,15 @@ impl ApiClient {
     pub async fn create_inbox(&self, body: &CreateInboxRequest) -> Result<InboxResponse> {
         self.execute_json(self.build_request(Method::POST, &["v1", "inboxes"], Some(body))?)
             .await
+    }
+
+    pub async fn delete_inbox(&self, inbox: &str) -> Result<DeleteResponse> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "inboxes", inbox],
+            None::<&()>,
+        )?)
+        .await
     }
 
     pub async fn send_email(&self, body: &SendEmailRequest) -> Result<SendEmailResponse> {
@@ -106,6 +124,36 @@ impl ApiClient {
         self.execute_json(self.build_request(
             Method::DELETE,
             &["v1", "api-keys", api_key_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    pub async fn list_messages(&self, query: &MessageListQuery) -> Result<MessageListResponse> {
+        let mut request = self.build_request(Method::GET, &["v1", "messages"], None::<&()>)?;
+        apply_message_query(request.url_mut(), query);
+        self.execute_json(request).await
+    }
+
+    pub async fn get_message(&self, message_id: &str) -> Result<MessageResponse> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "messages", message_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    pub async fn list_threads(&self, query: &ThreadListQuery) -> Result<ThreadListResponse> {
+        let mut request = self.build_request(Method::GET, &["v1", "threads"], None::<&()>)?;
+        apply_thread_query(request.url_mut(), query);
+        self.execute_json(request).await
+    }
+
+    pub async fn get_thread(&self, thread_id: &str) -> Result<ThreadResponse> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "threads", thread_id],
             None::<&()>,
         )?)
         .await
@@ -344,6 +392,143 @@ impl std::fmt::Debug for CreateApiKeyResponse {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeleteResponse {
     pub deleted: bool,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct MessageListQuery {
+    pub inbox_id: Option<String>,
+    pub thread_id: Option<String>,
+    pub direction: Option<String>,
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct ThreadListQuery {
+    pub inbox_id: Option<String>,
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageListResponse {
+    pub messages: Vec<Message>,
+    pub pagination: Pagination,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageResponse {
+    pub message: Message,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ThreadListResponse {
+    pub threads: Vec<Thread>,
+    pub pagination: Pagination,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ThreadResponse {
+    pub thread: Thread,
+    #[serde(default)]
+    pub messages: Vec<Message>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Pagination {
+    #[serde(rename = "nextCursor")]
+    pub next_cursor: Option<String>,
+    #[serde(default, rename = "hasMore")]
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageAddress {
+    pub address: String,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Message {
+    pub id: String,
+    #[serde(rename = "inboxId")]
+    pub inbox_id: String,
+    #[serde(rename = "threadId")]
+    pub thread_id: Option<String>,
+    pub direction: String,
+    pub status: String,
+    pub from: MessageAddress,
+    #[serde(default)]
+    pub to: Vec<String>,
+    #[serde(default)]
+    pub cc: Vec<String>,
+    #[serde(default)]
+    pub bcc: Vec<String>,
+    #[serde(default)]
+    pub subject: String,
+    #[serde(default, rename = "textPreview")]
+    pub text_preview: String,
+    #[serde(default, rename = "hasHtml")]
+    pub has_html: bool,
+    #[serde(default, rename = "hasAttachments")]
+    pub has_attachments: bool,
+    #[serde(rename = "receivedAt")]
+    pub received_at: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Thread {
+    pub id: String,
+    #[serde(rename = "inboxId")]
+    pub inbox_id: String,
+    #[serde(default)]
+    pub subject: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default, rename = "lastMessageAt")]
+    pub last_message_at: Option<String>,
+    #[serde(default, rename = "messageCount")]
+    pub message_count: u32,
+    #[serde(default, rename = "lastMessagePreview")]
+    pub last_message_preview: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: Option<String>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: Option<String>,
+}
+
+fn apply_message_query(url: &mut Url, query: &MessageListQuery) {
+    let mut pairs = url.query_pairs_mut();
+    if let Some(value) = &query.inbox_id {
+        pairs.append_pair("inboxId", value);
+    }
+    if let Some(value) = &query.thread_id {
+        pairs.append_pair("threadId", value);
+    }
+    if let Some(value) = &query.direction {
+        pairs.append_pair("direction", value);
+    }
+    if let Some(value) = query.limit {
+        pairs.append_pair("limit", &value.to_string());
+    }
+    if let Some(value) = &query.cursor {
+        pairs.append_pair("cursor", value);
+    }
+}
+
+fn apply_thread_query(url: &mut Url, query: &ThreadListQuery) {
+    let mut pairs = url.query_pairs_mut();
+    if let Some(value) = &query.inbox_id {
+        pairs.append_pair("inboxId", value);
+    }
+    if let Some(value) = query.limit {
+        pairs.append_pair("limit", &value.to_string());
+    }
+    if let Some(value) = &query.cursor {
+        pairs.append_pair("cursor", value);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]

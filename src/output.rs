@@ -1,8 +1,8 @@
 use anyhow::Result;
 
 use crate::api::{
-    ApiKey, CreateApiKeyResponse, CreateWebhookResponse, DeleteResponse, Domain, Inbox,
-    SendEmailResponse, Webhook,
+    ApiKey, CreateApiKeyResponse, CreateWebhookResponse, DeleteResponse, Domain, Inbox, Message,
+    SendEmailResponse, Thread, Webhook,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -179,6 +179,62 @@ pub fn print_created_api_key(response: &CreateApiKeyResponse, format: OutputForm
     println!("  scopes: {}", response.api_key.scopes.join(","));
     println!("  secret: {}", response.secret);
     println!("Store this secret now. Dairo will not show it again.");
+    Ok(())
+}
+
+pub fn print_threads(threads: &[Thread], format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(threads)?);
+        return Ok(());
+    }
+    if threads.is_empty() {
+        println!("No threads found.");
+        return Ok(());
+    }
+    println!("{:<38} {:<38} {:<10} SUBJECT", "ID", "INBOX", "STATUS");
+    for thread in threads {
+        println!(
+            "{:<38} {:<38} {:<10} {}",
+            thread.id, thread.inbox_id, thread.status, thread.subject
+        );
+    }
+    Ok(())
+}
+
+pub fn print_thread(thread: &Thread, format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(thread)?);
+        return Ok(());
+    }
+    println!("Thread {}: {}", thread.id, thread.subject);
+    Ok(())
+}
+
+pub fn print_messages(messages: &[Message], format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(messages)?);
+        return Ok(());
+    }
+    if messages.is_empty() {
+        println!("No messages found.");
+        return Ok(());
+    }
+    println!("{:<38} {:<38} {:<10} SUBJECT", "ID", "INBOX", "STATUS");
+    for message in messages {
+        println!(
+            "{:<38} {:<38} {:<10} {}",
+            message.id, message.inbox_id, message.status, message.subject
+        );
+    }
+    Ok(())
+}
+
+pub fn print_message(message: &Message, format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(message)?);
+        return Ok(());
+    }
+    println!("Message {}: {}", message.id, message.subject);
     Ok(())
 }
 

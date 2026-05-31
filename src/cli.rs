@@ -38,6 +38,16 @@ pub enum Command {
         #[command(subcommand)]
         command: InboxCommand,
     },
+    /// Inspect mailbox messages.
+    Message {
+        #[command(subcommand)]
+        command: MessageCommand,
+    },
+    /// Inspect mailbox threads.
+    Thread {
+        #[command(subcommand)]
+        command: ThreadCommand,
+    },
     /// Manage webhook subscriptions.
     Webhook {
         #[command(subcommand)]
@@ -115,6 +125,8 @@ pub enum DomainCommand {
     Add { domain: String },
     /// Recheck SES/DNS status for a domain.
     Recheck { domain: String },
+    /// Delete a domain by name.
+    Delete { domain: String },
 }
 
 #[derive(Debug, Subcommand)]
@@ -127,6 +139,42 @@ pub enum InboxCommand {
         #[arg(long)]
         domain: String,
     },
+    /// Delete an inbox by ID.
+    Delete { inbox_id: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MessageCommand {
+    /// List messages.
+    List {
+        #[arg(long = "inbox-id")]
+        inbox_id: Option<String>,
+        #[arg(long = "thread-id")]
+        thread_id: Option<String>,
+        #[arg(long)]
+        direction: Option<String>,
+        #[arg(long)]
+        limit: Option<u32>,
+        #[arg(long)]
+        cursor: Option<String>,
+    },
+    /// Get a message by ID.
+    Get { message_id: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ThreadCommand {
+    /// List threads.
+    List {
+        #[arg(long = "inbox-id")]
+        inbox_id: Option<String>,
+        #[arg(long)]
+        limit: Option<u32>,
+        #[arg(long)]
+        cursor: Option<String>,
+    },
+    /// Get a thread by ID.
+    Get { thread_id: String },
 }
 
 #[derive(Debug, Subcommand)]
