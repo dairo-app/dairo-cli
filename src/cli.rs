@@ -97,7 +97,6 @@ impl TokenCommand {
 
 impl TokenSetArgs {
     fn token_value(self) -> Result<String> {
-        eprintln!("Reading Dairo API token from stdin...");
         let mut token = String::new();
         io::stdin()
             .read_to_string(&mut token)

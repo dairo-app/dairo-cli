@@ -139,3 +139,21 @@ fn json_version_preserves_normal_version_output() {
         "version output must not be wrapped as a JSON error"
     );
 }
+
+#[test]
+fn json_empty_token_stdin_error_is_clean_json() {
+    let mut cmd = Command::cargo_bin("dairo").unwrap();
+    let assert = cmd
+        .args(["--json", "auth", "token", "set"])
+        .write_stdin("")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
+    let payload: Value = serde_json::from_str(&stderr).expect("stderr should be JSON only");
+    assert_eq!(payload["error"]["code"], "command_failed");
+    assert!(payload["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("token cannot be empty"));
+}
