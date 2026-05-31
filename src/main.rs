@@ -12,11 +12,47 @@ use clap::Parser;
 use cli::{ApiKeyCommand, AuthCommand, Cli, Command, DomainCommand, InboxCommand, WebhookCommand};
 use config::Config;
 use output::OutputFormat;
+use serde_json::json;
+use std::{ffi::OsString, process::ExitCode};
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    let cli = Cli::parse();
-    run(cli).await
+async fn main() -> ExitCode {
+    let raw_args: Vec<OsString> = std::env::args_os().collect();
+    let json_output = args_request_json(&raw_args);
+
+    if rejects_positional_token(&raw_args) {
+        print_error_message(
+            "token must be provided on stdin; run `printf '%s' \"$DAIRO_API_KEY\" | dairo auth token set`",
+            json_output,
+            "usage_error",
+        );
+        return ExitCode::FAILURE;
+    }
+
+    let cli = match Cli::try_parse_from(&raw_args) {
+        Ok(cli) => cli,
+        Err(error) => {
+            if error.exit_code() == 0 {
+                let _ = error.print();
+                return ExitCode::SUCCESS;
+            }
+            if json_output {
+                print_error_message(&error.to_string(), true, "usage_error");
+            } else {
+                let _ = error.print();
+            }
+            return ExitCode::FAILURE;
+        }
+    };
+    let json_output = cli.json;
+
+    match run(cli).await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            print_error(&error, json_output);
+            ExitCode::FAILURE
+        }
+    }
 }
 
 async fn run(cli: Cli) -> Result<()> {
@@ -112,10 +148,11 @@ async fn run(cli: Cli) -> Result<()> {
                 },
                 Command::Send {
                     inbox_id,
-                    to,
+                    mut to,
                     subject,
                     text,
                 } => {
+                    normalize_recipients(&mut to)?;
                     let response = client
                         .send_email(&SendEmailRequest {
                             inbox_id,
@@ -135,4 +172,76 @@ async fn run(cli: Cli) -> Result<()> {
             .context("failed to print command output")
         }
     }
+}
+
+fn normalize_recipients(recipients: &mut Vec<String>) -> Result<()> {
+    for recipient in recipients.iter_mut() {
+        *recipient = recipient.trim().to_string();
+    }
+    recipients.retain(|recipient| !recipient.is_empty());
+    anyhow::ensure!(
+        !recipients.is_empty(),
+        "send requires at least one non-empty --to recipient"
+    );
+    Ok(())
+}
+
+fn print_error(error: &anyhow::Error, json_output: bool) {
+    if json_output {
+        print_error_message(&error.to_string(), true, "command_failed");
+    } else {
+        eprintln!("Error: {error:#}");
+    }
+}
+
+fn print_error_message(message: &str, json_output: bool, code: &str) {
+    if json_output {
+        let payload = json!({
+            "error": {
+                "message": message,
+                "code": code,
+                "status": null,
+            }
+        });
+        eprintln!(
+            "{}",
+            serde_json::to_string_pretty(&payload).unwrap_or_else(|_| {
+                r#"{"error":{"message":"command failed","code":"command_failed","status":null}}"#
+                    .to_string()
+            })
+        );
+    } else {
+        eprintln!("Error: {message}");
+    }
+}
+
+fn args_request_json(args: &[OsString]) -> bool {
+    args.iter().skip(1).any(|arg| {
+        let arg = arg.to_string_lossy();
+        arg == "--json" || arg.starts_with("--json=")
+    })
+}
+
+fn rejects_positional_token(args: &[OsString]) -> bool {
+    let mut command_words = Vec::new();
+    let mut iter = args.iter().skip(1);
+
+    while let Some(arg) = iter.next() {
+        if arg == "--json" {
+            continue;
+        }
+        if arg == "--api-url" {
+            let _ = iter.next();
+            continue;
+        }
+        let Some(arg_str) = arg.to_str() else {
+            continue;
+        };
+        if arg_str.starts_with("--json=") || arg_str.starts_with("--api-url=") {
+            continue;
+        }
+        command_words.push(arg_str);
+    }
+
+    matches!(command_words.as_slice(), ["auth", "token", "set", next, ..] if *next != "--help" && *next != "-h")
 }

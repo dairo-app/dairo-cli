@@ -2,9 +2,14 @@
 name = "dairo"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.85"
 license = "MIT"
 description = "Official Dairo command-line interface"
-repository = "https://github.com/dairo-ai/dairo-cli"
+repository = "https://github.com/dairo-app/dairo-cli"
+homepage = "https://dairo.app"
+documentation = "https://github.com/dairo-app/dairo-cli#readme"
+keywords = ["dairo", "email", "cli", "sdk", "api"]
+categories = ["api-bindings", "command-line-utilities"]
 
 [[bin]]
 name = "dairo"
@@ -24,4 +29,10 @@ url = "2.5"
 uuid = { version = "1.17", features = ["v4"] }
 
 [dev-dependencies]
+assert_cmd = "2.0"
 tempfile = "3.20"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

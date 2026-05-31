@@ -2,21 +2,36 @@
 
 Official Dairo command-line interface.
 
-Status: initial Rust implementation.
+Status: private preview. The CLI is intended for Dairo developers and early
+integrators while the public API, package signing, and release channels settle.
+Do not treat this repository as a stable public distribution channel yet.
+
+## Supported platforms
+
+- macOS and Linux are supported for preview development.
+- Windows builds should compile, but token-file permissions are best-effort
+  because Windows ACL hardening is not implemented yet.
+- Runtime requires outbound HTTPS access to the Dairo API.
 
 ## Install
 
-```sh
-cargo install --path .
-```
-
-Or run from the repository:
+From the repository:
 
 ```sh
-cargo run -- --help
+cargo install --path . --locked
 ```
 
-## Authentication
+Or run without installing:
+
+```sh
+cargo run --locked -- --help
+```
+
+No public binary release channel exists yet. Preview releases should be built
+from a reviewed git commit with `cargo build --release --locked`; signed
+multi-platform artifacts are planned before a public launch.
+
+## Authentication and token security
 
 The CLI authenticates with a Dairo API key using bearer auth.
 
@@ -25,20 +40,29 @@ Token lookup order:
 1. `DAIRO_API_KEY`
 2. local config file set by `dairo auth token set`
 
-Save a token locally:
+Prefer environment variables for CI and short-lived automation:
+
+```sh
+export DAIRO_API_KEY="dairo_..."
+```
+
+Save a token locally by piping it through stdin:
 
 ```sh
 printf '%s' "$DAIRO_API_KEY" | dairo auth token set
 ```
 
-You can also pass the token as an argument:
+Do not pass tokens as command-line arguments. They can leak through shell
+history and process listings, so `dairo auth token set dairo_...` is rejected.
 
-```sh
-dairo auth token set dairo_test_...
-```
+Preview token storage uses a local TOML config file, not an OS keychain. On Unix
+platforms the CLI writes the config directory as `0700` and the config file as
+`0600` using an atomic replace. On Windows, use `DAIRO_API_KEY` or a dedicated
+preview account if ACL-backed storage is required.
 
-The config file is written under the platform config directory, for example
-`~/.config/dairo/config.toml` on Linux.
+Config file locations follow the platform config directory, for example
+`~/.config/dairo/config.toml` on Linux. The API URL can be overridden with
+`DAIRO_API_URL` or hidden global `--api-url` for tests and staging.
 
 ## Commands
 
@@ -72,7 +96,7 @@ Create an inbox:
 dairo inbox create billing --domain example.com
 ```
 
-Send an email:
+Send an email. At least one non-empty `--to` recipient is required:
 
 ```sh
 dairo send \
@@ -118,17 +142,59 @@ Revoke an API key:
 dairo api-key revoke key_123
 ```
 
-Use `--json` for machine-readable output where supported:
+## JSON and error contract
+
+Use `--json` for machine-readable success output where supported:
 
 ```sh
 dairo --json domain list
 ```
 
+Failures with `--json` are emitted to stderr as a stable envelope:
+
+```json
+{
+  "error": {
+    "message": "missing Dairo API token; set DAIRO_API_KEY or run `dairo auth token set`",
+    "code": "command_failed",
+    "status": null
+  }
+}
+```
+
+Human output remains table/text oriented. One-time secrets from webhook/API-key
+creation are intentionally printed once; redirect or capture stdout carefully.
+
+## Troubleshooting
+
+- `missing Dairo API token`: set `DAIRO_API_KEY` or pipe a token into
+  `dairo auth token set`.
+- Network errors: verify `DAIRO_API_URL` is unset or points at a reachable Dairo
+  API such as `https://backend.dairo.app`.
+- Permission errors writing config: prefer `DAIRO_API_KEY`, or remove and
+  recreate the platform config directory with user-only permissions.
+- SES sandbox errors: the backend may reject arbitrary recipients until Dairo's
+  AWS SES production access is approved.
+
+## Release policy
+
+Version `0.1.x` is private preview. Breaking command/output changes may still
+happen, but security fixes should preserve documented behavior where possible.
+Before public release, Dairo should add signed multi-platform artifacts,
+changelog-based release notes, and a documented install channel.
+
 ## Development
 
 ```sh
 cargo fmt --check
-cargo test
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --all-features
+cargo build --release --locked
+cargo deny --locked check
+cargo audit --file Cargo.lock
 ```
+
+Support/contact: use the private `dairo-app/dairo-cli` repository while this is
+in preview.
 
 License: MIT

@@ -53,7 +53,7 @@ pub enum Command {
     Send {
         #[arg(long = "inbox-id")]
         inbox_id: String,
-        #[arg(long)]
+        #[arg(long, required = true, action = clap::ArgAction::Append)]
         to: Vec<String>,
         #[arg(long, default_value = "")]
         subject: String,
@@ -81,11 +81,11 @@ pub enum TokenSubcommand {
 }
 
 #[derive(Debug, Args)]
-pub struct TokenSetArgs {
-    /// Token value. If omitted, the CLI reads the token from stdin.
-    #[arg(value_name = "TOKEN")]
-    token: Option<String>,
-}
+/// Reads token value from stdin only.
+///
+/// Positional token arguments are intentionally rejected so secrets do not land
+/// in shell history or process listings.
+pub struct TokenSetArgs {}
 
 impl TokenCommand {
     pub fn token_value(self) -> Result<String> {
@@ -97,17 +97,11 @@ impl TokenCommand {
 
 impl TokenSetArgs {
     fn token_value(self) -> Result<String> {
-        let token = match self.token {
-            Some(token) => token,
-            None => {
-                eprintln!("Reading Dairo API token from stdin...");
-                let mut token = String::new();
-                io::stdin()
-                    .read_to_string(&mut token)
-                    .context("failed to read token from stdin")?;
-                token
-            }
-        };
+        eprintln!("Reading Dairo API token from stdin...");
+        let mut token = String::new();
+        io::stdin()
+            .read_to_string(&mut token)
+            .context("failed to read token from stdin")?;
         let trimmed = token.trim().to_string();
         anyhow::ensure!(!trimmed.is_empty(), "token cannot be empty");
         Ok(trimmed)
@@ -205,6 +199,15 @@ mod tests {
             }
             _ => panic!("expected send command"),
         }
+    }
+
+    #[test]
+    fn send_requires_at_least_one_recipient() {
+        let error =
+            Cli::try_parse_from(["dairo", "send", "--inbox-id", "inbox_123", "--text", "Body"])
+                .expect_err("send without --to should fail clap validation");
+
+        assert!(error.to_string().contains("--to"));
     }
 
     #[test]
