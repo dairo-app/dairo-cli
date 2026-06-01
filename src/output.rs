@@ -1,8 +1,8 @@
 use anyhow::Result;
 
 use crate::api::{
-    ApiKey, CreateApiKeyResponse, CreateWebhookResponse, DeleteResponse, Domain, Inbox, Message,
-    SendEmailResponse, Thread, Webhook,
+    ApiKey, AttachmentDownloadUrlResponse, CreateApiKeyResponse, CreateWebhookResponse,
+    DeleteResponse, Domain, Inbox, Message, SendEmailResponse, Thread, Webhook,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,11 +219,15 @@ pub fn print_messages(messages: &[Message], format: OutputFormat) -> Result<()> 
         println!("No messages found.");
         return Ok(());
     }
-    println!("{:<38} {:<38} {:<10} SUBJECT", "ID", "INBOX", "STATUS");
+    println!(
+        "{:<38} {:<38} {:<10} {:<12} SUBJECT",
+        "ID", "INBOX", "STATUS", "ATTACHMENTS"
+    );
     for message in messages {
+        let attachments = if message.has_attachments { "yes" } else { "-" };
         println!(
-            "{:<38} {:<38} {:<10} {}",
-            message.id, message.inbox_id, message.status, message.subject
+            "{:<38} {:<38} {:<10} {:<12} {}",
+            message.id, message.inbox_id, message.status, attachments, message.subject
         );
     }
     Ok(())
@@ -235,6 +239,39 @@ pub fn print_message(message: &Message, format: OutputFormat) -> Result<()> {
         return Ok(());
     }
     println!("Message {}: {}", message.id, message.subject);
+    if message.attachments.is_empty() {
+        if message.has_attachments {
+            println!("Attachments: present; run `dairo messages get {}` for metadata if this response was from a list view.", message.id);
+        } else {
+            println!("Attachments: none");
+        }
+    } else {
+        println!("Attachments:");
+        for attachment in &message.attachments {
+            println!(
+                "  - {}  {}  {}  {} bytes",
+                attachment.id,
+                attachment.filename.as_deref().unwrap_or("attachment"),
+                attachment
+                    .content_type
+                    .as_deref()
+                    .unwrap_or("application/octet-stream"),
+                attachment.size_bytes.unwrap_or_default()
+            );
+        }
+    }
+    Ok(())
+}
+
+pub fn print_attachment_url(
+    response: &AttachmentDownloadUrlResponse,
+    format: OutputFormat,
+) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(response)?);
+        return Ok(());
+    }
+    println!("{}", response.download_url);
     Ok(())
 }
 

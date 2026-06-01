@@ -10,13 +10,18 @@ use api::{
 };
 use clap::Parser;
 use cli::{
-    ApiKeyCommand, AuthCommand, Cli, Command, DomainCommand, InboxCommand, MessageCommand,
-    ThreadCommand, WebhookCommand,
+    ApiKeyCommand, AttachmentCommand, AuthCommand, Cli, Command, DomainCommand, InboxCommand,
+    MessageCommand, ThreadCommand, WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
 use serde_json::json;
-use std::{ffi::OsString, process::ExitCode};
+use std::{
+    collections::HashSet,
+    ffi::OsString,
+    path::{Path, PathBuf},
+    process::ExitCode,
+};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -148,6 +153,49 @@ async fn run(cli: Cli) -> Result<()> {
                         let response = client.get_message(&message_id).await?;
                         output::print_message(&response.message, format)
                     }
+                    MessageCommand::DownloadAttachments { message_id, out } => {
+                        let response = client.get_message(&message_id).await?;
+                        if response.message.attachments.is_empty() {
+                            println!("No attachments found for message {message_id}.");
+                            Ok(())
+                        } else {
+                            std::fs::create_dir_all(&out).with_context(|| {
+                                format!("creating output directory {}", out.display())
+                            })?;
+                            let mut used_paths = HashSet::new();
+                            for attachment in response.message.attachments {
+                                let bytes =
+                                    client.download_attachment_bytes(&attachment.id).await?;
+                                let path = unique_attachment_output_path(
+                                    &out,
+                                    attachment.filename.as_deref(),
+                                    &attachment.id,
+                                    &mut used_paths,
+                                )?;
+                                write_download(&path, &bytes)?;
+                                println!("Downloaded {} bytes to {}", bytes.len(), path.display());
+                            }
+                            Ok(())
+                        }
+                    }
+                },
+                Command::Attachment { command } => match command {
+                    AttachmentCommand::Url { attachment_id } => {
+                        let response = client.get_attachment_url(&attachment_id).await?;
+                        output::print_attachment_url(&response, format)
+                    }
+                    AttachmentCommand::Download { attachment_id, out } => {
+                        let metadata = client.get_attachment_url(&attachment_id).await?;
+                        let bytes = client.download_attachment_bytes(&attachment_id).await?;
+                        let path = attachment_output_path(
+                            &out,
+                            metadata.attachment.filename.as_deref(),
+                            &attachment_id,
+                        )?;
+                        write_download(&path, &bytes)?;
+                        println!("Downloaded {} bytes to {}", bytes.len(), path.display());
+                        Ok(())
+                    }
                 },
                 Command::Thread { command } => match command {
                     ThreadCommand::List {
@@ -268,6 +316,84 @@ fn print_error_message(message: &str, json_output: bool, code: &str) {
     } else {
         eprintln!("Error: {message}");
     }
+}
+
+fn attachment_output_path(
+    out: &Path,
+    filename: Option<&str>,
+    attachment_id: &str,
+) -> Result<PathBuf> {
+    if out.extension().is_some() || (out.exists() && out.is_file()) {
+        return Ok(out.to_path_buf());
+    }
+    let name = filename
+        .map(safe_filename)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| format!("{attachment_id}.bin"));
+    Ok(out.join(name))
+}
+
+fn unique_attachment_output_path(
+    out: &Path,
+    filename: Option<&str>,
+    attachment_id: &str,
+    used_paths: &mut HashSet<PathBuf>,
+) -> Result<PathBuf> {
+    let mut path = attachment_output_path(out, filename, attachment_id)?;
+    if out.extension().is_some() || (out.exists() && out.is_file()) {
+        anyhow::ensure!(
+            used_paths.insert(path.clone()),
+            "multiple attachments would write to {}; pass an output directory for message downloads",
+            path.display()
+        );
+        return Ok(path);
+    }
+    if used_paths.insert(path.clone()) && !path.exists() {
+        return Ok(path);
+    }
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .unwrap_or(attachment_id)
+        .to_string();
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_string);
+    for index in 2..10_000 {
+        let mut candidate_name = format!("{stem}-{index}");
+        if let Some(extension) = &extension {
+            candidate_name.push('.');
+            candidate_name.push_str(extension);
+        }
+        path = out.join(candidate_name);
+        if used_paths.insert(path.clone()) && !path.exists() {
+            return Ok(path);
+        }
+    }
+    anyhow::bail!("could not choose a unique filename for attachment {attachment_id}")
+}
+
+fn safe_filename(filename: &str) -> String {
+    filename
+        .chars()
+        .map(|ch| match ch {
+            '/' | '\\' | '\0' | '\r' | '\n' => '_',
+            _ => ch,
+        })
+        .collect::<String>()
+        .trim()
+        .trim_start_matches('.')
+        .to_string()
+}
+
+fn write_download(path: &Path, bytes: &[u8]) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating output directory {}", parent.display()))?;
+    }
+    std::fs::write(path, bytes).with_context(|| format!("writing {}", path.display()))
 }
 
 fn args_request_json(args: &[OsString]) -> bool {

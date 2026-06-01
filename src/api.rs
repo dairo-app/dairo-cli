@@ -144,6 +144,43 @@ impl ApiClient {
         .await
     }
 
+    pub async fn get_attachment_url(
+        &self,
+        attachment_id: &str,
+    ) -> Result<AttachmentDownloadUrlResponse> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "attachments", attachment_id, "url"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    pub async fn download_attachment_bytes(&self, attachment_id: &str) -> Result<Vec<u8>> {
+        let request = self.build_request(
+            Method::GET,
+            &["v1", "attachments", attachment_id, "download"],
+            None::<&()>,
+        )?;
+        let response = self.http.execute(request).await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let message = match response.json::<ErrorResponse>().await {
+                Ok(error) => error.error.message,
+                Err(_) => status
+                    .canonical_reason()
+                    .unwrap_or("unexpected API error")
+                    .to_string(),
+            };
+            return Err(ApiError::Api { status, message });
+        }
+        response
+            .bytes()
+            .await
+            .map(|bytes| bytes.to_vec())
+            .map_err(ApiError::Transport)
+    }
+
     pub async fn list_threads(&self, query: &ThreadListQuery) -> Result<ThreadListResponse> {
         let mut request = self.build_request(Method::GET, &["v1", "threads"], None::<&()>)?;
         apply_thread_query(request.url_mut(), query);
@@ -476,6 +513,34 @@ pub struct Message {
     pub received_at: Option<String>,
     #[serde(rename = "createdAt")]
     pub created_at: Option<String>,
+    #[serde(default)]
+    pub attachments: Vec<MessageAttachment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageAttachment {
+    pub id: String,
+    #[serde(rename = "messageId")]
+    pub message_id: Option<String>,
+    pub filename: Option<String>,
+    #[serde(rename = "contentType")]
+    pub content_type: Option<String>,
+    #[serde(rename = "sizeBytes")]
+    pub size_bytes: Option<i64>,
+    #[serde(rename = "contentId")]
+    pub content_id: Option<String>,
+    pub disposition: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttachmentDownloadUrlResponse {
+    pub attachment: MessageAttachment,
+    #[serde(rename = "downloadUrl")]
+    pub download_url: String,
+    #[serde(rename = "expiresInSeconds")]
+    pub expires_in_seconds: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

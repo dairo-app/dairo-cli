@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
-use std::io::{self, Read};
+use std::{
+    io::{self, Read},
+    path::PathBuf,
+};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -42,6 +45,12 @@ pub enum Command {
     Message {
         #[command(subcommand)]
         command: MessageCommand,
+    },
+    /// Download message attachments.
+    #[command(name = "attachments", alias = "attachment")]
+    Attachment {
+        #[command(subcommand)]
+        command: AttachmentCommand,
     },
     /// Inspect mailbox threads.
     Thread {
@@ -160,6 +169,24 @@ pub enum MessageCommand {
     },
     /// Get a message by ID.
     Get { message_id: String },
+    /// Download every attachment on a message into a directory.
+    DownloadAttachments {
+        message_id: String,
+        #[arg(long, default_value = ".")]
+        out: PathBuf,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AttachmentCommand {
+    /// Print a short-lived signed download URL.
+    Url { attachment_id: String },
+    /// Download one attachment to a file or directory.
+    Download {
+        attachment_id: String,
+        #[arg(long, default_value = ".")]
+        out: PathBuf,
+    },
 }
 
 #[derive(Debug, Subcommand)]
