@@ -186,9 +186,19 @@ pub enum MessageCommand {
 #[derive(Debug, Subcommand)]
 pub enum AttachmentCommand {
     /// Print short-lived branded URLs for an attachment.
-    Url { attachment_id: String },
+    Url {
+        attachment_id: String,
+        /// Expiry in hours. Defaults to about 5 minutes; maximum is 168 hours / one week.
+        #[arg(long = "expiry-hours")]
+        expiry_hours: Option<u32>,
+    },
     /// Print a short-lived human share page URL.
-    Share { attachment_id: String },
+    Share {
+        attachment_id: String,
+        /// Expiry in hours. Defaults to about 5 minutes; maximum is 168 hours / one week.
+        #[arg(long = "expiry-hours")]
+        expiry_hours: Option<u32>,
+    },
     /// Download one attachment to a file or directory.
     Download {
         attachment_id: String,
@@ -296,6 +306,57 @@ mod tests {
                 .expect_err("send without --to should fail clap validation");
 
         assert!(error.to_string().contains("--to"));
+    }
+
+    #[test]
+    fn parses_attachment_expiry_hours() {
+        let cli = Cli::try_parse_from([
+            "dairo",
+            "attachments",
+            "url",
+            "att_123",
+            "--expiry-hours",
+            "24",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Attachment {
+                command:
+                    AttachmentCommand::Url {
+                        attachment_id,
+                        expiry_hours,
+                    },
+            } => {
+                assert_eq!(attachment_id, "att_123");
+                assert_eq!(expiry_hours, Some(24));
+            }
+            _ => panic!("expected attachment url command"),
+        }
+
+        let cli = Cli::try_parse_from([
+            "dairo",
+            "attachments",
+            "share",
+            "att_123",
+            "--expiry-hours",
+            "168",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Attachment {
+                command:
+                    AttachmentCommand::Share {
+                        attachment_id,
+                        expiry_hours,
+                    },
+            } => {
+                assert_eq!(attachment_id, "att_123");
+                assert_eq!(expiry_hours, Some(168));
+            }
+            _ => panic!("expected attachment share command"),
+        }
     }
 
     #[test]

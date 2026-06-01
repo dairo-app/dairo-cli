@@ -147,13 +147,20 @@ impl ApiClient {
     pub async fn get_attachment_url(
         &self,
         attachment_id: &str,
+        expiry_hours: Option<u32>,
     ) -> Result<AttachmentDownloadUrlResponse> {
-        self.execute_json(self.build_request(
+        let mut request = self.build_request(
             Method::GET,
             &["v1", "attachments", attachment_id, "url"],
             None::<&()>,
-        )?)
-        .await
+        )?;
+        if let Some(hours) = expiry_hours {
+            request
+                .url_mut()
+                .query_pairs_mut()
+                .append_pair("expiryHours", &hours.to_string());
+        }
+        self.execute_json(request).await
     }
 
     pub async fn download_attachment_bytes(&self, attachment_id: &str) -> Result<Vec<u8>> {

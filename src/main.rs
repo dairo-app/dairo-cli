@@ -181,16 +181,26 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                 },
                 Command::Attachment { command } => match command {
-                    AttachmentCommand::Url { attachment_id } => {
-                        let response = client.get_attachment_url(&attachment_id).await?;
+                    AttachmentCommand::Url {
+                        attachment_id,
+                        expiry_hours,
+                    } => {
+                        let response = client
+                            .get_attachment_url(&attachment_id, expiry_hours)
+                            .await?;
                         output::print_attachment_url(&response, format)
                     }
-                    AttachmentCommand::Share { attachment_id } => {
-                        let response = client.get_attachment_url(&attachment_id).await?;
+                    AttachmentCommand::Share {
+                        attachment_id,
+                        expiry_hours,
+                    } => {
+                        let response = client
+                            .get_attachment_url(&attachment_id, expiry_hours)
+                            .await?;
                         output::print_attachment_share_url(&response, format)
                     }
                     AttachmentCommand::Download { attachment_id, out } => {
-                        let metadata = client.get_attachment_url(&attachment_id).await?;
+                        let metadata = client.get_attachment_url(&attachment_id, None).await?;
                         let bytes = client.download_attachment_bytes(&attachment_id).await?;
                         let path = attachment_output_path(
                             &out,

@@ -150,11 +150,11 @@ dairo messages list --inbox-id 018f0000-0000-0000-0000-000000000000
 dairo messages get msg_123
 ```
 
-Download attachment files. `attachments url` prints a short-lived direct download URL; `attachments share` prints the short-lived human share-page URL. `attachments download` uses the direct Dairo API fast path and writes bytes to a file or directory:
+Download attachment files. `attachments url` prints a short-lived direct download URL; `attachments share` prints the short-lived human share-page URL. Add `--expiry-hours <1-168>` when a longer handoff window is needed. `attachments download` uses the direct Dairo API fast path and writes bytes to a file or directory:
 
 ```sh
-dairo attachments url att_456
-dairo attachments share att_456
+dairo attachments url att_456 --expiry-hours 24
+dairo attachments share att_456 --expiry-hours 24
 dairo attachments download att_456 --out ./invoice.pdf
 dairo messages download-attachments msg_123 --out ./downloads
 ```
