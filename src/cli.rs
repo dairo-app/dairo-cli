@@ -80,6 +80,8 @@ pub enum Command {
         subject: String,
         #[arg(long)]
         text: String,
+        #[arg(long = "attachment", value_name = "PATH", action = clap::ArgAction::Append)]
+        attachments: Vec<PathBuf>,
     },
 }
 
@@ -245,10 +247,9 @@ mod tests {
     fn cli_command_tree_is_valid() {
         Cli::command().debug_assert();
     }
-
     #[test]
     fn parses_send_arguments() {
-        let cli = Cli::parse_from([
+        let cli = Cli::try_parse_from([
             "dairo",
             "send",
             "--inbox-id",
@@ -259,7 +260,10 @@ mod tests {
             "Hello",
             "--text",
             "Body",
-        ]);
+            "--attachment",
+            "invoice.pdf",
+        ])
+        .unwrap();
 
         match cli.command {
             Command::Send {
@@ -267,11 +271,13 @@ mod tests {
                 to,
                 subject,
                 text,
+                attachments,
             } => {
                 assert_eq!(inbox_id, "inbox_123");
                 assert_eq!(to, vec!["max@example.com"]);
                 assert_eq!(subject, "Hello");
                 assert_eq!(text, "Body");
+                assert_eq!(attachments, vec![PathBuf::from("invoice.pdf")]);
             }
             _ => panic!("expected send command"),
         }

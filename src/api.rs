@@ -336,8 +336,19 @@ pub struct SendEmailRequest {
     pub text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<SendEmailAttachment>>,
     #[serde(rename = "idempotencyKey", skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SendEmailAttachment {
+    pub filename: String,
+    #[serde(rename = "contentType")]
+    pub content_type: String,
+    #[serde(rename = "contentBase64")]
+    pub content_base64: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -685,6 +696,11 @@ mod tests {
             subject: "Hello".to_string(),
             text: "Body".to_string(),
             html: None,
+            attachments: Some(vec![SendEmailAttachment {
+                filename: "invoice.pdf".to_string(),
+                content_type: "application/pdf".to_string(),
+                content_base64: "JVBERi0xLjQ=".to_string(),
+            }]),
             idempotency_key: None,
         };
 
@@ -694,6 +710,9 @@ mod tests {
         assert_eq!(value["to"][0], "max@example.com");
         assert_eq!(value["subject"], "Hello");
         assert!(value.get("cc").is_none());
+        assert_eq!(value["attachments"][0]["filename"], "invoice.pdf");
+        assert_eq!(value["attachments"][0]["contentType"], "application/pdf");
+        assert_eq!(value["attachments"][0]["contentBase64"], "JVBERi0xLjQ=");
     }
 
     #[test]

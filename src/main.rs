@@ -6,8 +6,9 @@ mod output;
 use anyhow::{Context, Result};
 use api::{
     ApiClient, CreateApiKeyRequest, CreateDomainRequest, CreateInboxRequest, CreateWebhookRequest,
-    MessageListQuery, SendEmailRequest, ThreadListQuery,
+    MessageListQuery, SendEmailAttachment, SendEmailRequest, ThreadListQuery,
 };
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::Parser;
 use cli::{
     ApiKeyCommand, AttachmentCommand, AuthCommand, Cli, Command, DomainCommand, InboxCommand,
@@ -254,8 +255,10 @@ async fn run(cli: Cli) -> Result<()> {
                     mut to,
                     subject,
                     text,
+                    attachments,
                 } => {
                     normalize_recipients(&mut to)?;
+                    let attachments = read_send_attachments(&attachments)?;
                     let response = client
                         .send_email(&SendEmailRequest {
                             inbox_id,
@@ -265,6 +268,7 @@ async fn run(cli: Cli) -> Result<()> {
                             subject,
                             text,
                             html: None,
+                            attachments,
                             idempotency_key: None,
                         })
                         .await?;
@@ -275,6 +279,51 @@ async fn run(cli: Cli) -> Result<()> {
             .context("failed to print command output")
         }
     }
+}
+
+fn read_send_attachments(paths: &[PathBuf]) -> Result<Option<Vec<SendEmailAttachment>>> {
+    if paths.is_empty() {
+        return Ok(None);
+    }
+    let mut attachments = Vec::with_capacity(paths.len());
+    for path in paths {
+        let bytes = std::fs::read(path)
+            .with_context(|| format!("failed to read attachment {}", path.display()))?;
+        anyhow::ensure!(!bytes.is_empty(), "attachment {} is empty", path.display());
+        let filename = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .filter(|value| !value.trim().is_empty())
+            .map(str::to_string)
+            .with_context(|| format!("attachment {} has no valid filename", path.display()))?;
+        attachments.push(SendEmailAttachment {
+            content_type: guess_content_type(path),
+            filename,
+            content_base64: BASE64_STANDARD.encode(bytes),
+        });
+    }
+    Ok(Some(attachments))
+}
+
+fn guess_content_type(path: &Path) -> String {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "pdf" => "application/pdf",
+        "txt" => "text/plain",
+        "html" | "htm" => "text/html",
+        "csv" => "text/csv",
+        "json" => "application/json",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        _ => "application/octet-stream",
+    }
+    .to_string()
 }
 
 fn normalize_recipients(recipients: &mut Vec<String>) -> Result<()> {
