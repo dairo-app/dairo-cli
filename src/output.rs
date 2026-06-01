@@ -239,6 +239,32 @@ pub fn print_message(message: &Message, format: OutputFormat) -> Result<()> {
         return Ok(());
     }
     println!("Message {}: {}", message.id, message.subject);
+    println!("From: {}", message.from.address);
+    if !message.to.is_empty() {
+        println!("To: {}", message.to.join(", "));
+    }
+    if let Some(received_at) = &message.received_at {
+        println!("Received: {received_at}");
+    }
+    if let Some(text_body) = message
+        .text_body
+        .as_deref()
+        .map(str::trim)
+        .filter(|body| !body.is_empty())
+    {
+        println!("Body:\n{text_body}");
+    } else if let Some(html_body) = message
+        .html_body
+        .as_deref()
+        .map(str::trim)
+        .filter(|body| !body.is_empty())
+    {
+        println!("HTML Body:\n{html_body}");
+    } else if !message.text_preview.trim().is_empty() {
+        println!("Preview:\n{}", message.text_preview.trim());
+    } else {
+        println!("Body: <empty>");
+    }
     if message.attachments.is_empty() {
         if message.has_attachments {
             println!("Attachments: present; run `dairo messages get {}` for metadata if this response was from a list view.", message.id);

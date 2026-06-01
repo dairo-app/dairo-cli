@@ -505,6 +505,10 @@ pub struct Message {
     pub subject: String,
     #[serde(default, rename = "textPreview")]
     pub text_preview: String,
+    #[serde(default, rename = "textBody")]
+    pub text_body: Option<String>,
+    #[serde(default, rename = "htmlBody")]
+    pub html_body: Option<String>,
     #[serde(default, rename = "hasHtml")]
     pub has_html: bool,
     #[serde(default, rename = "hasAttachments")]
@@ -714,6 +718,32 @@ mod tests {
             api_key.url().as_str(),
             "https://api.example.test/v1/api-keys/key_123"
         );
+    }
+
+    #[test]
+    fn deserializes_message_body_fields() {
+        let message: Message = serde_json::from_value(serde_json::json!({
+            "id": "msg_123",
+            "inboxId": "inbox_123",
+            "threadId": null,
+            "direction": "inbound",
+            "status": "received",
+            "from": { "address": "sender@example.com", "name": null },
+            "to": ["test@dairo.app"],
+            "subject": "Hello",
+            "textPreview": "Body preview",
+            "textBody": "Full plain body",
+            "htmlBody": "<p>Full html body</p>",
+            "hasHtml": true,
+            "hasAttachments": false,
+            "receivedAt": "2026-06-01T00:00:00Z",
+            "createdAt": "2026-06-01T00:00:00Z",
+            "attachments": []
+        }))
+        .unwrap();
+
+        assert_eq!(message.text_body.as_deref(), Some("Full plain body"));
+        assert_eq!(message.html_body.as_deref(), Some("<p>Full html body</p>"));
     }
 
     #[test]
