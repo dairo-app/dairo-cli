@@ -4,7 +4,7 @@ use thiserror::Error;
 use url::Url;
 use uuid::Uuid;
 
-pub const DEFAULT_BASE_URL: &str = "https://backend.dairo.app";
+pub const DEFAULT_BASE_URL: &str = "https://api.dairo.app";
 
 #[derive(Debug, Error)]
 pub enum ApiError {

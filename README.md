@@ -170,7 +170,7 @@ creation are intentionally printed once; redirect or capture stdout carefully.
 - `missing Dairo API token`: set `DAIRO_API_KEY` or pipe a token into
   `dairo auth token set`.
 - Network errors: verify `DAIRO_API_URL` is unset or points at a reachable Dairo
-  API such as `https://backend.dairo.app`.
+  API such as `https://api.dairo.app`.
 - Permission errors writing config: prefer `DAIRO_API_KEY`, or remove and
   recreate the platform config directory with user-only permissions.
 - SES sandbox errors: the backend may reject arbitrary recipients until Dairo's
