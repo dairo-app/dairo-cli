@@ -349,6 +349,8 @@ pub struct SendEmailAttachment {
     pub content_type: String,
     #[serde(rename = "contentBase64")]
     pub content_base64: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -554,6 +556,8 @@ pub struct AttachmentDownloadUrlResponse {
     pub attachment: MessageAttachment,
     #[serde(rename = "downloadUrl")]
     pub download_url: String,
+    #[serde(default, rename = "shareUrl")]
+    pub share_url: Option<String>,
     #[serde(rename = "expiresInSeconds")]
     pub expires_in_seconds: u64,
 }
@@ -700,6 +704,7 @@ mod tests {
                 filename: "invoice.pdf".to_string(),
                 content_type: "application/pdf".to_string(),
                 content_base64: "JVBERi0xLjQ=".to_string(),
+                delivery: None,
             }]),
             idempotency_key: None,
         };

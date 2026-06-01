@@ -96,14 +96,15 @@ Create an inbox:
 dairo inbox create billing --domain example.com
 ```
 
-Send an email. At least one non-empty `--to` recipient is required:
+Send an email. At least one non-empty `--to` recipient is required. Inline attachments use `--attachment`; Dairo does not auto-convert large files into links. If a file is too big, the command fails and tells you to create a Dairo share link first, place that link exactly where you want it in `--text`/`--html`, then send without the oversized attachment.
 
 ```sh
 dairo send \
   --inbox-id 018f0000-0000-0000-0000-000000000000 \
   --to max@example.com \
   --subject "Hello from Dairo" \
-  --text "This was sent with the Dairo CLI."
+  --text "This was sent with the Dairo CLI." \
+  --attachment ./invoice.pdf
 ```
 
 List and create webhooks:
@@ -149,10 +150,11 @@ dairo messages list --inbox-id 018f0000-0000-0000-0000-000000000000
 dairo messages get msg_123
 ```
 
-Download attachment files. `attachments url` prints a short-lived handoff URL; `attachments download` uses the direct Dairo API fast path and writes bytes to a file or directory:
+Download attachment files. `attachments url` prints a short-lived direct download URL; `attachments share` prints the short-lived human share-page URL. `attachments download` uses the direct Dairo API fast path and writes bytes to a file or directory:
 
 ```sh
 dairo attachments url att_456
+dairo attachments share att_456
 dairo attachments download att_456 --out ./invoice.pdf
 dairo messages download-attachments msg_123 --out ./downloads
 ```

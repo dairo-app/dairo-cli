@@ -185,6 +185,10 @@ async fn run(cli: Cli) -> Result<()> {
                         let response = client.get_attachment_url(&attachment_id).await?;
                         output::print_attachment_url(&response, format)
                     }
+                    AttachmentCommand::Share { attachment_id } => {
+                        let response = client.get_attachment_url(&attachment_id).await?;
+                        output::print_attachment_share_url(&response, format)
+                    }
                     AttachmentCommand::Download { attachment_id, out } => {
                         let metadata = client.get_attachment_url(&attachment_id).await?;
                         let bytes = client.download_attachment_bytes(&attachment_id).await?;
@@ -256,9 +260,10 @@ async fn run(cli: Cli) -> Result<()> {
                     subject,
                     text,
                     attachments,
+                    attachment_delivery,
                 } => {
                     normalize_recipients(&mut to)?;
-                    let attachments = read_send_attachments(&attachments)?;
+                    let attachments = read_send_attachments(&attachments, &attachment_delivery)?;
                     let response = client
                         .send_email(&SendEmailRequest {
                             inbox_id,
@@ -281,15 +286,37 @@ async fn run(cli: Cli) -> Result<()> {
     }
 }
 
-fn read_send_attachments(paths: &[PathBuf]) -> Result<Option<Vec<SendEmailAttachment>>> {
+const MAX_INLINE_ATTACHMENT_BYTES: usize = 8 * 1024 * 1024;
+
+fn read_send_attachments(
+    paths: &[PathBuf],
+    delivery: &str,
+) -> Result<Option<Vec<SendEmailAttachment>>> {
     if paths.is_empty() {
         return Ok(None);
     }
+    let delivery = delivery.trim();
+    anyhow::ensure!(
+        delivery == "attachment" || delivery == "link",
+        "--attachment-delivery must be 'attachment' or 'link'"
+    );
+    if delivery == "link" {
+        anyhow::bail!(
+            "delivery='link' does not automatically attach files or edit the email body; create a Dairo share link first, place it in --text/--html yourself, then send without --attachment"
+        );
+    }
     let mut attachments = Vec::with_capacity(paths.len());
+    let mut total_bytes = 0usize;
     for path in paths {
         let bytes = std::fs::read(path)
             .with_context(|| format!("failed to read attachment {}", path.display()))?;
         anyhow::ensure!(!bytes.is_empty(), "attachment {} is empty", path.display());
+        total_bytes += bytes.len();
+        anyhow::ensure!(
+            bytes.len() <= MAX_INLINE_ATTACHMENT_BYTES && total_bytes <= MAX_INLINE_ATTACHMENT_BYTES,
+            "file too big for email attachment delivery; create a Dairo share link and place it in the email body manually, or rerun with --attachment-delivery link after creating the link. Dairo inline attachment limit is {} bytes to stay below API Gateway's 10 MB JSON/base64 envelope and SES v2's 40 MB message limit",
+            MAX_INLINE_ATTACHMENT_BYTES
+        );
         let filename = path
             .file_name()
             .and_then(|value| value.to_str())
@@ -300,6 +327,7 @@ fn read_send_attachments(paths: &[PathBuf]) -> Result<Option<Vec<SendEmailAttach
             content_type: guess_content_type(path),
             filename,
             content_base64: BASE64_STANDARD.encode(bytes),
+            delivery: None,
         });
     }
     Ok(Some(attachments))

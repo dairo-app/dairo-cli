@@ -301,6 +301,22 @@ pub fn print_attachment_url(
     Ok(())
 }
 
+pub fn print_attachment_share_url(
+    response: &AttachmentDownloadUrlResponse,
+    format: OutputFormat,
+) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(response)?);
+        return Ok(());
+    }
+    if let Some(share_url) = &response.share_url {
+        println!("{share_url}");
+    } else {
+        println!("{}", response.download_url);
+    }
+    Ok(())
+}
+
 pub fn print_delete_response(
     response: &DeleteResponse,
     resource: &str,

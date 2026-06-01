@@ -82,6 +82,8 @@ pub enum Command {
         text: String,
         #[arg(long = "attachment", value_name = "PATH", action = clap::ArgAction::Append)]
         attachments: Vec<PathBuf>,
+        #[arg(long = "attachment-delivery", default_value = "attachment")]
+        attachment_delivery: String,
     },
 }
 
@@ -183,8 +185,10 @@ pub enum MessageCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum AttachmentCommand {
-    /// Print a short-lived signed download URL.
+    /// Print short-lived branded URLs for an attachment.
     Url { attachment_id: String },
+    /// Print a short-lived human share page URL.
+    Share { attachment_id: String },
     /// Download one attachment to a file or directory.
     Download {
         attachment_id: String,
@@ -272,12 +276,14 @@ mod tests {
                 subject,
                 text,
                 attachments,
+                attachment_delivery,
             } => {
                 assert_eq!(inbox_id, "inbox_123");
                 assert_eq!(to, vec!["max@example.com"]);
                 assert_eq!(subject, "Hello");
                 assert_eq!(text, "Body");
                 assert_eq!(attachments, vec![PathBuf::from("invoice.pdf")]);
+                assert_eq!(attachment_delivery, "attachment");
             }
             _ => panic!("expected send command"),
         }
