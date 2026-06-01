@@ -1,0 +1,470 @@
+{
+  "name": "dairo-public-sdk-contract",
+  "openapiVersion": "3.1.0",
+  "operationCount": 20,
+  "operations": [
+    {
+      "method": "GET",
+      "operationId": "listApiKeys",
+      "parameters": [],
+      "path": "/v1/api-keys",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/ApiKeyListResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "keys:write"
+      ]
+    },
+    {
+      "method": "POST",
+      "operationId": "createApiKey",
+      "parameters": [],
+      "path": "/v1/api-keys",
+      "requestSchema": "#/components/schemas/CreateApiKeyRequest",
+      "responseSchemas": {
+        "200": "#/components/schemas/CreateApiKeyResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "keys:write"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "operationId": "revokeApiKey",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "apiKeyId"
+        }
+      ],
+      "path": "/v1/api-keys/{apiKeyId}",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/DeleteResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "keys:write"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "downloadAttachment",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "attachmentId"
+        }
+      ],
+      "path": "/v1/attachments/{attachmentId}/download",
+      "requestSchema": null,
+      "responseSchemas": {
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "mail:read"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "getAttachmentDownloadUrl",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "attachmentId"
+        }
+      ],
+      "path": "/v1/attachments/{attachmentId}/url",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/AttachmentDownloadUrlResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "mail:read"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "listDomains",
+      "parameters": [],
+      "path": "/v1/domains",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/DomainListResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "domains:write"
+      ]
+    },
+    {
+      "method": "POST",
+      "operationId": "createDomain",
+      "parameters": [],
+      "path": "/v1/domains",
+      "requestSchema": "#/components/schemas/CreateDomainRequest",
+      "responseSchemas": {
+        "200": "#/components/schemas/DomainListResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "domains:write"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteDomain",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "domain"
+        }
+      ],
+      "path": "/v1/domains/{domain}",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/DomainListResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "domains:write"
+      ]
+    },
+    {
+      "method": "POST",
+      "operationId": "recheckDomain",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "domain"
+        }
+      ],
+      "path": "/v1/domains/{domain}/recheck",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/DomainListResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "domains:write"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "listInboxes",
+      "parameters": [],
+      "path": "/v1/inboxes",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/InboxListResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "mail:read"
+      ]
+    },
+    {
+      "method": "POST",
+      "operationId": "createInbox",
+      "parameters": [],
+      "path": "/v1/inboxes",
+      "requestSchema": "#/components/schemas/CreateInboxRequest",
+      "responseSchemas": {
+        "200": "#/components/schemas/InboxResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "domains:write"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteInbox",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "inbox"
+        }
+      ],
+      "path": "/v1/inboxes/{inbox}",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/DeleteResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "domains:write"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "listMessages",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "inboxId"
+        },
+        {
+          "in": "query",
+          "name": "threadId"
+        },
+        {
+          "in": "query",
+          "name": "direction"
+        }
+      ],
+      "path": "/v1/messages",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/MessageListResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "mail:read"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "getMessage",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/MessageResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "mail:read"
+      ]
+    },
+    {
+      "method": "POST",
+      "operationId": "sendEmail",
+      "parameters": [],
+      "path": "/v1/send-email",
+      "requestSchema": "#/components/schemas/SendEmailRequest",
+      "responseSchemas": {
+        "202": "#/components/schemas/SendEmailResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "mail:send"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "listThreads",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "inboxId"
+        }
+      ],
+      "path": "/v1/threads",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/ThreadListResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "mail:read"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "getThread",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "threadId"
+        }
+      ],
+      "path": "/v1/threads/{threadId}",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/ThreadResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "mail:read"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "listWebhooks",
+      "parameters": [],
+      "path": "/v1/webhooks",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/WebhookListResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "webhooks:write"
+      ]
+    },
+    {
+      "method": "POST",
+      "operationId": "createWebhook",
+      "parameters": [],
+      "path": "/v1/webhooks",
+      "requestSchema": "#/components/schemas/CreateWebhookRequest",
+      "responseSchemas": {
+        "200": "#/components/schemas/CreateWebhookResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "webhooks:write"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/DeleteResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "webhooks:write"
+      ]
+    }
+  ],
+  "source": "backend/dairo-api/openapi/dairo.openapi.json",
+  "version": 1
+}
