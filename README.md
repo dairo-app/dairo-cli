@@ -96,7 +96,7 @@ Create an inbox:
 dairo inbox create billing --domain example.com
 ```
 
-Send an email. At least one non-empty `--to` recipient is required. Inline attachments use `--attachment`; Dairo does not auto-convert large files into links. If a file is too big, the command fails and tells you to create a Dairo share link first, place that link exactly where you want it in `--text`/`--html`, then send without the oversized attachment.
+Send an email. At least one non-empty `--to` recipient is required, along with at least one body option: `--text`, `--html`, or `--react-source`. Inline attachments use `--attachment`; Dairo does not auto-convert large files into links. If a file is too big, the command fails and tells you to create a Dairo share link first, place that link exactly where you want it in `--text`/`--html`, then send without the oversized attachment.
 
 ```sh
 dairo send \
@@ -105,6 +105,17 @@ dairo send \
   --subject "Hello from Dairo" \
   --text "This was sent with the Dairo CLI." \
   --attachment ./invoice.pdf
+```
+
+Send using hosted React rendering. The CLI passes the React source and optional props through to Dairo; rendering happens server-side before outbound delivery.
+
+```sh
+dairo send \
+  --inbox-id 018f0000-0000-0000-0000-000000000000 \
+  --to max@example.com \
+  --subject "Your receipt" \
+  --react-source 'export default function Email(props) { return <p>Hello {props.name}</p>; }' \
+  --react-props '{"name":"Max"}'
 ```
 
 List and create webhooks:

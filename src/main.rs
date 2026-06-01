@@ -6,7 +6,7 @@ mod output;
 use anyhow::{Context, Result};
 use api::{
     ApiClient, CreateApiKeyRequest, CreateDomainRequest, CreateInboxRequest, CreateWebhookRequest,
-    MessageListQuery, SendEmailAttachment, SendEmailRequest, ThreadListQuery,
+    MessageListQuery, SendEmailAttachment, SendEmailReact, SendEmailRequest, ThreadListQuery,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::Parser;
@@ -264,16 +264,20 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_delete_response(&response, "API key", format)
                     }
                 },
-                Command::Send {
+                Command::Send(cli::SendArgs {
                     inbox_id,
                     mut to,
                     subject,
                     text,
+                    html,
+                    react_source,
+                    react_props,
                     attachments,
                     attachment_delivery,
-                } => {
+                }) => {
                     normalize_recipients(&mut to)?;
                     let attachments = read_send_attachments(&attachments, &attachment_delivery)?;
+                    let react = build_react_request(react_source, react_props)?;
                     let response = client
                         .send_email(&SendEmailRequest {
                             inbox_id,
@@ -282,7 +286,8 @@ async fn run(cli: Cli) -> Result<()> {
                             bcc: None,
                             subject,
                             text,
-                            html: None,
+                            html,
+                            react,
                             attachments,
                             idempotency_key: None,
                         })
@@ -297,6 +302,34 @@ async fn run(cli: Cli) -> Result<()> {
 }
 
 const MAX_INLINE_ATTACHMENT_BYTES: usize = 8 * 1024 * 1024;
+
+fn build_react_request(
+    source: Option<String>,
+    props_json: Option<String>,
+) -> Result<Option<SendEmailReact>> {
+    let Some(source) = source else {
+        anyhow::ensure!(
+            props_json.is_none(),
+            "--react-props requires --react-source"
+        );
+        return Ok(None);
+    };
+
+    let props = match props_json {
+        Some(props_json) => {
+            let value: serde_json::Value =
+                serde_json::from_str(&props_json).context("--react-props must be valid JSON")?;
+            let object = value
+                .as_object()
+                .cloned()
+                .context("--react-props must be a JSON object")?;
+            Some(object)
+        }
+        None => None,
+    };
+
+    Ok(Some(SendEmailReact { source, props }))
+}
 
 fn read_send_attachments(
     paths: &[PathBuf],
@@ -512,4 +545,36 @@ fn rejects_positional_token(args: &[OsString]) -> bool {
     }
 
     matches!(command_words.as_slice(), ["auth", "token", "set", next, ..] if *next != "--help" && *next != "-h")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_react_request_with_object_props() {
+        let react = build_react_request(
+            Some("export default function Email() { return <p>Hello</p>; }".to_string()),
+            Some(r#"{"name":"Max"}"#.to_string()),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(
+            react.source,
+            "export default function Email() { return <p>Hello</p>; }"
+        );
+        assert_eq!(react.props.unwrap()["name"], "Max");
+    }
+
+    #[test]
+    fn rejects_react_props_that_are_not_an_object() {
+        let error = build_react_request(
+            Some("export default function Email() { return <p>Hello</p>; }".to_string()),
+            Some(r#"["Max"]"#.to_string()),
+        )
+        .expect_err("array props should be rejected");
+
+        assert!(error.to_string().contains("JSON object"));
+    }
 }

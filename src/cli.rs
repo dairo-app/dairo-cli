@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use clap::{Args, Parser, Subcommand};
+use clap::{ArgGroup, Args, Parser, Subcommand};
 use std::{
     io::{self, Read},
     path::PathBuf,
@@ -71,20 +71,37 @@ pub enum Command {
         command: ApiKeyCommand,
     },
     /// Send an email from a Dairo inbox.
-    Send {
-        #[arg(long = "inbox-id")]
-        inbox_id: String,
-        #[arg(long, required = true, action = clap::ArgAction::Append)]
-        to: Vec<String>,
-        #[arg(long, default_value = "")]
-        subject: String,
-        #[arg(long)]
-        text: String,
-        #[arg(long = "attachment", value_name = "PATH", action = clap::ArgAction::Append)]
-        attachments: Vec<PathBuf>,
-        #[arg(long = "attachment-delivery", default_value = "attachment")]
-        attachment_delivery: String,
-    },
+    Send(SendArgs),
+}
+
+#[derive(Debug, Args)]
+#[command(group(
+    ArgGroup::new("body")
+        .required(true)
+        .multiple(true)
+        .args(["text", "html", "react_source"])
+))]
+pub struct SendArgs {
+    #[arg(long = "inbox-id")]
+    pub inbox_id: String,
+    #[arg(long, required = true, action = clap::ArgAction::Append)]
+    pub to: Vec<String>,
+    #[arg(long, default_value = "")]
+    pub subject: String,
+    #[arg(long)]
+    pub text: Option<String>,
+    #[arg(long)]
+    pub html: Option<String>,
+    /// Hosted React component source rendered by Dairo before sending.
+    #[arg(long = "react-source", value_name = "SOURCE")]
+    pub react_source: Option<String>,
+    /// JSON object passed to the hosted React component as props.
+    #[arg(long = "react-props", value_name = "JSON", requires = "react_source")]
+    pub react_props: Option<String>,
+    #[arg(long = "attachment", value_name = "PATH", action = clap::ArgAction::Append)]
+    pub attachments: Vec<PathBuf>,
+    #[arg(long = "attachment-delivery", default_value = "attachment")]
+    pub attachment_delivery: String,
 }
 
 #[derive(Debug, Subcommand)]
@@ -280,19 +297,72 @@ mod tests {
         .unwrap();
 
         match cli.command {
-            Command::Send {
+            Command::Send(SendArgs {
                 inbox_id,
                 to,
                 subject,
                 text,
+                html,
+                react_source,
+                react_props,
                 attachments,
                 attachment_delivery,
-            } => {
+            }) => {
                 assert_eq!(inbox_id, "inbox_123");
                 assert_eq!(to, vec!["max@example.com"]);
                 assert_eq!(subject, "Hello");
-                assert_eq!(text, "Body");
+                assert_eq!(text.as_deref(), Some("Body"));
+                assert_eq!(html, None);
+                assert_eq!(react_source, None);
+                assert_eq!(react_props, None);
                 assert_eq!(attachments, vec![PathBuf::from("invoice.pdf")]);
+                assert_eq!(attachment_delivery, "attachment");
+            }
+            _ => panic!("expected send command"),
+        }
+    }
+
+    #[test]
+    fn parses_react_send_arguments() {
+        let cli = Cli::try_parse_from([
+            "dairo",
+            "send",
+            "--inbox-id",
+            "inbox_123",
+            "--to",
+            "max@example.com",
+            "--subject",
+            "Hello",
+            "--react-source",
+            "export default function Email(props) { return <p>{props.name}</p>; }",
+            "--react-props",
+            r#"{"name":"Max"}"#,
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Send(SendArgs {
+                inbox_id,
+                to,
+                subject,
+                text,
+                html,
+                react_source,
+                react_props,
+                attachments,
+                attachment_delivery,
+            }) => {
+                assert_eq!(inbox_id, "inbox_123");
+                assert_eq!(to, vec!["max@example.com"]);
+                assert_eq!(subject, "Hello");
+                assert_eq!(text, None);
+                assert_eq!(html, None);
+                assert_eq!(
+                    react_source.as_deref(),
+                    Some("export default function Email(props) { return <p>{props.name}</p>; }")
+                );
+                assert_eq!(react_props.as_deref(), Some(r#"{"name":"Max"}"#));
+                assert!(attachments.is_empty());
                 assert_eq!(attachment_delivery, "attachment");
             }
             _ => panic!("expected send command"),
@@ -306,6 +376,24 @@ mod tests {
                 .expect_err("send without --to should fail clap validation");
 
         assert!(error.to_string().contains("--to"));
+    }
+
+    #[test]
+    fn send_requires_at_least_one_body_option() {
+        let error = Cli::try_parse_from([
+            "dairo",
+            "send",
+            "--inbox-id",
+            "inbox_123",
+            "--to",
+            "max@example.com",
+        ])
+        .expect_err("send without a body should fail clap validation");
+
+        let message = error.to_string();
+        assert!(message.contains("--text"));
+        assert!(message.contains("--html"));
+        assert!(message.contains("--react-source"));
     }
 
     #[test]

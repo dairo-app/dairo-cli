@@ -330,7 +330,7 @@ pub struct Inbox {
     pub last_message_at: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SendEmailRequest {
     #[serde(rename = "inboxId")]
     pub inbox_id: String,
@@ -340,13 +340,23 @@ pub struct SendEmailRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bcc: Option<Vec<String>>,
     pub subject: String,
-    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub react: Option<SendEmailReact>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<SendEmailAttachment>>,
     #[serde(rename = "idempotencyKey", skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SendEmailReact {
+    pub source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub props: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -705,8 +715,9 @@ mod tests {
             cc: None,
             bcc: None,
             subject: "Hello".to_string(),
-            text: "Body".to_string(),
+            text: Some("Body".to_string()),
             html: None,
+            react: None,
             attachments: Some(vec![SendEmailAttachment {
                 filename: "invoice.pdf".to_string(),
                 content_type: "application/pdf".to_string(),
@@ -721,10 +732,45 @@ mod tests {
         assert_eq!(value["inboxId"], "018f");
         assert_eq!(value["to"][0], "max@example.com");
         assert_eq!(value["subject"], "Hello");
+        assert_eq!(value["text"], "Body");
         assert!(value.get("cc").is_none());
+        assert!(value.get("react").is_none());
         assert_eq!(value["attachments"][0]["filename"], "invoice.pdf");
         assert_eq!(value["attachments"][0]["contentType"], "application/pdf");
         assert_eq!(value["attachments"][0]["contentBase64"], "JVBERi0xLjQ=");
+    }
+
+    #[test]
+    fn serializes_send_body_with_hosted_react_source() {
+        let body = SendEmailRequest {
+            inbox_id: "018f".to_string(),
+            to: vec!["max@example.com".to_string()],
+            cc: None,
+            bcc: None,
+            subject: "Hello".to_string(),
+            text: None,
+            html: None,
+            react: Some(SendEmailReact {
+                source: "export default function Email(props) { return <p>{props.name}</p>; }"
+                    .to_string(),
+                props: Some(serde_json::Map::from_iter([(
+                    "name".to_string(),
+                    serde_json::Value::String("Max".to_string()),
+                )])),
+            }),
+            attachments: None,
+            idempotency_key: None,
+        };
+
+        let value = serde_json::to_value(body).unwrap();
+
+        assert!(value.get("text").is_none());
+        assert!(value.get("html").is_none());
+        assert_eq!(
+            value["react"]["source"],
+            "export default function Email(props) { return <p>{props.name}</p>; }"
+        );
+        assert_eq!(value["react"]["props"]["name"], "Max");
     }
 
     #[test]
