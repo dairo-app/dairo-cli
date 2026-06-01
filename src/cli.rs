@@ -42,6 +42,7 @@ pub enum Command {
         command: InboxCommand,
     },
     /// Inspect mailbox messages.
+    #[command(name = "messages", alias = "message")]
     Message {
         #[command(subcommand)]
         command: MessageCommand,
@@ -53,6 +54,7 @@ pub enum Command {
         command: AttachmentCommand,
     },
     /// Inspect mailbox threads.
+    #[command(name = "threads", alias = "thread")]
     Thread {
         #[command(subcommand)]
         command: ThreadCommand,
@@ -327,5 +329,40 @@ mod tests {
             }
             _ => panic!("expected api-key create command"),
         }
+    }
+
+    #[test]
+    fn parses_plural_message_thread_and_singular_aliases() {
+        let messages = Cli::parse_from(["dairo", "messages", "get", "msg_123"]);
+        assert!(matches!(
+            messages.command,
+            Command::Message {
+                command: MessageCommand::Get { .. }
+            }
+        ));
+
+        let message_alias = Cli::parse_from(["dairo", "message", "get", "msg_123"]);
+        assert!(matches!(
+            message_alias.command,
+            Command::Message {
+                command: MessageCommand::Get { .. }
+            }
+        ));
+
+        let threads = Cli::parse_from(["dairo", "threads", "list"]);
+        assert!(matches!(
+            threads.command,
+            Command::Thread {
+                command: ThreadCommand::List { .. }
+            }
+        ));
+
+        let thread_alias = Cli::parse_from(["dairo", "thread", "list"]);
+        assert!(matches!(
+            thread_alias.command,
+            Command::Thread {
+                command: ThreadCommand::List { .. }
+            }
+        ));
     }
 }

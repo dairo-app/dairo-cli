@@ -142,6 +142,30 @@ Revoke an API key:
 dairo api-key revoke key_123
 ```
 
+Inspect mailbox messages. List output includes an attachment indicator; `get` prints body text/html and attachment metadata when present:
+
+```sh
+dairo messages list --inbox-id 018f0000-0000-0000-0000-000000000000
+dairo messages get msg_123
+```
+
+Download attachment files. `attachments url` prints a short-lived handoff URL; `attachments download` uses the direct Dairo API fast path and writes bytes to a file or directory:
+
+```sh
+dairo attachments url att_456
+dairo attachments download att_456 --out ./invoice.pdf
+dairo messages download-attachments msg_123 --out ./downloads
+```
+
+Inspect mailbox threads:
+
+```sh
+dairo threads list --inbox-id 018f0000-0000-0000-0000-000000000000
+dairo threads get thread_123
+```
+
+Singular aliases (`message`, `thread`, `attachment`) remain available, but the documented command surface is plural for mailbox collections.
+
 ## JSON and error contract
 
 Use `--json` for machine-readable success output where supported:
