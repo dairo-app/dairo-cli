@@ -5,14 +5,15 @@ mod output;
 
 use anyhow::{Context, Result};
 use api::{
-    ApiClient, CreateApiKeyRequest, CreateDomainRequest, CreateInboxRequest, CreateWebhookRequest,
+    ApiClient, CreateApiKeyRequest, CreateDomainRequest, CreateEmailListRequest,
+    CreateInboxRequest, CreateWebhookRequest, EmailListMemberInput, EmailListMembersRequest,
     MessageListQuery, SendEmailAttachment, SendEmailReact, SendEmailRequest, ThreadListQuery,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::Parser;
 use cli::{
     ApiKeyCommand, AttachmentCommand, AttachmentDelivery, AuthCommand, Cli, Command, DomainCommand,
-    InboxCommand, MessageCommand, ThreadCommand, WebhookCommand,
+    EmailListCommand, InboxCommand, MessageCommand, ThreadCommand, WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -272,41 +273,57 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_delete_response(&response, "API key", format)
                     }
                 },
-                Command::Send(cli::SendArgs {
-                    inbox_id,
-                    mut to,
-                    subject,
-                    text,
-                    html,
-                    react_source,
-                    react_props,
-                    attachments,
-                    attachment_delivery,
-                    attachment_link_expiry_hours,
-                }) => {
-                    normalize_recipients(&mut to)?;
-                    let attachments = read_send_attachments(
-                        &attachments,
-                        attachment_delivery,
-                        attachment_link_expiry_hours,
-                    )?;
-                    let react = build_react_request(react_source, react_props)?;
-                    let response = client
-                        .send_email(&SendEmailRequest {
-                            inbox_id,
-                            to,
-                            cc: None,
-                            bcc: None,
-                            subject,
-                            text,
-                            html,
-                            react,
-                            attachments,
-                            idempotency_key: None,
-                        })
-                        .await?;
+                Command::Send(args) => {
+                    let response = client.send_email(&build_send_request(args, true)?).await?;
                     output::print_send_result(&response, format)
                 }
+                Command::EmailList { command } => match command {
+                    EmailListCommand::List => {
+                        let response = client.list_email_lists().await?;
+                        output::print_email_lists(&response.lists, format)
+                    }
+                    EmailListCommand::Create { name, description } => {
+                        let response = client
+                            .create_email_list(&CreateEmailListRequest { name, description })
+                            .await?;
+                        output::print_email_lists(&[response.list], format)
+                    }
+                    EmailListCommand::Get { list_id } => {
+                        let response = client.get_email_list(&list_id).await?;
+                        output::print_email_list_detail(&response, format)
+                    }
+                    EmailListCommand::Add {
+                        list_id,
+                        email,
+                        name,
+                    } => {
+                        let response = client
+                            .import_email_list_members(
+                                &list_id,
+                                &EmailListMembersRequest {
+                                    members: vec![EmailListMemberInput { email, name }],
+                                },
+                            )
+                            .await?;
+                        output::print_email_list_import(&response, format)
+                    }
+                    EmailListCommand::ImportCsv { list_id, file } => {
+                        let members = read_email_list_csv(&file)?;
+                        let response = client
+                            .import_email_list_members(
+                                &list_id,
+                                &EmailListMembersRequest { members },
+                            )
+                            .await?;
+                        output::print_email_list_import(&response, format)
+                    }
+                    EmailListCommand::Send { list_id, send } => {
+                        let response = client
+                            .send_email_list(&list_id, &build_send_request(send, false)?)
+                            .await?;
+                        output::print_email_list_send(&response, format)
+                    }
+                },
                 Command::Auth { .. } => unreachable!("auth handled before API client construction"),
             }
             .context("failed to print command output")
@@ -315,6 +332,60 @@ async fn run(cli: Cli) -> Result<()> {
 }
 
 const MAX_INLINE_ATTACHMENT_BYTES: usize = 8 * 1024 * 1024;
+
+fn build_send_request(mut args: cli::SendArgs, require_to: bool) -> Result<SendEmailRequest> {
+    if require_to {
+        normalize_recipients(&mut args.to)?;
+    } else {
+        args.to.clear();
+    }
+    let attachments = read_send_attachments(
+        &args.attachments,
+        args.attachment_delivery,
+        args.attachment_link_expiry_hours,
+    )?;
+    let react = build_react_request(args.react_source, args.react_props)?;
+    Ok(SendEmailRequest {
+        inbox_id: args.inbox_id,
+        to: args.to,
+        cc: None,
+        bcc: None,
+        subject: args.subject,
+        text: args.text,
+        html: args.html,
+        react,
+        attachments,
+        idempotency_key: None,
+    })
+}
+
+fn read_email_list_csv(path: &Path) -> Result<Vec<EmailListMemberInput>> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read CSV {}", path.display()))?;
+    let mut members = Vec::new();
+    for (index, line) in content.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = trimmed.split(',').map(str::trim).collect();
+        let email = parts.first().copied().unwrap_or_default().trim_matches('"');
+        if index == 0 && email.eq_ignore_ascii_case("email") {
+            continue;
+        }
+        anyhow::ensure!(!email.is_empty(), "CSV line {} has no email", index + 1);
+        let name = parts
+            .get(1)
+            .map(|value| value.trim_matches('"').trim().to_string())
+            .filter(|value| !value.is_empty());
+        members.push(EmailListMemberInput {
+            email: email.to_string(),
+            name,
+        });
+    }
+    anyhow::ensure!(!members.is_empty(), "CSV contains no recipients");
+    Ok(members)
+}
 
 fn build_react_request(
     source: Option<String>,

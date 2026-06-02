@@ -74,6 +74,12 @@ pub enum Command {
     },
     /// Send an email from a Dairo inbox.
     Send(SendArgs),
+    /// Manage email lists and send to list recipients.
+    #[command(name = "lists", alias = "list")]
+    EmailList {
+        #[command(subcommand)]
+        command: EmailListCommand,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -111,6 +117,40 @@ pub struct SendArgs {
         value_parser = clap::value_parser!(u32).range(1..=168)
     )]
     pub attachment_link_expiry_hours: Option<u32>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum EmailListCommand {
+    /// List email lists.
+    List,
+    /// Create an email list.
+    Create {
+        name: String,
+        #[arg(long)]
+        description: Option<String>,
+    },
+    /// Show list members.
+    Get { list_id: String },
+    /// Add one recipient manually.
+    Add {
+        list_id: String,
+        #[arg(long)]
+        email: String,
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Import recipients from CSV. Reads first column as email and optional second column as name.
+    ImportCsv {
+        list_id: String,
+        #[arg(long = "file")]
+        file: PathBuf,
+    },
+    /// Send an email to all active recipients in a list.
+    Send {
+        list_id: String,
+        #[command(flatten)]
+        send: SendArgs,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]

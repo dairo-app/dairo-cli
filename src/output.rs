@@ -2,7 +2,8 @@ use anyhow::Result;
 
 use crate::api::{
     ApiKey, AttachmentDownloadUrlResponse, CreateApiKeyResponse, CreateWebhookResponse,
-    DeleteResponse, Domain, Inbox, Message, SendEmailResponse, SendEmailWarning, Thread, Webhook,
+    DeleteResponse, Domain, EmailList, EmailListDetailResponse, EmailListImportResponse,
+    EmailListSendResponse, Inbox, Message, SendEmailResponse, SendEmailWarning, Thread, Webhook,
     WhoamiResponse,
 };
 
@@ -164,6 +165,85 @@ pub fn print_send_result(response: &SendEmailResponse, format: OutputFormat) -> 
         println!("Error: {error}");
     }
     print_send_warnings(&response.warnings);
+    Ok(())
+}
+
+pub fn print_email_lists(lists: &[EmailList], format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(lists)?);
+        return Ok(());
+    }
+    if lists.is_empty() {
+        println!("No email lists found.");
+        return Ok(());
+    }
+    println!("{:<38} {:<28} {:<10} MEMBERS", "ID", "NAME", "STATUS");
+    for list in lists {
+        println!(
+            "{:<38} {:<28} {:<10} {}",
+            list.id,
+            list.name,
+            list.status,
+            list.member_count.unwrap_or(0)
+        );
+    }
+    Ok(())
+}
+
+pub fn print_email_list_detail(
+    response: &EmailListDetailResponse,
+    format: OutputFormat,
+) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(response)?);
+        return Ok(());
+    }
+    println!("List: {} ({})", response.list.name, response.list.id);
+    println!("Members: {}", response.members.len());
+    if response.members.is_empty() {
+        println!("No members yet. Add one with `dairo lists add {}` or import CSV with `dairo lists import-csv {}`.", response.list.id, response.list.id);
+        return Ok(());
+    }
+    println!("{:<36} {:<28} STATUS", "EMAIL", "NAME");
+    for member in &response.members {
+        println!(
+            "{:<36} {:<28} {}",
+            member.email,
+            member.name.as_deref().unwrap_or(""),
+            member.status
+        );
+    }
+    Ok(())
+}
+
+pub fn print_email_list_import(
+    response: &EmailListImportResponse,
+    format: OutputFormat,
+) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(response)?);
+        return Ok(());
+    }
+    println!(
+        "Imported {} recipient(s) into list {}.",
+        response.imported, response.list_id
+    );
+    Ok(())
+}
+
+pub fn print_email_list_send(response: &EmailListSendResponse, format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(response)?);
+        return Ok(());
+    }
+    println!(
+        "Sent list '{}' to {} recipient(s) in {} batch(es).",
+        response.list_name, response.recipient_count, response.batch_count
+    );
+    for email in &response.emails {
+        println!("  - {}: {}", email.status, email.id);
+        print_send_warnings(&email.warnings);
+    }
     Ok(())
 }
 

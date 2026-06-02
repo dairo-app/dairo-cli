@@ -93,6 +93,54 @@ impl ApiClient {
             .await
     }
 
+    pub async fn list_email_lists(&self) -> Result<EmailListListResponse> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "email-lists"], None::<&()>)?)
+            .await
+    }
+
+    pub async fn create_email_list(
+        &self,
+        body: &CreateEmailListRequest,
+    ) -> Result<EmailListResponse> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "email-lists"], Some(body))?)
+            .await
+    }
+
+    pub async fn get_email_list(&self, list_id: &str) -> Result<EmailListDetailResponse> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "email-lists", list_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    pub async fn import_email_list_members(
+        &self,
+        list_id: &str,
+        body: &EmailListMembersRequest,
+    ) -> Result<EmailListImportResponse> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "email-lists", list_id, "members", "import"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    pub async fn send_email_list(
+        &self,
+        list_id: &str,
+        body: &SendEmailRequest,
+    ) -> Result<EmailListSendResponse> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "email-lists", list_id, "send"],
+            Some(body),
+        )?)
+        .await
+    }
+
     pub async fn list_webhooks(&self) -> Result<WebhookListResponse> {
         self.execute_json(self.build_request(Method::GET, &["v1", "webhooks"], None::<&()>)?)
             .await
@@ -417,6 +465,91 @@ pub struct SendEmailResponse {
     pub error: Option<String>,
     #[serde(default)]
     pub warnings: Vec<SendEmailWarning>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateEmailListRequest {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmailListMembersRequest {
+    pub members: Vec<EmailListMemberInput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmailListMemberInput {
+    pub email: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmailListListResponse {
+    pub lists: Vec<EmailList>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmailListResponse {
+    pub list: EmailList,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmailListDetailResponse {
+    pub list: EmailList,
+    #[serde(default)]
+    pub members: Vec<EmailListMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmailListImportResponse {
+    #[serde(rename = "listId")]
+    pub list_id: String,
+    pub imported: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmailListSendResponse {
+    #[serde(rename = "listId")]
+    pub list_id: String,
+    #[serde(rename = "listName")]
+    pub list_name: String,
+    #[serde(rename = "recipientCount")]
+    pub recipient_count: usize,
+    #[serde(rename = "batchCount")]
+    pub batch_count: usize,
+    pub emails: Vec<SendEmailResponse>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmailList {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub status: String,
+    #[serde(rename = "memberCount")]
+    pub member_count: Option<i64>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmailListMember {
+    pub id: String,
+    #[serde(rename = "listId")]
+    pub list_id: String,
+    pub email: String,
+    pub name: Option<String>,
+    pub status: String,
+    pub source: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
