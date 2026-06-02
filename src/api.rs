@@ -36,6 +36,11 @@ impl ApiClient {
         })
     }
 
+    pub async fn whoami(&self) -> Result<WhoamiResponse> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "whoami"], None::<&()>)?)
+            .await
+    }
+
     pub async fn list_domains(&self) -> Result<DomainListResponse> {
         self.execute_json(self.build_request(Method::GET, &["v1", "domains"], None::<&()>)?)
             .await
@@ -258,6 +263,39 @@ impl ApiClient {
 
         Err(ApiError::Api { status, message })
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WhoamiResponse {
+    #[serde(rename = "userId")]
+    pub user_id: String,
+    #[serde(rename = "workspaceId")]
+    pub workspace_id: Option<String>,
+    #[serde(rename = "apiKey")]
+    pub api_key: WhoamiApiKey,
+    pub plan: String,
+    pub limits: serde_json::Value,
+    pub usage: serde_json::Value,
+    pub period: serde_json::Value,
+    pub notes: serde_json::Value,
+    pub storage: WhoamiStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WhoamiApiKey {
+    pub id: String,
+    pub scopes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WhoamiStorage {
+    #[serde(rename = "usedBytes")]
+    pub used_bytes: i64,
+    #[serde(rename = "limitBytes")]
+    pub limit_bytes: i64,
+    #[serde(rename = "remainingBytes")]
+    pub remaining_bytes: i64,
+    pub breakdown: serde_json::Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

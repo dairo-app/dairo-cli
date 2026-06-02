@@ -31,6 +31,8 @@ pub enum Command {
         #[command(subcommand)]
         command: AuthCommand,
     },
+    /// Show authenticated account, API key scopes, plan, and storage usage.
+    Whoami,
     /// Manage account domains.
     Domain {
         #[command(subcommand)]

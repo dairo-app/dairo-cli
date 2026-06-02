@@ -90,6 +90,10 @@ async fn run(cli: Cli) -> Result<()> {
             let format = OutputFormat::from_json_flag(cli.json);
 
             match command {
+                Command::Whoami => {
+                    let response = client.whoami().await?;
+                    output::print_whoami(&response, format)
+                }
                 Command::Domain { command } => match command {
                     DomainCommand::List => {
                         let response = client.list_domains().await?;

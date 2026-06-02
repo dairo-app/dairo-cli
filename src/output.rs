@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::api::{
     ApiKey, AttachmentDownloadUrlResponse, CreateApiKeyResponse, CreateWebhookResponse,
-    DeleteResponse, Domain, Inbox, Message, SendEmailResponse, Thread, Webhook,
+    DeleteResponse, Domain, Inbox, Message, SendEmailResponse, Thread, Webhook, WhoamiResponse,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +18,73 @@ impl OutputFormat {
         } else {
             Self::Human
         }
+    }
+}
+
+pub fn print_whoami(response: &WhoamiResponse, format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(response)?);
+        return Ok(());
+    }
+
+    println!("User: {}", response.user_id);
+    if let Some(workspace_id) = &response.workspace_id {
+        println!("Workspace: {workspace_id}");
+    }
+    println!("API key: {}", response.api_key.id);
+    println!("Scopes: {}", response.api_key.scopes.join(","));
+    println!("Plan: {}", response.plan);
+    println!(
+        "Storage: {} used / {} limit ({} left)",
+        format_bytes(response.storage.used_bytes),
+        format_bytes(response.storage.limit_bytes),
+        format_bytes(response.storage.remaining_bytes)
+    );
+    if let Some(breakdown) = response.storage.breakdown.as_object() {
+        let mail_body = breakdown
+            .get("mailBodyBytes")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
+        let attachments = breakdown
+            .get("attachmentBytes")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
+        let files = breakdown
+            .get("fileBytes")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
+        let expiring = breakdown
+            .get("expiringFileBytes")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
+        let objects = breakdown
+            .get("activeFileObjects")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
+        println!(
+            "Breakdown: bodies {}, attachments {}, files {}, expiring {}, active file objects {}",
+            format_bytes(mail_body),
+            format_bytes(attachments),
+            format_bytes(files),
+            format_bytes(expiring),
+            objects
+        );
+    }
+    Ok(())
+}
+
+fn format_bytes(bytes: i64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut value = bytes.max(0) as f64;
+    let mut unit = 0usize;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{} {}", bytes.max(0), UNITS[unit])
+    } else {
+        format!("{value:.2} {}", UNITS[unit])
     }
 }
 
