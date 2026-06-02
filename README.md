@@ -231,8 +231,8 @@ creation are intentionally printed once; redirect or capture stdout carefully.
   API such as `https://api.dairo.app`.
 - Permission errors writing config: prefer `DAIRO_API_KEY`, or remove and
   recreate the platform config directory with user-only permissions.
-- SES sandbox errors: the backend may reject arbitrary recipients until Dairo's
-  AWS SES production access is approved.
+- SES provider errors: SES remains the source of truth for sender/domain verification,
+  quotas, suppression, bounces, complaints, and provider rejections.
 
 ## Release policy
 
