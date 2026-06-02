@@ -11,8 +11,8 @@ use api::{
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::Parser;
 use cli::{
-    ApiKeyCommand, AttachmentCommand, AuthCommand, Cli, Command, DomainCommand, InboxCommand,
-    MessageCommand, ThreadCommand, WebhookCommand,
+    ApiKeyCommand, AttachmentCommand, AttachmentDelivery, AuthCommand, Cli, Command, DomainCommand,
+    InboxCommand, MessageCommand, ThreadCommand, WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -278,9 +278,14 @@ async fn run(cli: Cli) -> Result<()> {
                     react_props,
                     attachments,
                     attachment_delivery,
+                    attachment_link_expiry_hours,
                 }) => {
                     normalize_recipients(&mut to)?;
-                    let attachments = read_send_attachments(&attachments, &attachment_delivery)?;
+                    let attachments = read_send_attachments(
+                        &attachments,
+                        attachment_delivery,
+                        attachment_link_expiry_hours,
+                    )?;
                     let react = build_react_request(react_source, react_props)?;
                     let response = client
                         .send_email(&SendEmailRequest {
@@ -337,19 +342,16 @@ fn build_react_request(
 
 fn read_send_attachments(
     paths: &[PathBuf],
-    delivery: &str,
+    delivery: AttachmentDelivery,
+    link_expiry_hours: Option<u32>,
 ) -> Result<Option<Vec<SendEmailAttachment>>> {
     if paths.is_empty() {
         return Ok(None);
     }
-    let delivery = delivery.trim();
-    anyhow::ensure!(
-        delivery == "attachment" || delivery == "link",
-        "--attachment-delivery must be 'attachment' or 'link'"
-    );
-    if delivery == "link" {
+    if delivery == AttachmentDelivery::Link {
         anyhow::bail!(
-            "delivery='link' does not automatically attach files or edit the email body; create a Dairo share link first, place it in --text/--html yourself, then send without --attachment"
+            "delivery='link' for local --attachment files requires a standalone Dairo file upload/link API, which is not available in this CLI contract yet. Dairo will not attach files or edit the email body implicitly. To share an existing persisted email attachment, run `dairo attachments share <attachment-id> --expiry-hours {}` and place the printed URL deliberately in --text/--html, then send without --attachment",
+            link_expiry_hours.unwrap_or(1)
         );
     }
     let mut attachments = Vec::with_capacity(paths.len());
@@ -360,9 +362,10 @@ fn read_send_attachments(
         anyhow::ensure!(!bytes.is_empty(), "attachment {} is empty", path.display());
         total_bytes += bytes.len();
         anyhow::ensure!(
-            bytes.len() <= MAX_INLINE_ATTACHMENT_BYTES && total_bytes <= MAX_INLINE_ATTACHMENT_BYTES,
-            "file too big for email attachment delivery; create a Dairo share link and place it in the email body manually, or rerun with --attachment-delivery link after creating the link. Dairo inline attachment limit is {} bytes to stay below API Gateway's 10 MB JSON/base64 envelope and SES v2's 40 MB message limit",
-            MAX_INLINE_ATTACHMENT_BYTES
+            bytes.len() <= MAX_INLINE_ATTACHMENT_BYTES
+                && total_bytes <= MAX_INLINE_ATTACHMENT_BYTES,
+            "{}",
+            oversized_attachment_message(delivery, link_expiry_hours)
         );
         let filename = path
             .file_name()
@@ -378,6 +381,25 @@ fn read_send_attachments(
         });
     }
     Ok(Some(attachments))
+}
+
+fn oversized_attachment_message(
+    delivery: AttachmentDelivery,
+    link_expiry_hours: Option<u32>,
+) -> String {
+    let expiry_hours = link_expiry_hours.unwrap_or(1);
+    let mode_context = match delivery {
+        AttachmentDelivery::Attachment => {
+            "file too big for email attachment delivery"
+        }
+        AttachmentDelivery::Auto => {
+            "auto delivery would need link mode because the file is too big for inline attachment delivery"
+        }
+        AttachmentDelivery::Link => unreachable!("link mode is handled before reading files"),
+    };
+    format!(
+        "{mode_context}; standalone local file-link upload is not available in this CLI contract yet. Dairo will not modify --text/--html automatically. To share an existing persisted email attachment, run `dairo attachments share <attachment-id> --expiry-hours {expiry_hours}` and place the printed URL deliberately in the email body, then send without the oversized --attachment. Dairo inline attachment limit is {MAX_INLINE_ATTACHMENT_BYTES} bytes to stay below API Gateway's 10 MB JSON/base64 envelope and SES v2's 40 MB message limit"
+    )
 }
 
 fn guess_content_type(path: &Path) -> String {
@@ -580,5 +602,31 @@ mod tests {
         .expect_err("array props should be rejected");
 
         assert!(error.to_string().contains("JSON object"));
+    }
+
+    #[test]
+    fn auto_delivery_keeps_small_attachments_inline() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("invoice.txt");
+        std::fs::write(&path, b"hello").unwrap();
+
+        let attachments =
+            read_send_attachments(&[path], AttachmentDelivery::Auto, Some(24)).unwrap();
+        let attachments = attachments.unwrap();
+
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].filename, "invoice.txt");
+        assert_eq!(attachments[0].delivery, None);
+    }
+
+    #[test]
+    fn link_delivery_reports_missing_standalone_upload_contract() {
+        let path = PathBuf::from("invoice.pdf");
+        let error = read_send_attachments(&[path], AttachmentDelivery::Link, Some(24))
+            .expect_err("link delivery cannot pretend local file-link upload exists");
+
+        let message = error.to_string();
+        assert!(message.contains("standalone Dairo file upload/link API"));
+        assert!(message.contains("dairo attachments share <attachment-id> --expiry-hours 24"));
     }
 }

@@ -96,7 +96,9 @@ Create an inbox:
 dairo inbox create billing --domain example.com
 ```
 
-Send an email. At least one non-empty `--to` recipient is required, along with at least one body option: `--text`, `--html`, or `--react-source`. Inline attachments use `--attachment`; Dairo does not auto-convert large files into links. If a file is too big, the command fails and tells you to create a Dairo share link first, place that link exactly where you want it in `--text`/`--html`, then send without the oversized attachment.
+Send an email. At least one non-empty `--to` recipient is required, along with at least one body option: `--text`, `--html`, or `--react-source`. Inline attachments use `--attachment`; `--attachment-delivery` accepts `attachment`, `link`, or `auto`. `attachment` sends files inline. `auto` sends inline only when the files fit Dairo's safe inline limit. `link` is explicit but currently cannot upload a new local file because the CLI has no standalone file upload/link API contract yet, so it fails with guided instructions instead of pretending to send or editing the email body. Dairo never auto-inserts links into `--text` or `--html`.
+
+For link-style delivery today, create or reuse a persisted email attachment link with `dairo attachments share <attachment-id> --expiry-hours <1-168>`, place the printed URL exactly where you want it in `--text`/`--html`, then send without the local file attachment. Use `--attachment-link-expiry-hours <1-168>` on `send` to make the guided `link`/oversize message use the same expiry window you intend to request once standalone local file links exist.
 
 ```sh
 dairo send \
@@ -104,7 +106,8 @@ dairo send \
   --to max@example.com \
   --subject "Hello from Dairo" \
   --text "This was sent with the Dairo CLI." \
-  --attachment ./invoice.pdf
+  --attachment ./invoice.pdf \
+  --attachment-delivery auto
 ```
 
 Send using hosted React rendering. The CLI passes the React source and optional props through to Dairo; rendering happens server-side before outbound delivery.

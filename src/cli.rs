@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use clap::{ArgGroup, Args, Parser, Subcommand};
+use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
 use std::{
     io::{self, Read},
     path::PathBuf,
@@ -102,8 +102,32 @@ pub struct SendArgs {
     pub react_props: Option<String>,
     #[arg(long = "attachment", value_name = "PATH", action = clap::ArgAction::Append)]
     pub attachments: Vec<PathBuf>,
-    #[arg(long = "attachment-delivery", default_value = "attachment")]
-    pub attachment_delivery: String,
+    /// Attachment delivery mode. `auto` keeps files inline when safely below Dairo's inline limit.
+    #[arg(long = "attachment-delivery", default_value_t = AttachmentDelivery::Attachment)]
+    pub attachment_delivery: AttachmentDelivery,
+    /// Requested link expiry in hours for future local file-link delivery. Valid range: 1..168.
+    #[arg(
+        long = "attachment-link-expiry-hours",
+        value_parser = clap::value_parser!(u32).range(1..=168)
+    )]
+    pub attachment_link_expiry_hours: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum AttachmentDelivery {
+    Attachment,
+    Link,
+    Auto,
+}
+
+impl std::fmt::Display for AttachmentDelivery {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Attachment => "attachment",
+            Self::Link => "link",
+            Self::Auto => "auto",
+        })
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -208,14 +232,14 @@ pub enum AttachmentCommand {
     Url {
         attachment_id: String,
         /// Expiry in hours. Defaults to about 5 minutes; maximum is 168 hours / one week.
-        #[arg(long = "expiry-hours")]
+        #[arg(long = "expiry-hours", value_parser = clap::value_parser!(u32).range(1..=168))]
         expiry_hours: Option<u32>,
     },
     /// Print a short-lived human share page URL.
     Share {
         attachment_id: String,
         /// Expiry in hours. Defaults to about 5 minutes; maximum is 168 hours / one week.
-        #[arg(long = "expiry-hours")]
+        #[arg(long = "expiry-hours", value_parser = clap::value_parser!(u32).range(1..=168))]
         expiry_hours: Option<u32>,
     },
     /// Download one attachment to a file or directory.
@@ -309,6 +333,7 @@ mod tests {
                 react_props,
                 attachments,
                 attachment_delivery,
+                attachment_link_expiry_hours,
             }) => {
                 assert_eq!(inbox_id, "inbox_123");
                 assert_eq!(to, vec!["max@example.com"]);
@@ -318,7 +343,41 @@ mod tests {
                 assert_eq!(react_source, None);
                 assert_eq!(react_props, None);
                 assert_eq!(attachments, vec![PathBuf::from("invoice.pdf")]);
-                assert_eq!(attachment_delivery, "attachment");
+                assert_eq!(attachment_delivery, AttachmentDelivery::Attachment);
+                assert_eq!(attachment_link_expiry_hours, None);
+            }
+            _ => panic!("expected send command"),
+        }
+    }
+
+    #[test]
+    fn parses_send_attachment_delivery_modes() {
+        let cli = Cli::try_parse_from([
+            "dairo",
+            "send",
+            "--inbox-id",
+            "inbox_123",
+            "--to",
+            "max@example.com",
+            "--text",
+            "Body",
+            "--attachment",
+            "invoice.pdf",
+            "--attachment-delivery",
+            "auto",
+            "--attachment-link-expiry-hours",
+            "24",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Send(SendArgs {
+                attachment_delivery,
+                attachment_link_expiry_hours,
+                ..
+            }) => {
+                assert_eq!(attachment_delivery, AttachmentDelivery::Auto);
+                assert_eq!(attachment_link_expiry_hours, Some(24));
             }
             _ => panic!("expected send command"),
         }
@@ -353,6 +412,7 @@ mod tests {
                 react_props,
                 attachments,
                 attachment_delivery,
+                attachment_link_expiry_hours,
             }) => {
                 assert_eq!(inbox_id, "inbox_123");
                 assert_eq!(to, vec!["max@example.com"]);
@@ -365,7 +425,8 @@ mod tests {
                 );
                 assert_eq!(react_props.as_deref(), Some(r#"{"name":"Max"}"#));
                 assert!(attachments.is_empty());
-                assert_eq!(attachment_delivery, "attachment");
+                assert_eq!(attachment_delivery, AttachmentDelivery::Attachment);
+                assert_eq!(attachment_link_expiry_hours, None);
             }
             _ => panic!("expected send command"),
         }
@@ -447,6 +508,39 @@ mod tests {
             }
             _ => panic!("expected attachment share command"),
         }
+    }
+
+    #[test]
+    fn rejects_out_of_range_expiry_hours() {
+        let error = Cli::try_parse_from([
+            "dairo",
+            "attachments",
+            "share",
+            "att_123",
+            "--expiry-hours",
+            "169",
+        ])
+        .expect_err("attachment share expiry above one week should fail clap validation");
+
+        assert!(error.to_string().contains("169"));
+
+        let error = Cli::try_parse_from([
+            "dairo",
+            "send",
+            "--inbox-id",
+            "inbox_123",
+            "--to",
+            "max@example.com",
+            "--text",
+            "Body",
+            "--attachment-delivery",
+            "link",
+            "--attachment-link-expiry-hours",
+            "0",
+        ])
+        .expect_err("send link expiry below one hour should fail clap validation");
+
+        assert!(error.to_string().contains("0"));
     }
 
     #[test]
