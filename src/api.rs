@@ -226,7 +226,7 @@ impl ApiClient {
         if !response.status().is_success() {
             let status = response.status();
             let message = match response.json::<ErrorResponse>().await {
-                Ok(error) => error.error.message,
+                Ok(error) => error.error.display_message(),
                 Err(_) => status
                     .canonical_reason()
                     .unwrap_or("unexpected API error")
@@ -302,7 +302,7 @@ impl ApiClient {
         }
 
         let message = match response.json::<ErrorResponse>().await {
-            Ok(error) => error.error.message,
+            Ok(error) => error.error.display_message(),
             Err(_) => status
                 .canonical_reason()
                 .unwrap_or("unexpected API error")
@@ -840,7 +840,17 @@ struct ErrorResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 struct ErrorBody {
+    code: Option<String>,
     message: String,
+}
+
+impl ErrorBody {
+    fn display_message(self) -> String {
+        match self.code {
+            Some(code) if !code.trim().is_empty() => format!("[{}] {}", code, self.message),
+            _ => self.message,
+        }
+    }
 }
 
 #[cfg(test)]
