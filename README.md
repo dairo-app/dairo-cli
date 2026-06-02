@@ -98,6 +98,13 @@ dairo inbox create billing --domain example.com
 
 Send an email. At least one non-empty `--to` recipient is required, along with at least one body option: `--text`, `--html`, or `--react-source`. Inline attachments use `--attachment`; `--attachment-delivery` accepts `attachment`, `link`, or `auto`. `attachment` sends files inline. `auto` sends inline only when the files fit Dairo's safe inline limit. `link` is explicit but currently cannot upload a new local file because the CLI has no standalone file upload/link API contract yet, so it fails with guided instructions instead of pretending to send or editing the email body. Dairo never auto-inserts links into `--text` or `--html`.
 
+Send responses may include warning metadata. Complaint suppression warnings are
+warning-only: Dairo does not block the send, but human output calls out the
+recipient and suggests not contacting them again unless you are sure. Use
+`--json` to preserve the raw warning fields, including `recipient`,
+`sourceOutboundEmailId`, `providerMessageId`, `complaintFeedbackType`,
+`complaintUserAgent`, and `lastEventAt` when returned by the backend.
+
 For link-style delivery today, create or reuse a persisted email attachment link with `dairo attachments share <attachment-id> --expiry-hours <1-168>`, place the printed URL exactly where you want it in `--text`/`--html`, then send without the local file attachment. Use `--attachment-link-expiry-hours <1-168>` on `send` to make the guided `link`/oversize message use the same expiry window you intend to request once standalone local file links exist.
 
 ```sh
@@ -136,6 +143,13 @@ Supported events are `message.received`, `email.sent`, `email.delivered`,
 `email.bounced`, and `email.complained`. List output includes status, events,
 and the latest successful delivery time when the backend has one. The create
 command prints a one-time signing secret. Store it immediately.
+
+Outbound delivery event listing is intended to use `dairo events list` once the
+public API/OpenAPI contract exposes a list-events operation. The expected rows
+should include metadata-only join keys such as `emailId`, `recipient`,
+`providerMessageId`, `subject`, `from`, `to`, event status, bounce/complaint
+details, and `occurredAt`. This CLI version does not guess an endpoint that is
+not yet present in the local public contract projection.
 
 Delete a webhook by ID or URL:
 

@@ -415,6 +415,28 @@ pub struct SendEmailResponse {
     #[serde(rename = "providerMessageId")]
     pub provider_message_id: Option<String>,
     pub error: Option<String>,
+    #[serde(default)]
+    pub warnings: Vec<SendEmailWarning>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SendEmailWarning {
+    #[serde(default)]
+    pub recipient: Option<String>,
+    #[serde(default)]
+    pub reason: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
+    #[serde(default, rename = "sourceOutboundEmailId")]
+    pub source_outbound_email_id: Option<String>,
+    #[serde(default, rename = "providerMessageId")]
+    pub provider_message_id: Option<String>,
+    #[serde(default, rename = "complaintFeedbackType")]
+    pub complaint_feedback_type: Option<String>,
+    #[serde(default, rename = "complaintUserAgent")]
+    pub complaint_user_agent: Option<String>,
+    #[serde(default, rename = "lastEventAt")]
+    pub last_event_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -811,6 +833,65 @@ mod tests {
             "export default function Email(props) { return <p>{props.name}</p>; }"
         );
         assert_eq!(value["react"]["props"]["name"], "Max");
+    }
+
+    #[test]
+    fn send_response_accepts_legacy_payload_without_warnings() {
+        let response: SendEmailResponse = serde_json::from_str(
+            r#"{
+                "id": "email_123",
+                "status": "queued",
+                "providerMessageId": null,
+                "error": null
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(response.id, "email_123");
+        assert!(response.warnings.is_empty());
+    }
+
+    #[test]
+    fn send_response_deserializes_complaint_warning_metadata() {
+        let response: SendEmailResponse = serde_json::from_str(
+            r#"{
+                "id": "email_123",
+                "status": "queued",
+                "providerMessageId": "ses_message_123",
+                "error": null,
+                "warnings": [
+                    {
+                        "recipient": "max@example.com",
+                        "reason": "complaint",
+                        "message": "Recipient previously complained; do not contact again unless you are sure.",
+                        "sourceOutboundEmailId": "email_old",
+                        "providerMessageId": "ses_old",
+                        "complaintFeedbackType": "abuse",
+                        "complaintUserAgent": "AnyMailbox/1.0",
+                        "lastEventAt": "2026-06-02T10:00:00Z"
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        let warning = response.warnings.first().unwrap();
+        assert_eq!(warning.recipient.as_deref(), Some("max@example.com"));
+        assert_eq!(warning.reason.as_deref(), Some("complaint"));
+        assert_eq!(
+            warning.source_outbound_email_id.as_deref(),
+            Some("email_old")
+        );
+        assert_eq!(warning.provider_message_id.as_deref(), Some("ses_old"));
+        assert_eq!(warning.complaint_feedback_type.as_deref(), Some("abuse"));
+        assert_eq!(
+            warning.complaint_user_agent.as_deref(),
+            Some("AnyMailbox/1.0")
+        );
+        assert_eq!(
+            warning.last_event_at.as_deref(),
+            Some("2026-06-02T10:00:00Z")
+        );
     }
 
     #[test]

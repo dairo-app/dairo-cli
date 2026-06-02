@@ -2,7 +2,8 @@ use anyhow::Result;
 
 use crate::api::{
     ApiKey, AttachmentDownloadUrlResponse, CreateApiKeyResponse, CreateWebhookResponse,
-    DeleteResponse, Domain, Inbox, Message, SendEmailResponse, Thread, Webhook, WhoamiResponse,
+    DeleteResponse, Domain, Inbox, Message, SendEmailResponse, SendEmailWarning, Thread, Webhook,
+    WhoamiResponse,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,7 +163,49 @@ pub fn print_send_result(response: &SendEmailResponse, format: OutputFormat) -> 
     if let Some(error) = &response.error {
         println!("Error: {error}");
     }
+    print_send_warnings(&response.warnings);
     Ok(())
+}
+
+fn print_send_warnings(warnings: &[SendEmailWarning]) {
+    if warnings.is_empty() {
+        return;
+    }
+
+    println!("Warnings:");
+    for warning in warnings {
+        let recipient = warning.recipient.as_deref().unwrap_or("recipient");
+        let message = warning.message.as_deref().unwrap_or_else(|| {
+            if is_complaint_warning(warning) {
+                "Recipient previously complained; do not contact again unless you are sure."
+            } else {
+                "Dairo returned a send warning."
+            }
+        });
+        println!("  - {recipient}: {message}");
+
+        if is_complaint_warning(warning) {
+            println!("    Suggestion: do not contact this recipient again unless you are sure. Review outbound delivery events in Dairo before sending follow-up mail.");
+        }
+        if let Some(source_email_id) = &warning.source_outbound_email_id {
+            println!("    source email id: {source_email_id}");
+        }
+        if let Some(provider_message_id) = &warning.provider_message_id {
+            println!("    provider message id: {provider_message_id}");
+        }
+        if let Some(last_event_at) = &warning.last_event_at {
+            println!("    last event: {last_event_at}");
+        }
+    }
+}
+
+fn is_complaint_warning(warning: &SendEmailWarning) -> bool {
+    warning
+        .reason
+        .as_deref()
+        .is_some_and(|reason| reason.eq_ignore_ascii_case("complaint"))
+        || warning.complaint_feedback_type.is_some()
+        || warning.complaint_user_agent.is_some()
 }
 
 pub fn print_webhooks(webhooks: &[Webhook], format: OutputFormat) -> Result<()> {
