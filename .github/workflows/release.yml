@@ -1,0 +1,230 @@
+name: Release CLI
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to package, e.g. 0.1.0. Defaults to Cargo.toml version.'
+        required: false
+        type: string
+      publish_npm:
+        description: 'Publish npm packages when NPM_TOKEN is configured.'
+        required: false
+        default: false
+        type: boolean
+      update_homebrew:
+        description: 'Update dairo-app/homebrew-tap when HOMEBREW_TAP_TOKEN is configured.'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            exe: dairo
+          - os: macos-13
+            target: x86_64-apple-darwin
+            exe: dairo
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            exe: dairo
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            exe: dairo
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            exe: dairo.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Stage binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/binaries/${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/${{ matrix.exe }} dist/binaries/${{ matrix.target }}/${{ matrix.exe }}
+          if [ "${{ runner.os }}" != "Windows" ]; then chmod +x dist/binaries/${{ matrix.target }}/${{ matrix.exe }}; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: dist/binaries/${{ matrix.target }}
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub release artifacts
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          path: dist/downloaded
+      - name: Normalize downloaded binaries
+        run: |
+          set -euo pipefail
+          mkdir -p dist/binaries
+          for dir in dist/downloaded/binary-*; do
+            target="${dir##*/binary-}"
+            mkdir -p "dist/binaries/$target"
+            cp -R "$dir"/* "dist/binaries/$target/"
+          done
+      - id: meta
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+          elif [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            TAG="v$VERSION"
+          else
+            VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+            TAG="v$VERSION"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - name: Create archives and checksums
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.meta.outputs.version }}'
+          mkdir -p dist/release
+          for target_dir in dist/binaries/*; do
+            target="${target_dir##*/}"
+            if [ -f "$target_dir/dairo.exe" ]; then
+              archive="dairo-${target}.zip"
+              (cd "$target_dir" && zip -q "../../release/$archive" dairo.exe)
+            else
+              archive="dairo-${target}.tar.gz"
+              tar -C "$target_dir" -czf "dist/release/$archive" dairo
+            fi
+          done
+          cp install/install.sh dist/release/dairo-install.sh
+          cp install/install.ps1 dist/release/dairo-install.ps1
+          (cd dist/release && shasum -a 256 dairo-* > checksums.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: dist/release/*
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='${{ steps.meta.outputs.tag }}'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/release/* --clobber
+          else
+            gh release create "$TAG" dist/release/* \
+              --title "Dairo CLI $TAG" \
+              --notes "Official Dairo CLI release. Install with npm, Homebrew, cURL, PowerShell, or download the platform archive."
+          fi
+
+  npm:
+    name: Build and optionally publish npm packages
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          scope: '@dairo'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          path: dist/downloaded
+      - name: Normalize downloaded binaries
+        run: |
+          set -euo pipefail
+          mkdir -p dist/binaries
+          for dir in dist/downloaded/binary-*; do
+            target="${dir##*/binary-}"
+            mkdir -p "dist/binaries/$target"
+            cp -R "$dir"/* "dist/binaries/$target/"
+          done
+      - name: Prepare npm packages
+        env:
+          DAIRO_CLI_VERSION: ${{ needs.release.outputs.version }}
+        run: node scripts/prepare-npm-packages.mjs
+      - name: Pack npm packages
+        run: |
+          set -euo pipefail
+          mkdir -p dist/npm-tarballs
+          for dir in dist/npm/*; do
+            (cd "$dir" && npm pack --pack-destination ../../npm-tarballs)
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-packages
+          path: dist/npm-tarballs/*.tgz
+      - name: Publish npm packages
+        if: ${{ github.event_name == 'push' || inputs.publish_npm }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN is not configured; skipping npm publish."
+            exit 0
+          fi
+          for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli; do
+            npm publish "dist/npm/$pkg" --access public
+          done
+
+  homebrew:
+    name: Update Homebrew tap
+    needs: release
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || inputs.update_homebrew }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: dist/release
+      - name: Update formula in dairo-app/homebrew-tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "HOMEBREW_TAP_TOKEN is not configured; skipping Homebrew tap update."
+            exit 0
+          fi
+          gh repo clone dairo-app/homebrew-tap tap
+          cd tap
+          mkdir -p Formula
+          python3 ../scripts/render-homebrew-formula.py "$VERSION" "$TAG" ../dist/release/checksums.txt > Formula/dairo.rb
+          git config user.name "dairo-release-bot"
+          git config user.email "release-bot@dairo.app"
+          git add Formula/dairo.rb
+          git commit -m "Update Dairo CLI to $TAG" || exit 0
+          git push

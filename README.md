@@ -8,12 +8,38 @@ Do not treat this repository as a stable public distribution channel yet.
 
 ## Supported platforms
 
-- macOS and Linux are supported for preview development.
-- Windows builds should compile, but token-file permissions are best-effort
-  because Windows ACL hardening is not implemented yet.
-- Runtime requires outbound HTTPS access to the Dairo API.
+Release automation builds native binaries for:
+
+- macOS arm64 and x64
+- Linux arm64 and x64
+- Windows x64
+
+Runtime requires outbound HTTPS access to the Dairo API. Windows token-file
+permissions are best-effort; use `DAIRO_API_KEY` for CI or stricter ACL needs.
 
 ## Install
+
+Official install channels:
+
+```sh
+npm install -g @dairo/cli
+brew install dairo-app/tap/dairo
+curl -fsSL https://dairo.app/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://dairo.app/install.ps1 | iex
+```
+
+Direct official download URLs redirect through Dairo's domain to GitHub Release
+artifacts, for example:
+
+```text
+https://dairo.app/downloads/cli/latest/dairo-aarch64-apple-darwin.tar.gz
+https://dairo.app/downloads/cli/latest/dairo-x86_64-pc-windows-msvc.zip
+```
 
 From the repository:
 
@@ -27,9 +53,9 @@ Or run without installing:
 cargo run --locked -- --help
 ```
 
-No public binary release channel exists yet. Preview releases should be built
-from a reviewed git commit with `cargo build --release --locked`; signed
-multi-platform artifacts are planned before a public launch.
+Release tags (`vX.Y.Z`) build all platform binaries, create a GitHub Release,
+produce npm platform packages, and can update the Homebrew tap when the release
+secrets are configured.
 
 ## Authentication and token security
 
@@ -98,12 +124,13 @@ dairo inbox create billing --domain example.com
 
 Send an email. At least one non-empty `--to` recipient is required, along with at least one body option: `--text`, `--html`, or `--react-source`. Inline attachments use `--attachment`; `--attachment-delivery` accepts `attachment`, `link`, or `auto`. `attachment` sends files inline. `auto` sends inline only when the files fit Dairo's safe inline limit. `link` is explicit but currently cannot upload a new local file because the CLI has no standalone file upload/link API contract yet, so it fails with guided instructions instead of pretending to send or editing the email body. Dairo never auto-inserts links into `--text` or `--html`.
 
-Send responses may include warning metadata. Complaint suppression warnings are
-warning-only: Dairo does not block the send, but human output calls out the
-recipient and suggests not contacting them again unless you are sure. Use
-`--json` to preserve the raw warning fields, including `recipient`,
-`sourceOutboundEmailId`, `providerMessageId`, `complaintFeedbackType`,
-`complaintUserAgent`, and `lastEventAt` when returned by the backend.
+Complaint suppression is enforced before Dairo queues the send. If a recipient
+previously complained, the CLI shows an actionable error and does not send by
+default. Override only deliberately with `--ignore-complaints`; API/MCP callers
+use `ignoreComplaints=true`. Use `--json` where supported to preserve raw
+warning/error metadata such as `recipient`, `sourceOutboundEmailId`,
+`providerMessageId`, `complaintFeedbackType`, `complaintUserAgent`, and
+`lastEventAt` when returned by the backend.
 
 For link-style delivery today, create or reuse a persisted email attachment link with `dairo attachments share <attachment-id> --expiry-hours <1-168>`, place the printed URL exactly where you want it in `--text`/`--html`, then send without the local file attachment. Use `--attachment-link-expiry-hours <1-168>` on `send` to make the guided `link`/oversize message use the same expiry window you intend to request once standalone local file links exist.
 
