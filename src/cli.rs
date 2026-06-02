@@ -72,6 +72,11 @@ pub enum Command {
         #[command(subcommand)]
         command: ApiKeyCommand,
     },
+    /// Install Dairo MCP for coding agents.
+    Mcp {
+        #[command(subcommand)]
+        command: McpCommand,
+    },
     /// Send an email from a Dairo inbox.
     Send(SendArgs),
     /// Manage email lists and send to list recipients.
@@ -151,6 +156,40 @@ pub enum EmailListCommand {
         #[command(flatten)]
         send: SendArgs,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum McpCommand {
+    /// Install Dairo MCP into a supported coding-agent client config.
+    Install {
+        /// Target client. `auto` configures Hermes, Codex, Cursor, and a project .mcp.json for Claude.
+        #[arg(long, default_value_t = McpClient::Auto)]
+        client: McpClient,
+        /// MCP server name in the target client.
+        #[arg(long, default_value = "dairo")]
+        name: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum McpClient {
+    Auto,
+    Hermes,
+    Claude,
+    Codex,
+    Cursor,
+}
+
+impl std::fmt::Display for McpClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Auto => "auto",
+            Self::Hermes => "hermes",
+            Self::Claude => "claude",
+            Self::Codex => "codex",
+            Self::Cursor => "cursor",
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -697,6 +736,28 @@ mod tests {
                 command: ThreadCommand::List { .. }
             }
         ));
+    }
+
+    #[test]
+    fn parses_mcp_install_command() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "mcp",
+            "install",
+            "--client",
+            "hermes",
+            "--name",
+            "dairo-prod",
+        ]);
+        match cli.command {
+            Command::Mcp {
+                command: McpCommand::Install { client, name },
+            } => {
+                assert_eq!(client, McpClient::Hermes);
+                assert_eq!(name, "dairo-prod");
+            }
+            _ => panic!("expected mcp install command"),
+        }
     }
 
     #[test]

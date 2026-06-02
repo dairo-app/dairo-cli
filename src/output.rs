@@ -1,5 +1,7 @@
 use anyhow::Result;
 
+use crate::mcp_install::McpInstallReport;
+
 use crate::api::{
     ApiKey, AttachmentDownloadUrlResponse, CreateApiKeyResponse, CreateWebhookResponse,
     DeleteResponse, Domain, EmailList, EmailListDetailResponse, EmailListImportResponse,
@@ -21,6 +23,38 @@ impl OutputFormat {
             Self::Human
         }
     }
+}
+
+pub fn print_mcp_install(reports: &[McpInstallReport], format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&reports_to_json(reports))?
+        );
+        return Ok(());
+    }
+    println!("Dairo MCP install complete. No API key was printed.");
+    for report in reports {
+        println!(
+            "- {}: {} ({})",
+            report.client,
+            report.action,
+            report.path.display()
+        );
+        println!("  verify: {}", report.verify);
+    }
+    Ok(())
+}
+
+fn reports_to_json(reports: &[McpInstallReport]) -> serde_json::Value {
+    serde_json::json!({
+        "servers": reports.iter().map(|report| serde_json::json!({
+            "client": report.client,
+            "path": report.path.display().to_string(),
+            "action": report.action,
+            "verify": report.verify
+        })).collect::<Vec<_>>()
+    })
 }
 
 pub fn print_whoami(response: &WhoamiResponse, format: OutputFormat) -> Result<()> {

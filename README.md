@@ -169,6 +169,20 @@ dairo api-key create \
 
 The create command prints a one-time API key secret. Store it immediately.
 
+Install Dairo MCP for coding agents with one command. It saves the token through
+stdin, then configures supported local clients without printing the key:
+
+```sh
+printf '%s' "$DAIRO_API_KEY" | dairo auth token set && dairo mcp install --client auto
+```
+
+`--client auto` configures Hermes, Codex, Cursor, and a project `.mcp.json` for
+Claude. You can target one client with `--client hermes`, `--client codex`,
+`--client cursor`, or `--client claude`. The remote endpoint is
+`https://api.dairo.app/mcp` and exposes agent-first tools like
+`dairo.whoami`, `dairo.send_email`, `dairo.list_outbound_events`, and
+`dairo.send_email_list`.
+
 Revoke an API key:
 
 ```sh

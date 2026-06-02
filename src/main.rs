@@ -1,6 +1,7 @@
 mod api;
 mod cli;
 mod config;
+mod mcp_install;
 mod output;
 
 use anyhow::{Context, Result};
@@ -13,7 +14,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::Parser;
 use cli::{
     ApiKeyCommand, AttachmentCommand, AttachmentDelivery, AuthCommand, Cli, Command, DomainCommand,
-    EmailListCommand, InboxCommand, MessageCommand, ThreadCommand, WebhookCommand,
+    EmailListCommand, InboxCommand, McpCommand, MessageCommand, ThreadCommand, WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -87,7 +88,7 @@ async fn run(cli: Cli) -> Result<()> {
                 .or_else(|| std::env::var("DAIRO_API_URL").ok())
                 .or(config.api_url)
                 .unwrap_or_else(|| api::DEFAULT_BASE_URL.to_string());
-            let client = ApiClient::new(base_url, api_key)?;
+            let client = ApiClient::new(&base_url, &api_key)?;
             let format = OutputFormat::from_json_flag(cli.json);
 
             match command {
@@ -271,6 +272,12 @@ async fn run(cli: Cli) -> Result<()> {
                     ApiKeyCommand::Revoke { api_key_id } => {
                         let response = client.revoke_api_key(&api_key_id).await?;
                         output::print_delete_response(&response, "API key", format)
+                    }
+                },
+                Command::Mcp { command } => match command {
+                    McpCommand::Install { client, name } => {
+                        let reports = mcp_install::install(client, &name, &base_url, &api_key)?;
+                        output::print_mcp_install(&reports, format)
                     }
                 },
                 Command::Send(args) => {
