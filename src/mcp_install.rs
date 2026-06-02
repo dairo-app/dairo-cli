@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
 use serde_json::{json, Value};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[cfg(unix)]
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
@@ -186,7 +189,7 @@ fn read_optional(path: &PathBuf) -> Result<String> {
     }
 }
 
-fn ensure_parent_private(path: &PathBuf) -> Result<()> {
+fn ensure_parent_private(path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
         #[cfg(unix)]
