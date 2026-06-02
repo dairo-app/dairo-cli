@@ -122,6 +122,9 @@ pub struct SendArgs {
         value_parser = clap::value_parser!(u32).range(1..=168)
     )]
     pub attachment_link_expiry_hours: Option<u32>,
+    /// Override complaint suppression. Use only when you intentionally want to contact recipients that previously complained.
+    #[arg(long = "ignore-complaints")]
+    pub ignore_complaints: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -446,6 +449,7 @@ mod tests {
                 attachments,
                 attachment_delivery,
                 attachment_link_expiry_hours,
+                ignore_complaints,
             }) => {
                 assert_eq!(inbox_id, "inbox_123");
                 assert_eq!(to, vec!["max@example.com"]);
@@ -457,6 +461,7 @@ mod tests {
                 assert_eq!(attachments, vec![PathBuf::from("invoice.pdf")]);
                 assert_eq!(attachment_delivery, AttachmentDelivery::Attachment);
                 assert_eq!(attachment_link_expiry_hours, None);
+                assert!(!ignore_complaints);
             }
             _ => panic!("expected send command"),
         }
@@ -496,6 +501,29 @@ mod tests {
     }
 
     #[test]
+    fn parses_ignore_complaints_flag() {
+        let cli = Cli::try_parse_from([
+            "dairo",
+            "send",
+            "--inbox-id",
+            "inbox_123",
+            "--to",
+            "max@example.com",
+            "--text",
+            "Body",
+            "--ignore-complaints",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Send(SendArgs {
+                ignore_complaints, ..
+            }) => assert!(ignore_complaints),
+            _ => panic!("expected send command"),
+        }
+    }
+
+    #[test]
     fn parses_react_send_arguments() {
         let cli = Cli::try_parse_from([
             "dairo",
@@ -525,6 +553,7 @@ mod tests {
                 attachments,
                 attachment_delivery,
                 attachment_link_expiry_hours,
+                ignore_complaints,
             }) => {
                 assert_eq!(inbox_id, "inbox_123");
                 assert_eq!(to, vec!["max@example.com"]);
@@ -539,6 +568,7 @@ mod tests {
                 assert!(attachments.is_empty());
                 assert_eq!(attachment_delivery, AttachmentDelivery::Attachment);
                 assert_eq!(attachment_link_expiry_hours, None);
+                assert!(!ignore_complaints);
             }
             _ => panic!("expected send command"),
         }

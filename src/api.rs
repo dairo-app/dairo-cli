@@ -436,6 +436,12 @@ pub struct SendEmailRequest {
     pub attachments: Option<Vec<SendEmailAttachment>>,
     #[serde(rename = "idempotencyKey", skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,
+    #[serde(
+        rename = "ignoreComplaints",
+        default,
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub ignore_complaints: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -920,6 +926,7 @@ mod tests {
                 delivery: None,
             }]),
             idempotency_key: None,
+            ignore_complaints: false,
         };
 
         let value = serde_json::to_value(body).unwrap();
@@ -955,6 +962,7 @@ mod tests {
             }),
             attachments: None,
             idempotency_key: None,
+            ignore_complaints: false,
         };
 
         let value = serde_json::to_value(body).unwrap();

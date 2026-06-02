@@ -363,6 +363,7 @@ fn build_send_request(mut args: cli::SendArgs, require_to: bool) -> Result<SendE
         react,
         attachments,
         idempotency_key: None,
+        ignore_complaints: args.ignore_complaints,
     })
 }
 
