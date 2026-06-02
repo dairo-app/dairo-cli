@@ -176,13 +176,17 @@ pub fn print_webhooks(webhooks: &[Webhook], format: OutputFormat) -> Result<()> 
         return Ok(());
     }
 
-    println!("{:<38} {:<44} {:<12} EVENTS", "ID", "URL", "STATUS");
+    println!(
+        "{:<38} {:<44} {:<12} {:<24} EVENTS",
+        "ID", "URL", "STATUS", "LAST DELIVERY"
+    );
     for webhook in webhooks {
         println!(
-            "{:<38} {:<44} {:<12} {}",
+            "{:<38} {:<44} {:<12} {:<24} {}",
             webhook.id,
             webhook.url,
             webhook.status,
+            webhook.last_delivery_at.as_deref().unwrap_or("-"),
             webhook.events.join(",")
         );
     }
@@ -200,6 +204,9 @@ pub fn print_created_webhook(response: &CreateWebhookResponse, format: OutputFor
     println!("  url: {}", response.webhook.url);
     println!("  status: {}", response.webhook.status);
     println!("  events: {}", response.webhook.events.join(","));
+    if let Some(last_delivery_at) = &response.webhook.last_delivery_at {
+        println!("  last delivery: {last_delivery_at}");
+    }
     println!("  signing secret: {}", response.secret);
     println!("Store this secret now. Dairo will not show it again.");
     Ok(())

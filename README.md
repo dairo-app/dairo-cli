@@ -121,7 +121,8 @@ dairo send \
   --react-props '{"name":"Max"}'
 ```
 
-List and create webhooks:
+List and create webhooks. `message.received` is the primary event for coding
+agents and external automation that need to react when new inbox mail arrives:
 
 ```sh
 dairo webhook list
@@ -131,7 +132,10 @@ dairo webhook create \
   --event email.delivered
 ```
 
-The create command prints a one-time signing secret. Store it immediately.
+Supported events are `message.received`, `email.sent`, `email.delivered`,
+`email.bounced`, and `email.complained`. List output includes status, events,
+and the latest successful delivery time when the backend has one. The create
+command prints a one-time signing secret. Store it immediately.
 
 Delete a webhook by ID or URL:
 

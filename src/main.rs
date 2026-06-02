@@ -242,6 +242,10 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_webhooks(&response.webhooks, format)
                     }
                     WebhookCommand::Create { url, events } => {
+                        let events = events
+                            .into_iter()
+                            .map(|event| event.as_str().to_string())
+                            .collect();
                         let response = client
                             .create_webhook(&CreateWebhookRequest { url, events })
                             .await?;

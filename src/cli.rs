@@ -273,11 +273,44 @@ pub enum WebhookCommand {
     Create {
         #[arg(long)]
         url: String,
+        /// Event type to deliver. Repeat for multiple events.
         #[arg(long = "event", required = true)]
-        events: Vec<String>,
+        events: Vec<WebhookEvent>,
     },
     /// Delete a webhook by ID or URL.
     Delete { webhook: String },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum WebhookEvent {
+    #[value(name = "message.received")]
+    MessageReceived,
+    #[value(name = "email.sent")]
+    EmailSent,
+    #[value(name = "email.delivered")]
+    EmailDelivered,
+    #[value(name = "email.bounced")]
+    EmailBounced,
+    #[value(name = "email.complained")]
+    EmailComplained,
+}
+
+impl WebhookEvent {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::MessageReceived => "message.received",
+            Self::EmailSent => "email.sent",
+            Self::EmailDelivered => "email.delivered",
+            Self::EmailBounced => "email.bounced",
+            Self::EmailComplained => "email.complained",
+        }
+    }
+}
+
+impl std::fmt::Display for WebhookEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -561,7 +594,10 @@ mod tests {
                 command: WebhookCommand::Create { url, events },
             } => {
                 assert_eq!(url, "https://example.com/hook");
-                assert_eq!(events, vec!["message.received", "email.delivered"]);
+                assert_eq!(
+                    events,
+                    vec![WebhookEvent::MessageReceived, WebhookEvent::EmailDelivered]
+                );
             }
             _ => panic!("expected webhook create command"),
         }
@@ -621,5 +657,24 @@ mod tests {
                 command: ThreadCommand::List { .. }
             }
         ));
+    }
+
+    #[test]
+    fn webhook_create_rejects_unknown_events() {
+        let error = Cli::try_parse_from([
+            "dairo",
+            "webhook",
+            "create",
+            "--url",
+            "https://example.com/hook",
+            "--event",
+            "message.created",
+        ])
+        .expect_err("unknown webhook events should fail clap validation");
+
+        let message = error.to_string();
+        assert!(message.contains("message.created"));
+        assert!(message.contains("message.received"));
+        assert!(message.contains("email.complained"));
     }
 }

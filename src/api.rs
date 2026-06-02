@@ -436,6 +436,8 @@ pub struct Webhook {
     pub status: String,
     #[serde(rename = "createdAt")]
     pub created_at: String,
+    #[serde(default, rename = "lastDeliveryAt")]
+    pub last_delivery_at: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -836,6 +838,30 @@ mod tests {
     }
 
     #[test]
+    fn deserializes_webhook_delivery_state_without_secret_hash() {
+        let response: WebhookListResponse = serde_json::from_value(serde_json::json!({
+            "webhooks": [
+                {
+                    "id": "wh_123",
+                    "url": "https://example.com/hook",
+                    "events": ["message.received", "email.delivered"],
+                    "status": "active",
+                    "createdAt": "2026-06-01T00:00:00Z",
+                    "lastDeliveryAt": "2026-06-02T10:00:00Z"
+                }
+            ]
+        }))
+        .unwrap();
+
+        let webhook = &response.webhooks[0];
+        assert_eq!(webhook.events[0], "message.received");
+        assert_eq!(
+            webhook.last_delivery_at.as_deref(),
+            Some("2026-06-02T10:00:00Z")
+        );
+    }
+
+    #[test]
     fn deserializes_message_body_fields() {
         let message: Message = serde_json::from_value(serde_json::json!({
             "id": "msg_123",
@@ -870,6 +896,7 @@ mod tests {
                 events: vec!["message.received".to_string()],
                 status: "active".to_string(),
                 created_at: "2026-01-01T00:00:00Z".to_string(),
+                last_delivery_at: None,
             },
             secret: "whsec_real_secret".to_string(),
         };
