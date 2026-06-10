@@ -14,7 +14,8 @@ use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::Parser;
 use cli::{
     ApiKeyCommand, AttachmentCommand, AttachmentDelivery, AuthCommand, Cli, Command, DomainCommand,
-    EmailListCommand, InboxCommand, McpCommand, MessageCommand, ThreadCommand, WebhookCommand,
+    EmailListCommand, InboxCommand, McpCommand, MessageCommand, OutboundCommand, ThreadCommand,
+    WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -284,6 +285,40 @@ async fn run(cli: Cli) -> Result<()> {
                     let response = client.send_email(&build_send_request(args, true)?).await?;
                     output::print_send_result(&response, format)
                 }
+                Command::Outbound { command } => match command {
+                    OutboundCommand::List { limit } => {
+                        let response = client.list_outbound_emails(limit).await?;
+                        output::print_json(&response, format)
+                    }
+                    OutboundCommand::Get { email_id } => {
+                        let response = client.get_outbound_email(&email_id).await?;
+                        output::print_json(&response, format)
+                    }
+                    OutboundCommand::Events { email_id, limit } => {
+                        let response = client
+                            .list_outbound_events(email_id.as_deref(), limit)
+                            .await?;
+                        output::print_json(&response, format)
+                    }
+                    OutboundCommand::Bounces { email_id, limit } => {
+                        let response = client
+                            .list_outbound_events(email_id.as_deref(), limit)
+                            .await?;
+                        output::print_json(
+                            &output::filter_events_of_type(response, "bounce"),
+                            format,
+                        )
+                    }
+                    OutboundCommand::Complaints { email_id, limit } => {
+                        let response = client
+                            .list_outbound_events(email_id.as_deref(), limit)
+                            .await?;
+                        output::print_json(
+                            &output::filter_events_of_type(response, "complaint"),
+                            format,
+                        )
+                    }
+                },
                 Command::EmailList { command } => match command {
                     EmailListCommand::List => {
                         let response = client.list_email_lists().await?;

@@ -171,12 +171,21 @@ Supported events are `message.received`, `email.sent`, `email.delivered`,
 and the latest successful delivery time when the backend has one. The create
 command prints a one-time signing secret. Store it immediately.
 
-Outbound delivery event listing is intended to use `dairo events list` once the
-public API/OpenAPI contract exposes a list-events operation. The expected rows
-should include metadata-only join keys such as `emailId`, `recipient`,
-`providerMessageId`, `subject`, `from`, `to`, event status, bounce/complaint
-details, and `occurredAt`. This CLI version does not guess an endpoint that is
-not yet present in the local public contract projection.
+Inspect outbound email history and delivery events via the `dairo outbound`
+commands (backed by `GET /v1/outbound-emails` and `GET /v1/outbound-events`):
+
+```sh
+dairo outbound list --limit 20            # recent outbound emails
+dairo outbound get <emailId>              # one email + its delivery timeline
+dairo outbound events --email-id <id>     # delivery events (delivered/bounced/...)
+dairo outbound bounces                    # only bounce events
+dairo outbound complaints                 # only complaint events
+```
+
+Event rows carry metadata-only join keys such as `emailId`, `recipient`,
+`providerMessageId`, `subject`, `from`, `to`, event `type`, bounce/complaint
+details, and `occurredAt`. Output is JSON; use `--json` for the same machine
+form in scripts.
 
 Delete a webhook by ID or URL:
 

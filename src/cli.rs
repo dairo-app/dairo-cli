@@ -79,11 +79,48 @@ pub enum Command {
     },
     /// Send an email from a Dairo inbox.
     Send(SendArgs),
+    /// Inspect outbound email history and delivery events.
+    Outbound {
+        #[command(subcommand)]
+        command: OutboundCommand,
+    },
     /// Manage email lists and send to list recipients.
     #[command(name = "lists", alias = "list")]
     EmailList {
         #[command(subcommand)]
         command: EmailListCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum OutboundCommand {
+    /// List outbound emails (most recent first).
+    List {
+        #[arg(long)]
+        limit: Option<u32>,
+    },
+    /// Get one outbound email with its delivery-event timeline.
+    Get { email_id: String },
+    /// List outbound delivery events (delivered, bounced, complained, ...).
+    Events {
+        #[arg(long = "email-id")]
+        email_id: Option<String>,
+        #[arg(long)]
+        limit: Option<u32>,
+    },
+    /// List only bounce events.
+    Bounces {
+        #[arg(long = "email-id")]
+        email_id: Option<String>,
+        #[arg(long)]
+        limit: Option<u32>,
+    },
+    /// List only complaint events (recipients who reported spam).
+    Complaints {
+        #[arg(long = "email-id")]
+        email_id: Option<String>,
+        #[arg(long)]
+        limit: Option<u32>,
     },
 }
 

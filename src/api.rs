@@ -256,6 +256,46 @@ impl ApiClient {
         .await
     }
 
+    pub async fn list_outbound_emails(&self, limit: Option<u32>) -> Result<serde_json::Value> {
+        let mut request =
+            self.build_request(Method::GET, &["v1", "outbound-emails"], None::<&()>)?;
+        if let Some(limit) = limit {
+            request
+                .url_mut()
+                .query_pairs_mut()
+                .append_pair("limit", &limit.to_string());
+        }
+        self.execute_json(request).await
+    }
+
+    pub async fn get_outbound_email(&self, email_id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "outbound-emails", email_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    pub async fn list_outbound_events(
+        &self,
+        email_id: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<serde_json::Value> {
+        let mut request =
+            self.build_request(Method::GET, &["v1", "outbound-events"], None::<&()>)?;
+        {
+            let mut pairs = request.url_mut().query_pairs_mut();
+            if let Some(email_id) = email_id {
+                pairs.append_pair("emailId", email_id);
+            }
+            if let Some(limit) = limit {
+                pairs.append_pair("limit", &limit.to_string());
+            }
+        }
+        self.execute_json(request).await
+    }
+
     pub(crate) fn build_request<T: Serialize>(
         &self,
         method: Method,

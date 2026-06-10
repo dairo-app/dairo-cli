@@ -25,6 +25,37 @@ impl OutputFormat {
     }
 }
 
+/// Pretty-prints a raw JSON value. Used for outbound history/events, whose
+/// shape is a thin pass-through of the API response.
+pub fn print_json(value: &serde_json::Value, _format: OutputFormat) -> Result<()> {
+    println!("{}", serde_json::to_string_pretty(value)?);
+    Ok(())
+}
+
+/// Returns a copy of an `{ "events": [...] }` payload keeping only events whose
+/// `type` matches `kind` ("bounce"/"complaint"), case-insensitively (stored SES
+/// types are capitalized) plus the webhook form (email.bounced/complained).
+pub fn filter_events_of_type(mut value: serde_json::Value, kind: &str) -> serde_json::Value {
+    let webhook_form = match kind {
+        "bounce" => "email.bounced",
+        "complaint" => "email.complained",
+        _ => "",
+    };
+    if let Some(events) = value.get_mut("events").and_then(|v| v.as_array_mut()) {
+        events.retain(|event| {
+            event
+                .get("type")
+                .and_then(|t| t.as_str())
+                .map(|t| {
+                    t.eq_ignore_ascii_case(kind)
+                        || (!webhook_form.is_empty() && t.eq_ignore_ascii_case(webhook_form))
+                })
+                .unwrap_or(false)
+        });
+    }
+    value
+}
+
 pub fn print_mcp_install(reports: &[McpInstallReport], format: OutputFormat) -> Result<()> {
     if format == OutputFormat::Json {
         println!(
