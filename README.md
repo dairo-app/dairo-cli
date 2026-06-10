@@ -207,8 +207,8 @@ printf '%s' "$DAIRO_API_KEY" | dairo auth token set && dairo mcp install --clien
 Claude. You can target one client with `--client hermes`, `--client codex`,
 `--client cursor`, or `--client claude`. The remote endpoint is
 `https://api.dairo.app/mcp` and exposes agent-first tools like
-`dairo.whoami`, `dairo.send_email`, `dairo.list_outbound_events`, and
-`dairo.send_email_list`.
+`dairo.whoami`, `dairo.send.email`, `dairo.list.outbound.events`, and
+`dairo.send.email.list`.
 
 Revoke an API key:
 
