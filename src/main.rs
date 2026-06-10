@@ -7,16 +7,16 @@ mod webhook;
 
 use anyhow::{Context, Result};
 use api::{
-    ApiClient, CreateApiKeyRequest, CreateDomainRequest, CreateEmailListRequest,
+    ApiClient, AuditLogQuery, CreateApiKeyRequest, CreateDomainRequest, CreateEmailListRequest,
     CreateInboxRequest, CreateWebhookRequest, EmailListMemberInput, EmailListMembersRequest,
     MessageListQuery, SendEmailAttachment, SendEmailReact, SendEmailRequest, ThreadListQuery,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::Parser;
 use cli::{
-    ApiKeyCommand, AttachmentCommand, AttachmentDelivery, AuthCommand, Cli, Command, DomainCommand,
-    EmailListCommand, InboxCommand, McpCommand, MessageCommand, OutboundCommand, ThreadCommand,
-    WebhookCommand,
+    ApiKeyCommand, AttachmentCommand, AttachmentDelivery, AuditLogCommand, AuthCommand, Cli,
+    Command, DedicatedIpCommand, DomainCommand, EmailListCommand, InboxCommand, McpCommand,
+    MessageCommand, OutboundCommand, ThreadCommand, WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -283,9 +283,22 @@ async fn run(cli: Cli) -> Result<()> {
                         let response = client.list_api_keys().await?;
                         output::print_api_keys(&response.api_keys, format)
                     }
-                    ApiKeyCommand::Create { name, scopes } => {
+                    ApiKeyCommand::Create {
+                        name,
+                        scopes,
+                        allowed_ips,
+                    } => {
+                        let allowed_ips = if allowed_ips.is_empty() {
+                            None
+                        } else {
+                            Some(allowed_ips)
+                        };
                         let response = client
-                            .create_api_key(&CreateApiKeyRequest { name, scopes })
+                            .create_api_key(&CreateApiKeyRequest {
+                                name,
+                                scopes,
+                                allowed_ips,
+                            })
                             .await?;
                         output::print_created_api_key(&response, format)
                     }
@@ -311,6 +324,10 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                     OutboundCommand::Get { email_id } => {
                         let response = client.get_outbound_email(&email_id).await?;
+                        output::print_json(&response, format)
+                    }
+                    OutboundCommand::Cancel { email_id } => {
+                        let response = client.cancel_outbound_email(&email_id).await?;
                         output::print_json(&response, format)
                     }
                     OutboundCommand::Events { email_id, limit } => {
@@ -389,6 +406,20 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_email_list_send(&response, format)
                     }
                 },
+                Command::AuditLog { command } => match command {
+                    AuditLogCommand::List { limit, cursor } => {
+                        let response = client
+                            .list_audit_logs(&AuditLogQuery { limit, cursor })
+                            .await?;
+                        output::print_json(&response, format)
+                    }
+                },
+                Command::DedicatedIp { command } => match command {
+                    DedicatedIpCommand::Status => {
+                        let response = client.list_dedicated_ips().await?;
+                        output::print_json(&response, format)
+                    }
+                },
                 Command::Auth { .. } => unreachable!("auth handled before API client construction"),
             }
             .context("failed to print command output")
@@ -421,8 +452,21 @@ fn build_send_request(mut args: cli::SendArgs, require_to: bool) -> Result<SendE
         react,
         attachments,
         idempotency_key: None,
+        send_at: args.send_at.and_then(non_empty_trimmed),
         ignore_complaints: args.ignore_complaints,
     })
+}
+
+/// Trims a string and returns `None` if it is empty, so blank flag values
+/// (e.g. `--send-at ""`) are treated as "not provided" rather than sent as an
+/// empty string the backend would reject.
+fn non_empty_trimmed(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 fn read_email_list_csv(path: &Path) -> Result<Vec<EmailListMemberInput>> {

@@ -363,6 +363,43 @@ impl ApiClient {
         .await
     }
 
+    /// Cancels a scheduled outbound email. Returns the canceled outbound email
+    /// (`{ "email": { ... status: "canceled", canceledAt } }`), or surfaces the
+    /// backend's `409 Conflict` if the email is no longer scheduled. Scope:
+    /// `mail:send`.
+    pub async fn cancel_outbound_email(&self, email_id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "outbound-emails", email_id, "cancel"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Lists the user's audit-log rows, newest first, with keyset pagination.
+    /// Scope: `mail:read`. Returns
+    /// `{ "logs": [...], "pagination": { "nextCursor": ... } }`.
+    pub async fn list_audit_logs(&self, query: &AuditLogQuery) -> Result<serde_json::Value> {
+        let mut request = self.build_request(Method::GET, &["v1", "audit-logs"], None::<&()>)?;
+        {
+            let mut pairs = request.url_mut().query_pairs_mut();
+            if let Some(limit) = query.limit {
+                pairs.append_pair("limit", &limit.to_string());
+            }
+            if let Some(cursor) = &query.cursor {
+                pairs.append_pair("cursor", cursor);
+            }
+        }
+        self.execute_json(request).await
+    }
+
+    /// Returns the tenant's dedicated IP pool status. Scope: `mail:read`. Returns
+    /// `{ "pools": [...] }`.
+    pub async fn list_dedicated_ips(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "dedicated-ips"], None::<&()>)?)
+            .await
+    }
+
     pub async fn list_outbound_events(
         &self,
         email_id: Option<&str>,
@@ -577,6 +614,9 @@ pub struct WhoamiResponse {
 pub struct WhoamiApiKey {
     pub id: String,
     pub scopes: Vec<String>,
+    /// IP allowlist (single IPs and/or CIDR ranges). Empty means "allow all".
+    #[serde(default, rename = "allowedIps")]
+    pub allowed_ips: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -680,6 +720,11 @@ pub struct SendEmailRequest {
     pub attachments: Option<Vec<SendEmailAttachment>>,
     #[serde(rename = "idempotencyKey", skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,
+    /// Optional scheduled-send time. RFC3339 with an explicit timezone offset
+    /// (e.g. `2026-06-11T09:00:00Z` or `2026-06-11T11:00:00+02:00`). When set, the
+    /// send is staged and the response status is `scheduled` with `scheduledAt`.
+    #[serde(rename = "sendAt", skip_serializing_if = "Option::is_none")]
+    pub send_at: Option<String>,
     #[serde(
         rename = "ignoreComplaints",
         default,
@@ -713,6 +758,9 @@ pub struct SendEmailResponse {
     #[serde(rename = "providerMessageId")]
     pub provider_message_id: Option<String>,
     pub error: Option<String>,
+    /// Set when `status == "scheduled"`: the RFC3339 time the send will fire.
+    #[serde(default, rename = "scheduledAt")]
+    pub scheduled_at: Option<String>,
     #[serde(default)]
     pub warnings: Vec<SendEmailWarning>,
 }
@@ -864,6 +912,10 @@ impl std::fmt::Debug for CreateWebhookResponse {
 pub struct CreateApiKeyRequest {
     pub name: String,
     pub scopes: Vec<String>,
+    /// Optional IP allowlist (single IPs and/or CIDR ranges). Absent/empty means
+    /// the key is usable from any IP.
+    #[serde(rename = "allowedIps", skip_serializing_if = "Option::is_none")]
+    pub allowed_ips: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -878,6 +930,9 @@ pub struct ApiKey {
     pub name: String,
     pub prefix: String,
     pub scopes: Vec<String>,
+    /// IP allowlist (single IPs and/or CIDR ranges). Empty means "allow all".
+    #[serde(default, rename = "allowedIps")]
+    pub allowed_ips: Vec<String>,
     pub status: String,
     #[serde(rename = "createdAt")]
     pub created_at: String,
@@ -918,6 +973,14 @@ pub struct MessageListQuery {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ThreadListQuery {
     pub inbox_id: Option<String>,
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+}
+
+/// Query for `GET /v1/audit-logs`. `limit` is bounded server-side (1..=100);
+/// `cursor` is the opaque `nextCursor` returned by a previous page.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct AuditLogQuery {
     pub limit: Option<u32>,
     pub cursor: Option<String>,
 }
@@ -1290,6 +1353,7 @@ mod tests {
                 delivery: None,
             }]),
             idempotency_key: None,
+            send_at: None,
             ignore_complaints: false,
         };
 
@@ -1326,6 +1390,7 @@ mod tests {
             }),
             attachments: None,
             idempotency_key: None,
+            send_at: None,
             ignore_complaints: false,
         };
 
@@ -1338,6 +1403,144 @@ mod tests {
             "export default function Email(props) { return <p>{props.name}</p>; }"
         );
         assert_eq!(value["react"]["props"]["name"], "Max");
+    }
+
+    #[test]
+    fn serializes_send_body_with_send_at_for_scheduling() {
+        let body = SendEmailRequest {
+            inbox_id: "018f".to_string(),
+            to: vec!["max@example.com".to_string()],
+            cc: None,
+            bcc: None,
+            subject: "Hello".to_string(),
+            text: Some("Body".to_string()),
+            html: None,
+            react: None,
+            attachments: None,
+            idempotency_key: None,
+            send_at: Some("2026-06-11T09:00:00Z".to_string()),
+            ignore_complaints: false,
+        };
+
+        let value = serde_json::to_value(body).unwrap();
+
+        assert_eq!(value["sendAt"], "2026-06-11T09:00:00Z");
+    }
+
+    #[test]
+    fn omits_send_at_when_sending_immediately() {
+        let body = SendEmailRequest {
+            inbox_id: "018f".to_string(),
+            to: vec!["max@example.com".to_string()],
+            cc: None,
+            bcc: None,
+            subject: "Hello".to_string(),
+            text: Some("Body".to_string()),
+            html: None,
+            react: None,
+            attachments: None,
+            idempotency_key: None,
+            send_at: None,
+            ignore_complaints: false,
+        };
+
+        let value = serde_json::to_value(body).unwrap();
+
+        assert!(value.get("sendAt").is_none());
+    }
+
+    #[test]
+    fn send_response_deserializes_scheduled_status_with_scheduled_at() {
+        let response: SendEmailResponse = serde_json::from_str(
+            r#"{
+                "id": "email_123",
+                "status": "scheduled",
+                "providerMessageId": null,
+                "error": null,
+                "scheduledAt": "2026-06-11T09:00:00+00:00"
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(response.status, "scheduled");
+        assert_eq!(
+            response.scheduled_at.as_deref(),
+            Some("2026-06-11T09:00:00+00:00")
+        );
+    }
+
+    #[test]
+    fn serializes_create_api_key_body_with_allowed_ips() {
+        let body = CreateApiKeyRequest {
+            name: "CI".to_string(),
+            scopes: vec!["mail:send".to_string()],
+            allowed_ips: Some(vec![
+                "203.0.113.0/24".to_string(),
+                "198.51.100.7".to_string(),
+            ]),
+        };
+        let value = serde_json::to_value(body).unwrap();
+        assert_eq!(value["allowedIps"][0], "203.0.113.0/24");
+        assert_eq!(value["allowedIps"][1], "198.51.100.7");
+    }
+
+    #[test]
+    fn omits_allowed_ips_when_unset() {
+        let body = CreateApiKeyRequest {
+            name: "CI".to_string(),
+            scopes: vec!["mail:send".to_string()],
+            allowed_ips: None,
+        };
+        let value = serde_json::to_value(body).unwrap();
+        assert!(value.get("allowedIps").is_none());
+    }
+
+    #[test]
+    fn deserializes_api_key_allowed_ips_and_defaults_to_empty() {
+        let response: ApiKeyListResponse = serde_json::from_value(serde_json::json!({
+            "apiKeys": [
+                {
+                    "id": "key_1",
+                    "name": "scoped",
+                    "prefix": "dairo_test_a",
+                    "scopes": ["mail:send"],
+                    "allowedIps": ["203.0.113.0/24"],
+                    "status": "active",
+                    "createdAt": "2026-06-01T00:00:00Z",
+                    "lastUsedAt": null
+                },
+                {
+                    "id": "key_2",
+                    "name": "open",
+                    "prefix": "dairo_test_b",
+                    "scopes": ["mail:read"],
+                    "status": "active",
+                    "createdAt": "2026-06-01T00:00:00Z",
+                    "lastUsedAt": null
+                }
+            ]
+        }))
+        .unwrap();
+
+        assert_eq!(response.api_keys[0].allowed_ips, vec!["203.0.113.0/24"]);
+        assert!(response.api_keys[1].allowed_ips.is_empty());
+    }
+
+    #[test]
+    fn cancel_outbound_email_targets_cancel_route() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::POST,
+                &["v1", "outbound-emails", "email_123", "cancel"],
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/outbound-emails/email_123/cancel"
+        );
     }
 
     #[test]
@@ -1494,6 +1697,7 @@ mod tests {
                 name: "CI".to_string(),
                 prefix: "dairo_test_abc".to_string(),
                 scopes: vec!["mail:send".to_string()],
+                allowed_ips: Vec::new(),
                 status: "active".to_string(),
                 created_at: "2026-01-01T00:00:00Z".to_string(),
                 last_used_at: None,

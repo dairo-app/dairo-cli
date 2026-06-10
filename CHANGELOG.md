@@ -24,6 +24,21 @@ All notable Dairo CLI private-preview changes are tracked here.
 
 ### Endpoints
 
+- Scheduled send: `dairo send --send-at <RFC3339>` stages a future send. The
+  `SendEmailRequest` gains `sendAt` and `SendEmailResponse` gains `scheduledAt`
+  (status `scheduled`).
+- Cancel a scheduled send: `dairo outbound cancel <id>` →
+  `POST /v1/outbound-emails/{id}/cancel` (`mail:send`); returns the canceled
+  email or a conflict if it is no longer scheduled. The outbound-email model
+  gains `scheduled`/`canceled` statuses and `scheduledAt`/`canceledAt` fields.
+- Audit logs: `dairo audit-logs list [--limit N] [--cursor C]` →
+  `GET /v1/audit-logs` (`mail:read`), returning
+  `{ logs: [...], pagination: { nextCursor } }`.
+- API-key IP allowlist: `dairo api-key create --allowed-ip <ip-or-cidr>` (repeat
+  for multiple). `CreateApiKeyRequest` gains `allowedIps`; the API-key object
+  (create, list, whoami) gains `allowedIps`.
+- Dedicated IPs: `dairo dedicated-ips status` → `GET /v1/dedicated-ips`
+  (`mail:read`), returning the dedicated IP pool status.
 - Added `dairo outbound` commands: `list`, `get <id>`, `events`, `bounces`,
   `complaints` — backed by the public `/v1/outbound-emails`,
   `/v1/outbound-emails/{id}`, and `/v1/outbound-events` routes (`mail:read`).

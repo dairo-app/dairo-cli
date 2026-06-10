@@ -100,6 +100,9 @@ pub fn print_whoami(response: &WhoamiResponse, format: OutputFormat) -> Result<(
     }
     println!("API key: {}", response.api_key.id);
     println!("Scopes: {}", response.api_key.scopes.join(","));
+    if !response.api_key.allowed_ips.is_empty() {
+        println!("Allowed IPs: {}", response.api_key.allowed_ips.join(","));
+    }
     println!("Plan: {}", response.plan);
     println!(
         "Storage: {} used / {} limit ({} left)",
@@ -412,17 +415,23 @@ pub fn print_api_keys(api_keys: &[ApiKey], format: OutputFormat) -> Result<()> {
     }
 
     println!(
-        "{:<38} {:<24} {:<18} {:<10} SCOPES",
-        "ID", "NAME", "PREFIX", "STATUS"
+        "{:<38} {:<24} {:<18} {:<10} {:<28} ALLOWED IPS",
+        "ID", "NAME", "PREFIX", "STATUS", "SCOPES"
     );
     for api_key in api_keys {
+        let allowed_ips = if api_key.allowed_ips.is_empty() {
+            "any".to_string()
+        } else {
+            api_key.allowed_ips.join(",")
+        };
         println!(
-            "{:<38} {:<24} {:<18} {:<10} {}",
+            "{:<38} {:<24} {:<18} {:<10} {:<28} {}",
             api_key.id,
             api_key.name,
             api_key.prefix,
             api_key.status,
-            api_key.scopes.join(",")
+            api_key.scopes.join(","),
+            allowed_ips
         );
     }
     Ok(())
@@ -439,6 +448,11 @@ pub fn print_created_api_key(response: &CreateApiKeyResponse, format: OutputForm
     println!("  name: {}", response.api_key.name);
     println!("  prefix: {}", response.api_key.prefix);
     println!("  scopes: {}", response.api_key.scopes.join(","));
+    if response.api_key.allowed_ips.is_empty() {
+        println!("  allowed IPs: any");
+    } else {
+        println!("  allowed IPs: {}", response.api_key.allowed_ips.join(","));
+    }
     println!("  secret: {}", response.secret);
     println!("Store this secret now. Dairo will not show it again.");
     Ok(())

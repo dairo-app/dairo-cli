@@ -1,7 +1,7 @@
 {
   "name": "dairo-public-sdk-contract",
   "openapiVersion": "3.1.0",
-  "operationCount": 20,
+  "operationCount": 23,
   "operations": [
     {
       "method": "GET",
@@ -472,6 +472,81 @@
       },
       "scopes": [
         "webhooks:write"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "listAuditLogs",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "limit"
+        },
+        {
+          "in": "query",
+          "name": "cursor"
+        }
+      ],
+      "path": "/v1/audit-logs",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/AuditLogListResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "mail:read"
+      ]
+    },
+    {
+      "method": "POST",
+      "operationId": "cancelOutboundEmail",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/outbound-emails/{id}/cancel",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/CancelOutboundEmailResponse",
+        "409": "#/components/schemas/ErrorResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "mail:send"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "listDedicatedIps",
+      "parameters": [],
+      "path": "/v1/dedicated-ips",
+      "requestSchema": null,
+      "responseSchemas": {
+        "200": "#/components/schemas/DedicatedIpListResponse",
+        "400": "#/components/schemas/ErrorResponse",
+        "401": "#/components/schemas/ErrorResponse",
+        "403": "#/components/schemas/ErrorResponse",
+        "404": "#/components/schemas/ErrorResponse",
+        "422": "#/components/schemas/ErrorResponse",
+        "429": "#/components/schemas/ErrorResponse",
+        "500": "#/components/schemas/ErrorResponse"
+      },
+      "scopes": [
+        "mail:read"
       ]
     }
   ],

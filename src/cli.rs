@@ -90,6 +90,37 @@ pub enum Command {
         #[command(subcommand)]
         command: EmailListCommand,
     },
+    /// Inspect the account audit log (security-relevant control-plane actions).
+    #[command(name = "audit-logs", alias = "audit-log")]
+    AuditLog {
+        #[command(subcommand)]
+        command: AuditLogCommand,
+    },
+    /// Inspect dedicated IP pool status.
+    #[command(name = "dedicated-ips", alias = "dedicated-ip")]
+    DedicatedIp {
+        #[command(subcommand)]
+        command: DedicatedIpCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AuditLogCommand {
+    /// List audit-log entries (newest first) with keyset pagination.
+    List {
+        /// Maximum number of entries to return (1..=100; server default 25).
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: Option<u32>,
+        /// Opaque pagination cursor from a previous page's `nextCursor`.
+        #[arg(long)]
+        cursor: Option<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DedicatedIpCommand {
+    /// Show the dedicated IP pool status for the account.
+    Status,
 }
 
 #[derive(Debug, Subcommand)]
@@ -101,6 +132,11 @@ pub enum OutboundCommand {
     },
     /// Get one outbound email with its delivery-event timeline.
     Get { email_id: String },
+    /// Cancel a scheduled outbound email before its fire time.
+    ///
+    /// Fails with a conflict if the email is no longer scheduled (already sent,
+    /// queued, or canceled).
+    Cancel { email_id: String },
     /// List outbound delivery events (delivered, bounced, complained, ...).
     Events {
         #[arg(long = "email-id")]
@@ -162,6 +198,11 @@ pub struct SendArgs {
     /// Override complaint suppression. Use only when you intentionally want to contact recipients that previously complained.
     #[arg(long = "ignore-complaints")]
     pub ignore_complaints: bool,
+    /// Schedule the send for a future time instead of sending immediately.
+    /// RFC3339 with an explicit timezone offset, e.g. `2026-06-11T09:00:00Z` or
+    /// `2026-06-11T11:00:00+02:00`. The response status is `scheduled`.
+    #[arg(long = "send-at", value_name = "RFC3339")]
+    pub send_at: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -463,6 +504,10 @@ pub enum ApiKeyCommand {
         name: String,
         #[arg(long = "scope", required = true)]
         scopes: Vec<String>,
+        /// Restrict the key to these source IPs / CIDR ranges. Repeat for
+        /// multiple entries. Omit to allow the key from any IP.
+        #[arg(long = "allowed-ip", value_name = "IP_OR_CIDR")]
+        allowed_ips: Vec<String>,
     },
     /// Revoke an API key by ID.
     Revoke { api_key_id: String },
@@ -508,6 +553,7 @@ mod tests {
                 attachment_delivery,
                 attachment_link_expiry_hours,
                 ignore_complaints,
+                send_at,
             }) => {
                 assert_eq!(inbox_id, "inbox_123");
                 assert_eq!(to, vec!["max@example.com"]);
@@ -520,6 +566,7 @@ mod tests {
                 assert_eq!(attachment_delivery, AttachmentDelivery::Attachment);
                 assert_eq!(attachment_link_expiry_hours, None);
                 assert!(!ignore_complaints);
+                assert_eq!(send_at, None);
             }
             _ => panic!("expected send command"),
         }
@@ -556,6 +603,112 @@ mod tests {
             }
             _ => panic!("expected send command"),
         }
+    }
+
+    #[test]
+    fn parses_send_at_for_scheduling() {
+        let cli = Cli::try_parse_from([
+            "dairo",
+            "send",
+            "--inbox-id",
+            "inbox_123",
+            "--to",
+            "max@example.com",
+            "--text",
+            "Body",
+            "--send-at",
+            "2026-06-11T09:00:00Z",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Send(SendArgs { send_at, .. }) => {
+                assert_eq!(send_at.as_deref(), Some("2026-06-11T09:00:00Z"));
+            }
+            _ => panic!("expected send command"),
+        }
+    }
+
+    #[test]
+    fn parses_outbound_cancel_command() {
+        let cli = Cli::parse_from(["dairo", "outbound", "cancel", "email_123"]);
+        match cli.command {
+            Command::Outbound {
+                command: OutboundCommand::Cancel { email_id },
+            } => assert_eq!(email_id, "email_123"),
+            _ => panic!("expected outbound cancel command"),
+        }
+    }
+
+    #[test]
+    fn parses_audit_logs_list_command() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "audit-logs",
+            "list",
+            "--limit",
+            "50",
+            "--cursor",
+            "abc",
+        ]);
+        match cli.command {
+            Command::AuditLog {
+                command: AuditLogCommand::List { limit, cursor },
+            } => {
+                assert_eq!(limit, Some(50));
+                assert_eq!(cursor.as_deref(), Some("abc"));
+            }
+            _ => panic!("expected audit-logs list command"),
+        }
+    }
+
+    #[test]
+    fn parses_dedicated_ips_status_command() {
+        let cli = Cli::parse_from(["dairo", "dedicated-ips", "status"]);
+        assert!(matches!(
+            cli.command,
+            Command::DedicatedIp {
+                command: DedicatedIpCommand::Status
+            }
+        ));
+    }
+
+    #[test]
+    fn parses_api_key_create_with_allowed_ips() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "api-key",
+            "create",
+            "--name",
+            "scoped",
+            "--scope",
+            "mail:send",
+            "--allowed-ip",
+            "203.0.113.0/24",
+            "--allowed-ip",
+            "198.51.100.7",
+        ]);
+        match cli.command {
+            Command::ApiKey {
+                command:
+                    ApiKeyCommand::Create {
+                        allowed_ips,
+                        scopes,
+                        ..
+                    },
+            } => {
+                assert_eq!(scopes, vec!["mail:send"]);
+                assert_eq!(allowed_ips, vec!["203.0.113.0/24", "198.51.100.7"]);
+            }
+            _ => panic!("expected api-key create command"),
+        }
+    }
+
+    #[test]
+    fn audit_logs_list_rejects_out_of_range_limit() {
+        let error = Cli::try_parse_from(["dairo", "audit-logs", "list", "--limit", "101"])
+            .expect_err("audit-logs limit above 100 should fail clap validation");
+        assert!(error.to_string().contains("101"));
     }
 
     #[test]
@@ -612,6 +765,7 @@ mod tests {
                 attachment_delivery,
                 attachment_link_expiry_hours,
                 ignore_complaints,
+                send_at,
             }) => {
                 assert_eq!(inbox_id, "inbox_123");
                 assert_eq!(to, vec!["max@example.com"]);
@@ -627,6 +781,7 @@ mod tests {
                 assert_eq!(attachment_delivery, AttachmentDelivery::Attachment);
                 assert_eq!(attachment_link_expiry_hours, None);
                 assert!(!ignore_complaints);
+                assert_eq!(send_at, None);
             }
             _ => panic!("expected send command"),
         }
@@ -782,10 +937,16 @@ mod tests {
         ]);
         match api_key.command {
             Command::ApiKey {
-                command: ApiKeyCommand::Create { name, scopes },
+                command:
+                    ApiKeyCommand::Create {
+                        name,
+                        scopes,
+                        allowed_ips,
+                    },
             } => {
                 assert_eq!(name, "CI");
                 assert_eq!(scopes, vec!["mail:send", "mail:read"]);
+                assert!(allowed_ips.is_empty());
             }
             _ => panic!("expected api-key create command"),
         }

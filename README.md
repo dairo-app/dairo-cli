@@ -155,6 +155,23 @@ dairo send \
   --react-props '{"name":"Max"}'
 ```
 
+Schedule a send for a future time with `--send-at` (RFC3339 with an explicit
+timezone offset). The response status is `scheduled` with a `scheduledAt`
+timestamp; the message is staged and fires at the requested time. Cancel a
+scheduled send before it fires with `dairo outbound cancel <emailId>` (this
+fails if the email is no longer scheduled).
+
+```sh
+dairo send \
+  --inbox-id 018f0000-0000-0000-0000-000000000000 \
+  --to max@example.com \
+  --subject "Reminder" \
+  --text "Sent on schedule." \
+  --send-at 2026-06-11T09:00:00Z
+
+dairo outbound cancel <emailId>           # cancel a still-scheduled send
+```
+
 List and create webhooks. `message.received` is the primary event for coding
 agents and external automation that need to react when new inbox mail arrives:
 
@@ -177,10 +194,14 @@ commands (backed by `GET /v1/outbound-emails` and `GET /v1/outbound-events`):
 ```sh
 dairo outbound list --limit 20            # recent outbound emails
 dairo outbound get <emailId>              # one email + its delivery timeline
+dairo outbound cancel <emailId>           # cancel a scheduled (not-yet-sent) email
 dairo outbound events --email-id <id>     # delivery events (delivered/bounced/...)
 dairo outbound bounces                    # only bounce events
 dairo outbound complaints                 # only complaint events
 ```
+
+Outbound emails carry `status` (including `scheduled` and `canceled`) plus
+`scheduledAt`/`canceledAt` timestamps when set.
 
 Event rows carry metadata-only join keys such as `emailId`, `recipient`,
 `providerMessageId`, `subject`, `from`, `to`, event `type`, bounce/complaint
@@ -217,6 +238,18 @@ dairo api-key create \
 ```
 
 The create command prints a one-time API key secret. Store it immediately.
+
+Restrict a key to specific source IPs or CIDR ranges with one or more
+`--allowed-ip` flags. Omit the flag to allow the key from any IP. The allowlist
+is shown in `dairo api-key list`, `dairo whoami`, and the create output.
+
+```sh
+dairo api-key create \
+  --name "prod worker" \
+  --scope mail:send \
+  --allowed-ip 203.0.113.0/24 \
+  --allowed-ip 198.51.100.7
+```
 
 Install Dairo MCP for coding agents with one command. It saves the token through
 stdin, then configures supported local clients without printing the key:
@@ -259,6 +292,22 @@ Inspect mailbox threads:
 ```sh
 dairo threads list --inbox-id 018f0000-0000-0000-0000-000000000000
 dairo threads get thread_123
+```
+
+Inspect the account audit log of security-relevant control-plane actions
+(resource create/delete, key revoke, email send). Output is JSON with keyset
+pagination; pass the returned `pagination.nextCursor` to `--cursor` for the next
+page:
+
+```sh
+dairo audit-logs list --limit 50
+dairo audit-logs list --limit 50 --cursor <nextCursor>
+```
+
+Inspect dedicated IP pool status (available on plans with dedicated IPs):
+
+```sh
+dairo dedicated-ips status
 ```
 
 Singular aliases (`message`, `thread`, `attachment`) remain available, but the documented command surface is plural for mailbox collections.
