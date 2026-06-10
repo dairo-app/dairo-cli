@@ -1,15 +1,36 @@
 use reqwest::{Method, Request, StatusCode};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use thiserror::Error;
 use url::Url;
 use uuid::Uuid;
 
 pub const DEFAULT_BASE_URL: &str = "https://api.dairo.app";
 
+/// Wall-clock timeout applied to every request so a hung connection cannot
+/// block the CLI forever.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Number of *additional* attempts after the first one for transient
+/// server-side failures (429/502). Total attempts = `MAX_RETRIES + 1`.
+const MAX_RETRIES: u32 = 3;
+
+/// Base backoff between retries. Doubled each attempt (capped).
+const RETRY_BASE_BACKOFF: Duration = Duration::from_millis(250);
+const RETRY_MAX_BACKOFF: Duration = Duration::from_secs(5);
+
+/// User-Agent advertised to the API. Never include the API key here.
+const USER_AGENT: &str = concat!("dairo-cli/", env!("CARGO_PKG_VERSION"));
+
 #[derive(Debug, Error)]
 pub enum ApiError {
     #[error("invalid API base URL: {0}")]
     InvalidBaseUrl(#[from] url::ParseError),
+    #[error(
+        "refusing to send the API key over an insecure URL: {0} is not HTTPS. \
+         Use an https:// base URL, or http://localhost for local development."
+    )]
+    InsecureBaseUrl(String),
     #[error("failed to build API request: {0}")]
     BuildRequest(#[source] reqwest::Error),
     #[error("request failed: {0}")]
@@ -20,19 +41,37 @@ pub enum ApiError {
 
 pub type Result<T> = std::result::Result<T, ApiError>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ApiClient {
     base_url: Url,
     api_key: String,
     http: reqwest::Client,
 }
 
+// Hand-written `Debug` so the bearer API key can never leak through `{:?}`,
+// error chains, panics, or telemetry that derives Debug.
+impl std::fmt::Debug for ApiClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ApiClient")
+            .field("base_url", &self.base_url.as_str())
+            .field("api_key", &"[REDACTED]")
+            .finish()
+    }
+}
+
 impl ApiClient {
     pub fn new(base_url: impl AsRef<str>, api_key: impl Into<String>) -> Result<Self> {
+        let base_url = Url::parse(base_url.as_ref())?;
+        require_secure_base_url(&base_url)?;
+        let http = reqwest::Client::builder()
+            .user_agent(USER_AGENT)
+            .timeout(REQUEST_TIMEOUT)
+            .build()
+            .map_err(ApiError::BuildRequest)?;
         Ok(Self {
-            base_url: Url::parse(base_url.as_ref())?,
+            base_url,
             api_key: api_key.into(),
-            http: reqwest::Client::new(),
+            http,
         })
     }
 
@@ -111,6 +150,31 @@ impl ApiClient {
             Method::GET,
             &["v1", "email-lists", list_id],
             None::<&()>,
+        )?)
+        .await
+    }
+
+    pub async fn delete_email_list(&self, list_id: &str) -> Result<DeleteResponse> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "email-lists", list_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Upserts members via the canonical `POST /members` endpoint (<= 2000
+    /// members). `import_email_list_members` posts to the `/members/import`
+    /// alias which the backend treats identically.
+    pub async fn add_email_list_members(
+        &self,
+        list_id: &str,
+        body: &EmailListMembersRequest,
+    ) -> Result<EmailListImportResponse> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "email-lists", list_id, "members"],
+            Some(body),
         )?)
         .await
     }
@@ -216,13 +280,35 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
+    /// Branded share link for an attachment. Unlike `/url` (which returns a raw
+    /// signed S3 URL), `/link` returns a Dairo-branded `shareUrl` plus
+    /// `downloadUrl`. `expiry_hours` is clamped server-side to 1..=168.
+    pub async fn get_attachment_link(
+        &self,
+        attachment_id: &str,
+        expiry_hours: Option<u32>,
+    ) -> Result<AttachmentDownloadUrlResponse> {
+        let mut request = self.build_request(
+            Method::GET,
+            &["v1", "attachments", attachment_id, "link"],
+            None::<&()>,
+        )?;
+        if let Some(hours) = expiry_hours {
+            request
+                .url_mut()
+                .query_pairs_mut()
+                .append_pair("expiryHours", &hours.to_string());
+        }
+        self.execute_json(request).await
+    }
+
     pub async fn download_attachment_bytes(&self, attachment_id: &str) -> Result<Vec<u8>> {
         let request = self.build_request(
             Method::GET,
             &["v1", "attachments", attachment_id, "download"],
             None::<&()>,
         )?;
-        let response = self.http.execute(request).await?;
+        let response = self.send_with_retry(request).await?;
         if !response.status().is_success() {
             let status = response.status();
             let message = match response.json::<ErrorResponse>().await {
@@ -302,6 +388,24 @@ impl ApiClient {
         path_segments: &[&str],
         body: Option<T>,
     ) -> Result<Request> {
+        self.build_request_with_idempotency(method, path_segments, body, None)
+    }
+
+    /// Builds a request, attaching a stable, caller-supplied `Idempotency-Key`
+    /// for mutating verbs.
+    ///
+    /// A per-invocation random key would defeat retry de-duplication: a retried
+    /// POST would carry a fresh key and the server would treat it as a new
+    /// request. When the caller does not supply a key we derive a deterministic
+    /// one from the method + path so the *same logical request* re-sends with
+    /// the *same* key.
+    pub(crate) fn build_request_with_idempotency<T: Serialize>(
+        &self,
+        method: Method,
+        path_segments: &[&str],
+        body: Option<T>,
+        idempotency_key: Option<&str>,
+    ) -> Result<Request> {
         let mut url = self.base_url.clone();
         {
             let mut segments = url
@@ -315,7 +419,7 @@ impl ApiClient {
 
         let mut builder = self
             .http
-            .request(method.clone(), url)
+            .request(method.clone(), url.clone())
             .bearer_auth(&self.api_key)
             .header("Accept", "application/json");
 
@@ -323,7 +427,11 @@ impl ApiClient {
             method,
             Method::POST | Method::PUT | Method::PATCH | Method::DELETE
         ) {
-            builder = builder.header("Idempotency-Key", Uuid::new_v4().to_string());
+            let key = match idempotency_key {
+                Some(key) if !key.trim().is_empty() => key.to_string(),
+                _ => default_idempotency_key(&method, url.path()),
+            };
+            builder = builder.header("Idempotency-Key", key);
         }
 
         if let Some(body) = body {
@@ -333,8 +441,61 @@ impl ApiClient {
         builder.build().map_err(ApiError::BuildRequest)
     }
 
+    /// Sends a request with a bounded retry/backoff policy for transient
+    /// server-side failures (429 Too Many Requests, 502 Bad Gateway) and
+    /// transient transport errors. Because every mutating request carries a
+    /// stable `Idempotency-Key`, replaying a POST is safe.
+    async fn send_with_retry(&self, request: Request) -> Result<reqwest::Response> {
+        // `request` is the live request to send on the next attempt. A retry
+        // replays a clone; once we exhaust retries (or the body is not
+        // cloneable) we consume `request` itself on the final attempt.
+        let mut request = request;
+        let mut attempt: u32 = 0;
+        loop {
+            let can_retry = attempt < MAX_RETRIES;
+            // Prepare this attempt's request and, if a retry is still possible,
+            // keep a clone for the next iteration.
+            let (this_attempt, next) = if can_retry {
+                match request.try_clone() {
+                    Some(clone) => (request, Some(clone)),
+                    // Non-cloneable body: send the original, disable retries.
+                    None => {
+                        return self
+                            .http
+                            .execute(request)
+                            .await
+                            .map_err(ApiError::Transport)
+                    }
+                }
+            } else {
+                (request, None)
+            };
+
+            match self.http.execute(this_attempt).await {
+                Ok(response) => {
+                    if let (true, Some(next)) = (is_retryable_status(response.status()), next) {
+                        backoff(attempt).await;
+                        attempt += 1;
+                        request = next;
+                        continue;
+                    }
+                    return Ok(response);
+                }
+                Err(error) => {
+                    if let (Some(next), true) = (next, error.is_timeout() || error.is_connect()) {
+                        backoff(attempt).await;
+                        attempt += 1;
+                        request = next;
+                        continue;
+                    }
+                    return Err(ApiError::Transport(error));
+                }
+            }
+        }
+    }
+
     async fn execute_json<T: for<'de> Deserialize<'de>>(&self, request: Request) -> Result<T> {
-        let response = self.http.execute(request).await?;
+        let response = self.send_with_retry(request).await?;
         let status = response.status();
 
         if status.is_success() {
@@ -351,6 +512,49 @@ impl ApiClient {
 
         Err(ApiError::Api { status, message })
     }
+}
+
+/// Rejects base URLs that would send the bearer API key in cleartext. HTTPS is
+/// always allowed; plain HTTP is only permitted for explicit loopback hosts so
+/// local development against a dev server keeps working.
+fn require_secure_base_url(url: &Url) -> Result<()> {
+    match url.scheme() {
+        "https" => Ok(()),
+        "http" if is_local_host(url) => Ok(()),
+        _ => Err(ApiError::InsecureBaseUrl(url.as_str().to_string())),
+    }
+}
+
+fn is_local_host(url: &Url) -> bool {
+    match url.host() {
+        Some(url::Host::Domain(host)) => {
+            let host = host.to_ascii_lowercase();
+            host == "localhost" || host == "localhost." || host.ends_with(".localhost")
+        }
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
+    }
+}
+
+fn is_retryable_status(status: StatusCode) -> bool {
+    status == StatusCode::TOO_MANY_REQUESTS || status == StatusCode::BAD_GATEWAY
+}
+
+async fn backoff(attempt: u32) {
+    let factor = 1u32 << attempt.min(16);
+    let delay = RETRY_BASE_BACKOFF
+        .saturating_mul(factor)
+        .min(RETRY_MAX_BACKOFF);
+    tokio::time::sleep(delay).await;
+}
+
+/// Deterministic idempotency key for a mutating request that the caller did not
+/// supply one for. Stable across retries of the *same* logical request.
+fn default_idempotency_key(method: &Method, path: &str) -> String {
+    let namespace = Uuid::NAMESPACE_URL;
+    let seed = format!("{method} {path}");
+    Uuid::new_v5(&namespace, seed.as_bytes()).to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -938,6 +1142,116 @@ mod tests {
                 .to_str()
                 .unwrap(),
             "application/json"
+        );
+    }
+
+    #[test]
+    fn rejects_non_https_base_url_to_protect_api_key() {
+        let error = ApiClient::new("http://api.dairo.app", "dairo_secret")
+            .expect_err("plain http to a public host must be rejected");
+        assert!(matches!(error, ApiError::InsecureBaseUrl(_)));
+        // The error must never echo the API key.
+        assert!(!error.to_string().contains("dairo_secret"));
+
+        let error = ApiClient::new("ftp://api.dairo.app", "dairo_secret")
+            .expect_err("non-http(s) schemes must be rejected");
+        assert!(matches!(error, ApiError::InsecureBaseUrl(_)));
+    }
+
+    #[test]
+    fn allows_http_only_for_loopback_hosts() {
+        assert!(ApiClient::new("http://localhost:8787", "token").is_ok());
+        assert!(ApiClient::new("http://127.0.0.1:8787", "token").is_ok());
+        assert!(ApiClient::new("http://[::1]:8787", "token").is_ok());
+        assert!(ApiClient::new("http://dev.localhost", "token").is_ok());
+        // A non-loopback host over http is still rejected.
+        assert!(ApiClient::new("http://example.com", "token").is_err());
+    }
+
+    #[test]
+    fn debug_never_leaks_api_key() {
+        let client = ApiClient::new("https://api.dairo.app", "dairo_super_secret").unwrap();
+        let rendered = format!("{client:?}");
+        assert!(!rendered.contains("dairo_super_secret"));
+        assert!(rendered.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn idempotency_key_is_stable_across_retries_of_same_request() {
+        // A per-invocation random key would defeat retry de-dup. Re-building the
+        // same logical request must yield the same default key.
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let first = client
+            .build_request(Method::POST, &["v1", "send-email"], None::<&()>)
+            .unwrap();
+        let second = client
+            .build_request(Method::POST, &["v1", "send-email"], None::<&()>)
+            .unwrap();
+        let key_of = |req: &Request| {
+            req.headers()
+                .get("Idempotency-Key")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string()
+        };
+        assert_eq!(key_of(&first), key_of(&second));
+    }
+
+    #[test]
+    fn caller_supplied_idempotency_key_is_used_verbatim() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request_with_idempotency(
+                Method::POST,
+                &["v1", "send-email"],
+                None::<&()>,
+                Some("caller-key-123"),
+            )
+            .unwrap();
+        assert_eq!(
+            request
+                .headers()
+                .get("Idempotency-Key")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "caller-key-123"
+        );
+    }
+
+    #[test]
+    fn attachment_link_targets_branded_link_route_not_url() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        // We cannot exercise the async network call here, but verify the path
+        // wiring matches the backend's branded `/link` route.
+        let request = client
+            .build_request(
+                Method::GET,
+                &["v1", "attachments", "att_123", "link"],
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/attachments/att_123/link"
+        );
+    }
+
+    #[test]
+    fn email_list_delete_targets_list_resource() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::DELETE,
+                &["v1", "email-lists", "list_123"],
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::DELETE);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/email-lists/list_123"
         );
     }
 

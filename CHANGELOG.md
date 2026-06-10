@@ -4,10 +4,35 @@ All notable Dairo CLI private-preview changes are tracked here.
 
 ## Unreleased
 
+### Security & reliability
+
+- Reject non-HTTPS base URLs so the bearer API key never travels in cleartext.
+  Plain `http://` is allowed only for explicit loopback hosts (`localhost`,
+  `127.0.0.1`, `[::1]`, `*.localhost`) for local development.
+- Never leak the API key: `ApiClient`'s `Debug` is redacted, and the User-Agent
+  (`dairo-cli/<version>`) and error chains never include the token.
+- Every request now has a 30s timeout and a bounded retry/backoff (up to 3
+  retries, exponential 250ms..5s) for transient `429`/`502` and connect/timeout
+  errors.
+- `Idempotency-Key` is now stable: caller-supplied where available, otherwise a
+  deterministic UUIDv5 of `METHOD path`, so retried mutations de-duplicate
+  instead of each carrying a fresh random key.
+- Added offline `dairo webhook verify` — constant-time HMAC verification of a
+  received delivery (reads the raw body from stdin, checks the
+  `X-Dairo-Signature`/`X-Dairo-Timestamp` headers against the `whsec_...`
+  secret) matching the backend signing scheme.
+
+### Endpoints
+
 - Added `dairo outbound` commands: `list`, `get <id>`, `events`, `bounces`,
   `complaints` — backed by the public `/v1/outbound-emails`,
   `/v1/outbound-emails/{id}`, and `/v1/outbound-events` routes (`mail:read`).
   Surfaces delivery/bounce/complaint outcomes after an async `queued` send.
+- `dairo attachments share` now calls the branded `/v1/attachments/{id}/link`
+  route (returns a Dairo `shareUrl`) instead of the raw signed-S3 `/url` route.
+- Added `dairo lists delete <listId>` (`DELETE /v1/email-lists/{listId}`).
+- `dairo lists add` now uses the canonical `POST /v1/email-lists/{listId}/members`
+  endpoint; CSV import continues to use the `/members/import` alias.
 
 ## 0.1.0 - Private preview
 

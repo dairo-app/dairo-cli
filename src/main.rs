@@ -3,6 +3,7 @@ mod cli;
 mod config;
 mod mcp_install;
 mod output;
+mod webhook;
 
 use anyhow::{Context, Result};
 use api::{
@@ -81,6 +82,19 @@ async fn run(cli: Cli) -> Result<()> {
                 Ok(())
             }
         },
+        // Offline webhook verification: no API key or network required, so it is
+        // handled before constructing the API client.
+        Command::Webhook {
+            command:
+                WebhookCommand::Verify {
+                    secret,
+                    signature,
+                    timestamp,
+                    tolerance_seconds,
+                },
+        } => {
+            verify_webhook_from_stdin(&secret, &signature, &timestamp, tolerance_seconds, cli.json)
+        }
         command => {
             let config = Config::load_from_path(&config_path)?;
             let api_key = config.resolve_api_key()?;
@@ -201,8 +215,10 @@ async fn run(cli: Cli) -> Result<()> {
                         attachment_id,
                         expiry_hours,
                     } => {
+                        // Branded share page: must hit /link (which returns a
+                        // Dairo shareUrl), not /url (a raw signed S3 URL).
                         let response = client
-                            .get_attachment_url(&attachment_id, expiry_hours)
+                            .get_attachment_link(&attachment_id, expiry_hours)
                             .await?;
                         output::print_attachment_share_url(&response, format)
                     }
@@ -257,6 +273,9 @@ async fn run(cli: Cli) -> Result<()> {
                     WebhookCommand::Delete { webhook } => {
                         let response = client.delete_webhook(&webhook).await?;
                         output::print_delete_response(&response, "webhook", format)
+                    }
+                    WebhookCommand::Verify { .. } => {
+                        unreachable!("webhook verify is handled before API client construction")
                     }
                 },
                 Command::ApiKey { command } => match command {
@@ -334,13 +353,17 @@ async fn run(cli: Cli) -> Result<()> {
                         let response = client.get_email_list(&list_id).await?;
                         output::print_email_list_detail(&response, format)
                     }
+                    EmailListCommand::Delete { list_id } => {
+                        let response = client.delete_email_list(&list_id).await?;
+                        output::print_delete_response(&response, "email list", format)
+                    }
                     EmailListCommand::Add {
                         list_id,
                         email,
                         name,
                     } => {
                         let response = client
-                            .import_email_list_members(
+                            .add_email_list_members(
                                 &list_id,
                                 &EmailListMembersRequest {
                                     members: vec![EmailListMemberInput { email, name }],
@@ -551,6 +574,35 @@ fn normalize_recipients(recipients: &mut Vec<String>) -> Result<()> {
         "send requires at least one non-empty --to recipient"
     );
     Ok(())
+}
+
+fn verify_webhook_from_stdin(
+    secret: &str,
+    signature: &str,
+    timestamp: &str,
+    tolerance_seconds: u64,
+    json_output: bool,
+) -> Result<()> {
+    use std::io::Read;
+
+    let mut raw_body = Vec::new();
+    std::io::stdin()
+        .read_to_end(&mut raw_body)
+        .context("failed to read webhook body from stdin")?;
+
+    match webhook::verify_webhook(secret, &raw_body, signature, timestamp, tolerance_seconds) {
+        Ok(()) => {
+            if json_output {
+                println!("{}", json!({ "verified": true }));
+            } else {
+                println!("Webhook signature is valid.");
+            }
+            Ok(())
+        }
+        // Surface a structured reason without ever echoing the secret or the
+        // computed signature.
+        Err(reason) => Err(anyhow::anyhow!("webhook verification failed: {reason}")),
+    }
 }
 
 fn print_error(error: &anyhow::Error, json_output: bool) {

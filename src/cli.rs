@@ -176,6 +176,8 @@ pub enum EmailListCommand {
     },
     /// Show list members.
     Get { list_id: String },
+    /// Delete (archive) an email list.
+    Delete { list_id: String },
     /// Add one recipient manually.
     Add {
         list_id: String,
@@ -398,6 +400,25 @@ pub enum WebhookCommand {
     },
     /// Delete a webhook by ID or URL.
     Delete { webhook: String },
+    /// Verify a received webhook delivery's signature (offline; no API call).
+    ///
+    /// Reads the raw request body from stdin and checks the signature and
+    /// timestamp headers against the webhook signing secret.
+    Verify {
+        /// The webhook signing secret (`whsec_...`) returned at creation.
+        /// Read from this flag or the DAIRO_WEBHOOK_SECRET env var.
+        #[arg(long, env = "DAIRO_WEBHOOK_SECRET")]
+        secret: String,
+        /// Value of the `X-Dairo-Signature` header (`v1=<hex>`).
+        #[arg(long)]
+        signature: String,
+        /// Value of the `X-Dairo-Timestamp` header (unix seconds).
+        #[arg(long)]
+        timestamp: String,
+        /// Allowed clock skew in seconds. Use 0 to skip the freshness check.
+        #[arg(long = "tolerance-seconds", default_value_t = 300)]
+        tolerance_seconds: u64,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -803,6 +824,51 @@ mod tests {
                 command: ThreadCommand::List { .. }
             }
         ));
+    }
+
+    #[test]
+    fn parses_email_list_delete_command() {
+        let cli = Cli::parse_from(["dairo", "lists", "delete", "list_123"]);
+        match cli.command {
+            Command::EmailList {
+                command: EmailListCommand::Delete { list_id },
+            } => assert_eq!(list_id, "list_123"),
+            _ => panic!("expected lists delete command"),
+        }
+    }
+
+    #[test]
+    fn parses_webhook_verify_command() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "webhook",
+            "verify",
+            "--secret",
+            "whsec_abc",
+            "--signature",
+            "v1=deadbeef",
+            "--timestamp",
+            "1717000000",
+            "--tolerance-seconds",
+            "120",
+        ]);
+        match cli.command {
+            Command::Webhook {
+                command:
+                    WebhookCommand::Verify {
+                        secret,
+                        signature,
+                        timestamp,
+                        tolerance_seconds,
+                    },
+            } => {
+                assert_eq!(secret, "whsec_abc");
+                assert_eq!(signature, "v1=deadbeef");
+                assert_eq!(timestamp, "1717000000");
+                assert_eq!(tolerance_seconds, 120);
+            }
+            _ => panic!("expected webhook verify command"),
+        }
     }
 
     #[test]

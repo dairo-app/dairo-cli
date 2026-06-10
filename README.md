@@ -193,6 +193,19 @@ Delete a webhook by ID or URL:
 dairo webhook delete https://example.com/dairo/webhook
 ```
 
+Verify a received webhook delivery offline (no API call). Pipe the raw request
+body to stdin and pass the `whsec_...` signing secret plus the
+`X-Dairo-Signature` and `X-Dairo-Timestamp` header values. Verification is
+constant-time and the timestamp is checked against `--tolerance-seconds`
+(default 300; pass `0` to skip the freshness check):
+
+```sh
+printf '%s' "$RAW_BODY" | dairo webhook verify \
+  --secret "$DAIRO_WEBHOOK_SECRET" \
+  --signature "$X_DAIRO_SIGNATURE" \
+  --timestamp "$X_DAIRO_TIMESTAMP"
+```
+
 List and create API keys:
 
 ```sh
