@@ -2,6 +2,13 @@
 
 All notable Dairo CLI private-preview changes are tracked here.
 
+## Unreleased
+
+- Added `dairo outbound` commands: `list`, `get <id>`, `events`, `bounces`,
+  `complaints` — backed by the public `/v1/outbound-emails`,
+  `/v1/outbound-emails/{id}`, and `/v1/outbound-events` routes (`mail:read`).
+  Surfaces delivery/bounce/complaint outcomes after an async `queued` send.
+
 ## 0.1.0 - Private preview
 
 - Initial Rust CLI for domains, inboxes, send-email, webhooks, and API keys.
