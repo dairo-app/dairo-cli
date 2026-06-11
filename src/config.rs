@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::{env, fs, path::PathBuf};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 use crate::fsutil::{restrict_directory_permissions, write_atomic_0600};
 
@@ -21,7 +24,7 @@ impl Config {
         Ok(base.join(CONFIG_DIR_NAME).join(CONFIG_FILE_NAME))
     }
 
-    pub fn load_from_path(path: &PathBuf) -> Result<Self> {
+    pub fn load_from_path(path: &Path) -> Result<Self> {
         if !path.exists() {
             return Ok(Self::default());
         }
@@ -32,7 +35,7 @@ impl Config {
             .with_context(|| format!("failed to parse config file {}", path.display()))
     }
 
-    pub fn save_to_path(&self, path: &PathBuf) -> Result<()> {
+    pub fn save_to_path(&self, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).with_context(|| {
                 format!("failed to create config directory {}", parent.display())

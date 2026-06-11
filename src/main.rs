@@ -11,16 +11,19 @@ mod webhook;
 
 use anyhow::{Context, Result};
 use api::{
-    ApiClient, AuditLogQuery, CreateApiKeyRequest, CreateDomainRequest, CreateEmailListRequest,
-    CreateInboxRequest, CreateWebhookRequest, EmailListMemberInput, EmailListMembersRequest,
-    MessageListQuery, SendEmailAttachment, SendEmailReact, SendEmailRequest, ThreadListQuery,
+    A2aMessageQuery, ApiClient, AuditLogQuery, CreateApiKeyRequest, CreateDomainRequest,
+    CreateEmailListRequest, CreateInboxRequest, CreateWebhookRequest, EmailListMemberInput,
+    EmailListMembersRequest, EventsQuery, MessageListQuery, SendEmailAttachment, SendEmailReact,
+    SendEmailRequest, ThreadListQuery, VerifyAgentQuery,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::Parser;
 use cli::{
-    ApiKeyCommand, AttachmentCommand, AttachmentDelivery, AuditLogCommand, AuthCommand, Cli,
-    Command, DedicatedIpCommand, DomainCommand, EmailListCommand, InboxCommand, McpCommand,
-    MessageCommand, OutboundCommand, ThreadCommand, WebhookCommand,
+    A2aCommand, AgentCommand, ApiKeyCommand, AttachmentCommand, AttachmentDelivery,
+    AuditLogCommand, AuthCommand, BudgetCommand, Cli, Command, ComplianceCommand,
+    DedicatedIpCommand, DomainCommand, EmailListCommand, EventsCommand, InboxCommand, McpCommand,
+    MessageCommand, OutboundCommand, ReputationCommand, TemplateCommand, ThreadCommand,
+    WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -440,6 +443,150 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_json(&response, format)
                     }
                 },
+                Command::Template { command } => run_template(&client, command, format).await,
+                Command::Events { command } => match command {
+                    EventsCommand::List {
+                        limit,
+                        cursor,
+                        inbox_id,
+                        event_type,
+                        wait,
+                        tail,
+                    } => {
+                        let response = client
+                            .list_events(&EventsQuery {
+                                since: cursor,
+                                limit,
+                                inbox_id,
+                                event_type,
+                                wait,
+                                tail,
+                            })
+                            .await?;
+                        output::print_json(&serde_json::to_value(response)?, format)
+                    }
+                    EventsCommand::Replay {
+                        since,
+                        since_seq,
+                        since_timestamp,
+                        inbox_id,
+                        until,
+                        types,
+                        webhook_id,
+                        max_events,
+                    } => {
+                        let body = build_replay_request(
+                            since,
+                            since_seq,
+                            since_timestamp,
+                            inbox_id,
+                            until,
+                            types,
+                            webhook_id,
+                            max_events,
+                        );
+                        let response = client.replay_events(&body).await?;
+                        output::print_json(&response, format)
+                    }
+                },
+                Command::Agent { command } => match command {
+                    AgentCommand::List => {
+                        let response = client.list_agents().await?;
+                        output::print_json(&response, format)
+                    }
+                    AgentCommand::Get { id_or_agent } => {
+                        let response = client.get_agent(&id_or_agent).await?;
+                        output::print_json(&response, format)
+                    }
+                    AgentCommand::Verify {
+                        id,
+                        agent,
+                        kid,
+                        sig,
+                        from,
+                        to,
+                        subject,
+                        ts,
+                    } => {
+                        let query = VerifyAgentQuery {
+                            id,
+                            agent,
+                            kid,
+                            sig,
+                            from,
+                            to,
+                            subject,
+                            ts,
+                        };
+                        anyhow::ensure!(
+                            query.id.is_some() || query.agent.is_some(),
+                            "agents verify requires either --id or the signature form (--agent --kid --sig)"
+                        );
+                        let response = client.verify_agent(&query).await?;
+                        output::print_json(&response, format)
+                    }
+                },
+                Command::Reputation { command } => match command {
+                    ReputationCommand::List => {
+                        let response = client.list_reputation().await?;
+                        output::print_json(&response, format)
+                    }
+                },
+                Command::Budget { command } => match command {
+                    BudgetCommand::Get { scope } => {
+                        let response = client.get_budget(&scope).await?;
+                        output::print_json(&response, format)
+                    }
+                    BudgetCommand::Set {
+                        scope,
+                        scope_id,
+                        disabled,
+                        max_sends_per_day,
+                        max_new_recipients_per_hour,
+                        hard_stop_on_complaint,
+                    } => {
+                        let body = build_set_budget_request(
+                            scope,
+                            scope_id,
+                            disabled,
+                            max_sends_per_day,
+                            max_new_recipients_per_hour,
+                            hard_stop_on_complaint,
+                        )?;
+                        let response = client.set_budget(&body).await?;
+                        output::print_json(&response, format)
+                    }
+                },
+                Command::Compliance { command } => match command {
+                    ComplianceCommand::Residency => {
+                        let response = client.compliance_residency().await?;
+                        output::print_json(&response, format)
+                    }
+                    ComplianceCommand::ErasureJob { job_id } => {
+                        let response = client.get_erasure_job(&job_id).await?;
+                        output::print_json(&response, format)
+                    }
+                },
+                Command::A2a { command } => match command {
+                    A2aCommand::List {
+                        limit,
+                        cursor,
+                        inbox_id,
+                    } => {
+                        let response = client
+                            .list_a2a_messages(&A2aMessageQuery {
+                                limit,
+                                cursor,
+                                inbox_id,
+                            })
+                            .await?;
+                        output::print_json(&response, format)
+                    }
+                    A2aCommand::Get { id } => {
+                        let response = client.get_a2a_message(&id).await?;
+                        output::print_json(&response, format)
+                    }
+                },
                 Command::Listen(args) => {
                     // `listen` does its own rendering and its errors are already
                     // descriptive, so it bypasses the generic "failed to print
@@ -484,6 +631,215 @@ fn build_send_request(mut args: cli::SendArgs, require_to: bool) -> Result<SendE
         send_at: args.send_at.and_then(non_empty_trimmed),
         ignore_complaints: args.ignore_complaints,
     })
+}
+
+/// Dispatches the `templates` subcommands. Template bodies carry free-form
+/// `source`/`variables`, so requests are assembled as `serde_json::Value` and
+/// responses pass through `print_json` verbatim — matching the
+/// outbound/audit-logs convention for the newer resource families.
+async fn run_template(
+    client: &ApiClient,
+    command: TemplateCommand,
+    format: OutputFormat,
+) -> Result<()> {
+    match command {
+        TemplateCommand::List => {
+            let response = client.list_templates().await?;
+            output::print_json(&response, format)
+        }
+        TemplateCommand::Create {
+            slug,
+            name,
+            description,
+            source,
+            source_file,
+            subject,
+            variables,
+            notes,
+        } => {
+            let source = resolve_template_source(source, source_file)?;
+            let mut body = json!({
+                "slug": slug,
+                "name": name,
+                "source": source,
+            });
+            insert_opt_str(&mut body, "description", description);
+            insert_opt_str(&mut body, "subject", subject);
+            insert_opt_str(&mut body, "notes", notes);
+            insert_opt_variables(&mut body, variables)?;
+            let response = client.create_template(&body).await?;
+            output::print_json(&response, format)
+        }
+        TemplateCommand::Get {
+            id_or_slug,
+            version,
+        } => {
+            let response = client.get_template(&id_or_slug, version).await?;
+            output::print_json(&response, format)
+        }
+        TemplateCommand::Update {
+            id_or_slug,
+            name,
+            description,
+            current_version,
+        } => {
+            let mut body = json!({});
+            insert_opt_str(&mut body, "name", name);
+            // `description` is nullable: an explicit empty string clears it,
+            // matching the SDK's `description: string | null` contract.
+            if let Some(description) = description {
+                body["description"] = serde_json::Value::String(description);
+            }
+            if let Some(current_version) = current_version {
+                body["currentVersion"] = serde_json::Value::from(current_version);
+            }
+            let response = client.update_template(&id_or_slug, &body).await?;
+            output::print_json(&response, format)
+        }
+        TemplateCommand::Delete { id_or_slug } => {
+            let response = client.delete_template(&id_or_slug).await?;
+            output::print_json(&response, format)
+        }
+        TemplateCommand::Versions { id_or_slug } => {
+            let response = client.list_template_versions(&id_or_slug).await?;
+            output::print_json(&response, format)
+        }
+        TemplateCommand::Version {
+            id_or_slug,
+            version,
+        } => {
+            let response = client.get_template_version(&id_or_slug, version).await?;
+            output::print_json(&response, format)
+        }
+        TemplateCommand::Publish {
+            id_or_slug,
+            source,
+            source_file,
+            subject,
+            variables,
+            no_promote,
+            notes,
+        } => {
+            let source = resolve_template_source(source, source_file)?;
+            let mut body = json!({ "source": source });
+            insert_opt_str(&mut body, "subject", subject);
+            insert_opt_str(&mut body, "notes", notes);
+            insert_opt_variables(&mut body, variables)?;
+            // `promote` defaults to true server-side; only send it when opting out.
+            if no_promote {
+                body["promote"] = serde_json::Value::Bool(false);
+            }
+            let response = client.publish_template_version(&id_or_slug, &body).await?;
+            output::print_json(&response, format)
+        }
+    }
+}
+
+/// Resolves a template/version source from either `--source` or `--source-file`.
+/// Exactly one must be provided (the two flags are `conflicts_with` at the clap
+/// layer, so this only needs to reject the both-absent case).
+fn resolve_template_source(source: Option<String>, source_file: Option<PathBuf>) -> Result<String> {
+    match (source, source_file) {
+        (Some(source), _) => Ok(source),
+        (None, Some(path)) => std::fs::read_to_string(&path)
+            .with_context(|| format!("failed to read template source {}", path.display())),
+        (None, None) => {
+            anyhow::bail!("provide the template source with --source or --source-file")
+        }
+    }
+}
+
+/// Inserts a string field into a JSON object body only when present, mirroring
+/// the SDKs' `skip_serializing_if`-style optional fields.
+fn insert_opt_str(body: &mut serde_json::Value, key: &str, value: Option<String>) {
+    if let Some(value) = value {
+        body[key] = serde_json::Value::String(value);
+    }
+}
+
+/// Parses `--variables` as a JSON object and inserts it under `variables`. The
+/// backend's `variables_schema` is a JSON-Schema-lite object, so a non-object
+/// (array/scalar) is rejected before the request goes out.
+fn insert_opt_variables(body: &mut serde_json::Value, variables: Option<String>) -> Result<()> {
+    if let Some(variables) = variables {
+        let value: serde_json::Value =
+            serde_json::from_str(&variables).context("--variables must be valid JSON")?;
+        anyhow::ensure!(value.is_object(), "--variables must be a JSON object");
+        body["variables"] = value;
+    }
+    Ok(())
+}
+
+/// Assembles the `POST /v1/events/replay` body. The backend requires exactly one
+/// lower bound; this only sets the fields the caller supplied (the server
+/// enforces the one-bound rule), matching the SDK request shape.
+#[allow(clippy::too_many_arguments)]
+fn build_replay_request(
+    since: Option<String>,
+    since_seq: Option<i64>,
+    since_timestamp: Option<String>,
+    inbox_id: Option<String>,
+    until: Option<String>,
+    types: Vec<String>,
+    webhook_id: Option<String>,
+    max_events: Option<u32>,
+) -> serde_json::Value {
+    let mut body = json!({});
+    insert_opt_str(&mut body, "since", since);
+    if let Some(since_seq) = since_seq {
+        body["sinceSeq"] = serde_json::Value::from(since_seq);
+    }
+    insert_opt_str(&mut body, "sinceTimestamp", since_timestamp);
+    insert_opt_str(&mut body, "inboxId", inbox_id);
+    insert_opt_str(&mut body, "until", until);
+    if !types.is_empty() {
+        body["types"] = serde_json::Value::from(types);
+    }
+    insert_opt_str(&mut body, "webhookId", webhook_id);
+    if let Some(max_events) = max_events {
+        body["maxEvents"] = serde_json::Value::from(max_events);
+    }
+    body
+}
+
+/// Assembles the `PUT /v1/budgets` body. The server requires at least one
+/// enforceable limit, so a `set` with no limit flags is rejected client-side
+/// rather than sending an empty `limits` object the backend would refuse.
+fn build_set_budget_request(
+    scope: String,
+    scope_id: Option<String>,
+    disabled: bool,
+    max_sends_per_day: Option<u64>,
+    max_new_recipients_per_hour: Option<u64>,
+    hard_stop_on_complaint: bool,
+) -> Result<serde_json::Value> {
+    let mut limits = serde_json::Map::new();
+    if let Some(value) = max_sends_per_day {
+        limits.insert("maxSendsPerDay".to_string(), serde_json::Value::from(value));
+    }
+    if let Some(value) = max_new_recipients_per_hour {
+        limits.insert(
+            "maxNewRecipientsPerHour".to_string(),
+            serde_json::Value::from(value),
+        );
+    }
+    if hard_stop_on_complaint {
+        limits.insert(
+            "hardStopOnComplaint".to_string(),
+            serde_json::Value::Bool(true),
+        );
+    }
+    anyhow::ensure!(
+        !limits.is_empty(),
+        "budgets set requires at least one limit (--max-sends-per-day, --max-new-recipients-per-hour, or --hard-stop-on-complaint)"
+    );
+    let mut body = json!({ "scope": scope, "limits": limits });
+    insert_opt_str(&mut body, "scopeId", scope_id);
+    // `enabled` defaults to true server-side; only send it when disabling.
+    if disabled {
+        body["enabled"] = serde_json::Value::Bool(false);
+    }
+    Ok(body)
 }
 
 /// Trims a string and returns `None` if it is empty, so blank flag values

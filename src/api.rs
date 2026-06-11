@@ -442,6 +442,263 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
+    // --- Templates (templates.rs) -----------------------------------------
+    // Named container + immutable, append-only versions. GET reads use
+    // `mail:read`; create/patch/delete/version-publish use `mail:send`. Bodies
+    // carry free-form `source`/`variables`, so requests are assembled as
+    // `serde_json::Value` and responses pass through verbatim — matching the
+    // outbound/audit-logs precedent.
+
+    /// Lists active templates (`GET /v1/templates`, scope `mail:read`).
+    pub async fn list_templates(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "templates"], None::<&()>)?)
+            .await
+    }
+
+    /// Creates a template and publishes v1 (`POST /v1/templates`, scope
+    /// `mail:send`). The source is dry-rendered at publish.
+    pub async fn create_template(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "templates"], Some(body))?)
+            .await
+    }
+
+    /// Gets a template plus a resolved version including its `source` (`GET
+    /// /v1/templates/{idOrSlug}`, scope `mail:read`). `version` pins a specific
+    /// version instead of the container's `currentVersion`.
+    pub async fn get_template(
+        &self,
+        id_or_slug: &str,
+        version: Option<u32>,
+    ) -> Result<serde_json::Value> {
+        let mut request =
+            self.build_request(Method::GET, &["v1", "templates", id_or_slug], None::<&()>)?;
+        if let Some(version) = version {
+            request
+                .url_mut()
+                .query_pairs_mut()
+                .append_pair("version", &version.to_string());
+        }
+        self.execute_json(request).await
+    }
+
+    /// Updates template metadata or re-points `currentVersion` (`PATCH
+    /// /v1/templates/{idOrSlug}`, scope `mail:send`). The source is immutable.
+    pub async fn update_template(
+        &self,
+        id_or_slug: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::PATCH,
+            &["v1", "templates", id_or_slug],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Archives a template (`DELETE /v1/templates/{idOrSlug}`, scope `mail:send`).
+    pub async fn delete_template(&self, id_or_slug: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "templates", id_or_slug],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Lists a template's versions, newest first, without `source` (`GET
+    /// /v1/templates/{idOrSlug}/versions`, scope `mail:read`).
+    pub async fn list_template_versions(&self, id_or_slug: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "templates", id_or_slug, "versions"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Reads one version of a template including its `source` (`GET
+    /// /v1/templates/{idOrSlug}/versions/{version}`, scope `mail:read`).
+    pub async fn get_template_version(
+        &self,
+        id_or_slug: &str,
+        version: u32,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &[
+                "v1",
+                "templates",
+                id_or_slug,
+                "versions",
+                &version.to_string(),
+            ],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Publishes a new immutable version (`POST
+    /// /v1/templates/{idOrSlug}/versions`, scope `mail:send`). Defaults to
+    /// promoting it to `currentVersion`; `promote: false` publishes a draft.
+    pub async fn publish_template_version(
+        &self,
+        id_or_slug: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "templates", id_or_slug, "versions"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    // --- Events replay (events.rs) ----------------------------------------
+    // The catch-up read `GET /v1/events` already has `list_events`
+    // (long-poll-aware, used by `dairo listen`). `events list` reuses it; replay
+    // is a `webhooks:write` POST.
+
+    /// Re-delivers a ledger slice to the user's webhooks (`POST
+    /// /v1/events/replay`, scope `webhooks:write`). The body must carry exactly
+    /// one lower bound (`since`, `sinceSeq` + `inboxId`, or `sinceTimestamp`).
+    pub async fn replay_events(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "events", "replay"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    // --- Agent passport (agent_passport.rs) -------------------------------
+    // CRUD reuses `mail:read` (reads). `verify` is a public, unauthenticated
+    // verdict endpoint — it always answers 200 with a verdict, so a failed
+    // verification is not a request error.
+
+    /// Lists the caller's agent passports, newest first (`GET /v1/agents`,
+    /// scope `mail:read`).
+    pub async fn list_agents(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "agents"], None::<&()>)?)
+            .await
+    }
+
+    /// Gets a passport by its uuid `id` or portable `agt_…` `agentId` (`GET
+    /// /v1/agents/{idOrAgent}`, scope `mail:read`).
+    pub async fn get_agent(&self, id_or_agent: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "agents", id_or_agent],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Verifies an agent's outbound attribution (`GET /v1/verify`). Public/
+    /// unauthenticated; always answers a verdict. Pass `{ id }` to attest from
+    /// an outbound record, or `{ agent, kid, sig, ... }` to verify a
+    /// reconstructed provenance signature. The bearer key is ignored here.
+    pub async fn verify_agent(&self, query: &VerifyAgentQuery) -> Result<serde_json::Value> {
+        let mut request = self.build_request(Method::GET, &["v1", "verify"], None::<&()>)?;
+        apply_verify_query(request.url_mut(), query);
+        self.execute_json(request).await
+    }
+
+    // --- Reputation (agent_reputation.rs) ---------------------------------
+
+    /// Fleet view of every agent's circuit-breaker state, newest-tripped first
+    /// (`GET /v1/reputation`, scope `mail:read`).
+    pub async fn list_reputation(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "reputation"], None::<&()>)?)
+            .await
+    }
+
+    // --- Budgets (budgets.rs) ---------------------------------------------
+    // Reads reuse `mail:read`; setting a cap (PUT) requires `keys:write`. The
+    // `get` resolver takes a scope (`account`, or a key/agent `scopeId`); `set`
+    // is an idempotent upsert keyed on `(scope, scopeId)`.
+
+    /// Gets a single budget by scope: `account`, or a key/agent budget by its
+    /// `scopeId` (`GET /v1/budgets/{scope}`, scope `mail:read`).
+    pub async fn get_budget(&self, scope: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "budgets", scope],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Sets/replaces a budget (`PUT /v1/budgets`, scope `keys:write`).
+    /// Idempotent upsert keyed on `(scope, scopeId)`.
+    pub async fn set_budget(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::PUT, &["v1", "budgets"], Some(body))?)
+            .await
+    }
+
+    // --- Compliance (compliance.rs) ---------------------------------------
+    // EU sovereignty surfaces. All reads reuse `mail:read`. There is no root
+    // `GET /v1/compliance`: only `residency`, `erasure-jobs/{id}`, and
+    // `audit-export`.
+
+    /// Reads the data-residency / subprocessor posture, including the honest
+    /// CLOUD-Act exposure note (`GET /v1/compliance/residency`, scope
+    /// `mail:read`).
+    pub async fn compliance_residency(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "compliance", "residency"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Polls a subject-erasure job, including tallies and the signed deletion
+    /// certificate once completed (`GET /v1/compliance/erasure-jobs/{id}`, scope
+    /// `mail:read`).
+    pub async fn get_erasure_job(&self, job_id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "compliance", "erasure-jobs", job_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    // --- A2A mail (a2a_mail.rs) -------------------------------------------
+    // Cross-tenant agent-to-agent hop receipts. Reads reuse `mail:read`.
+
+    /// Lists agent-to-agent hop receipts with keyset pagination (`GET
+    /// /v1/a2a/messages`, scope `mail:read`).
+    pub async fn list_a2a_messages(&self, query: &A2aMessageQuery) -> Result<serde_json::Value> {
+        let mut request =
+            self.build_request(Method::GET, &["v1", "a2a", "messages"], None::<&()>)?;
+        {
+            let mut pairs = request.url_mut().query_pairs_mut();
+            if let Some(limit) = query.limit {
+                pairs.append_pair("limit", &limit.to_string());
+            }
+            if let Some(cursor) = &query.cursor {
+                pairs.append_pair("cursor", cursor);
+            }
+            if let Some(inbox_id) = &query.inbox_id {
+                pairs.append_pair("inboxId", inbox_id);
+            }
+        }
+        self.execute_json(request).await
+    }
+
+    /// Gets a single A2A hop receipt (`GET /v1/a2a/messages/{id}`, scope
+    /// `mail:read`).
+    pub async fn get_a2a_message(&self, id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "a2a", "messages", id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
     /// Fetches the public MCP tool catalog (`GET /v1/mcp/catalog`), the single
     /// source of truth for the hosted MCP surface served at `api.dairo.app/mcp`.
     ///
@@ -1045,6 +1302,37 @@ pub struct EventsQuery {
     pub tail: bool,
 }
 
+/// Query for `GET /v1/verify`, the public agent-provenance verdict endpoint.
+///
+/// Two mutually exclusive forms, mirroring the SDKs:
+/// - by stored message id (`id`) — attest from our own outbound record;
+/// - by reconstructed signature (`agent`, `kid`, `sig`, + optional signed
+///   fields) — verify a provenance signature against the kid's public key.
+///
+/// Only the present fields are sent, so a `--id` call emits just `id=...`.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct VerifyAgentQuery {
+    pub id: Option<String>,
+    pub agent: Option<String>,
+    pub kid: Option<String>,
+    pub sig: Option<String>,
+    pub from: Option<String>,
+    /// Comma-joined recipients, matching the signed `to` field.
+    pub to: Option<String>,
+    pub subject: Option<String>,
+    /// The signed timestamp.
+    pub ts: Option<String>,
+}
+
+/// Query for `GET /v1/a2a/messages`: keyset pagination over agent-to-agent hop
+/// receipts. `inbox_id` matches either end (sender or recipient) of the hop.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct A2aMessageQuery {
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+    pub inbox_id: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MessageListResponse {
     pub messages: Vec<Message>,
@@ -1267,6 +1555,24 @@ fn apply_events_query(url: &mut Url, query: &EventsQuery) {
     }
     if query.tail {
         pairs.append_pair("tail", "true");
+    }
+}
+
+fn apply_verify_query(url: &mut Url, query: &VerifyAgentQuery) {
+    let mut pairs = url.query_pairs_mut();
+    for (key, value) in [
+        ("id", &query.id),
+        ("agent", &query.agent),
+        ("kid", &query.kid),
+        ("sig", &query.sig),
+        ("from", &query.from),
+        ("to", &query.to),
+        ("subject", &query.subject),
+        ("ts", &query.ts),
+    ] {
+        if let Some(value) = value {
+            pairs.append_pair(key, value);
+        }
     }
 }
 
@@ -1946,6 +2252,180 @@ mod tests {
         assert_eq!(event.inbox_id, None);
         assert_eq!(event.seq, None);
         assert!(event.data.is_null());
+    }
+
+    #[test]
+    fn template_version_targets_versioned_route() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::GET,
+                &["v1", "templates", "welcome", "versions", "3"],
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/templates/welcome/versions/3"
+        );
+    }
+
+    #[test]
+    fn update_template_uses_patch_verb() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::PATCH,
+                &["v1", "templates", "tmpl_123"],
+                Some(&serde_json::json!({ "name": "Renamed" })),
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::PATCH);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/templates/tmpl_123"
+        );
+        // Mutating verbs carry an idempotency key (PATCH is included).
+        assert!(request.headers().get("Idempotency-Key").is_some());
+    }
+
+    #[test]
+    fn events_replay_targets_replay_route() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::POST,
+                &["v1", "events", "replay"],
+                Some(&serde_json::json!({ "since": "cursor_abc" })),
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/events/replay"
+        );
+    }
+
+    #[test]
+    fn set_budget_uses_put_verb() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::PUT,
+                &["v1", "budgets"],
+                Some(&serde_json::json!({ "scope": "account" })),
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::PUT);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/budgets"
+        );
+    }
+
+    #[test]
+    fn erasure_job_targets_compliance_route() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::GET,
+                &["v1", "compliance", "erasure-jobs", "job_123"],
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/compliance/erasure-jobs/job_123"
+        );
+    }
+
+    #[test]
+    fn a2a_message_targets_messages_route() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::GET,
+                &["v1", "a2a", "messages", "a2a_123"],
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/a2a/messages/a2a_123"
+        );
+    }
+
+    #[test]
+    fn a2a_query_serializes_pagination_and_inbox_filter() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let mut request = client
+            .build_request(Method::GET, &["v1", "a2a", "messages"], None::<&()>)
+            .unwrap();
+        {
+            let mut pairs = request.url_mut().query_pairs_mut();
+            let query = A2aMessageQuery {
+                limit: Some(25),
+                cursor: Some("cursor_abc".to_string()),
+                inbox_id: Some("inbox_123".to_string()),
+            };
+            if let Some(limit) = query.limit {
+                pairs.append_pair("limit", &limit.to_string());
+            }
+            if let Some(cursor) = &query.cursor {
+                pairs.append_pair("cursor", cursor);
+            }
+            if let Some(inbox_id) = &query.inbox_id {
+                pairs.append_pair("inboxId", inbox_id);
+            }
+        }
+        let query = request.url().query().unwrap();
+        assert!(query.contains("limit=25"));
+        assert!(query.contains("cursor=cursor_abc"));
+        assert!(query.contains("inboxId=inbox_123"));
+    }
+
+    #[test]
+    fn verify_query_by_message_id_sends_only_id() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let mut request = client
+            .build_request(Method::GET, &["v1", "verify"], None::<&()>)
+            .unwrap();
+        apply_verify_query(
+            request.url_mut(),
+            &VerifyAgentQuery {
+                id: Some("msg_123".to_string()),
+                ..Default::default()
+            },
+        );
+        let query = request.url().query().unwrap();
+        assert_eq!(query, "id=msg_123");
+    }
+
+    #[test]
+    fn verify_query_by_signature_sends_all_present_fields() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let mut request = client
+            .build_request(Method::GET, &["v1", "verify"], None::<&()>)
+            .unwrap();
+        apply_verify_query(
+            request.url_mut(),
+            &VerifyAgentQuery {
+                agent: Some("agt_abc".to_string()),
+                kid: Some("kid_1".to_string()),
+                sig: Some("deadbeef".to_string()),
+                to: Some("a@example.com,b@example.com".to_string()),
+                ..Default::default()
+            },
+        );
+        let query = request.url().query().unwrap();
+        assert!(query.contains("agent=agt_abc"));
+        assert!(query.contains("kid=kid_1"));
+        assert!(query.contains("sig=deadbeef"));
+        assert!(query.contains("to=a%40example.com%2Cb%40example.com"));
+        // The message-id form must not be sent in the signature form. Guard
+        // against `kid=` matching `id=` by checking the param boundary.
+        assert!(!query.split('&').any(|pair| pair.starts_with("id=")));
+        assert!(!query.contains("from="));
     }
 
     #[test]

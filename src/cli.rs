@@ -102,6 +102,46 @@ pub enum Command {
         #[command(subcommand)]
         command: DedicatedIpCommand,
     },
+    /// Manage reusable email templates (named container + immutable versions).
+    #[command(name = "templates", alias = "template")]
+    Template {
+        #[command(subcommand)]
+        command: TemplateCommand,
+    },
+    /// Read the durable event ledger and replay it to your webhooks.
+    #[command(name = "events", alias = "event")]
+    Events {
+        #[command(subcommand)]
+        command: EventsCommand,
+    },
+    /// Inspect agent passports and verify outbound provenance.
+    #[command(name = "agents", alias = "agent")]
+    Agent {
+        #[command(subcommand)]
+        command: AgentCommand,
+    },
+    /// View per-agent reputation / circuit-breaker state.
+    Reputation {
+        #[command(subcommand)]
+        command: ReputationCommand,
+    },
+    /// Inspect and set per-account/key/agent send budgets.
+    #[command(name = "budgets", alias = "budget")]
+    Budget {
+        #[command(subcommand)]
+        command: BudgetCommand,
+    },
+    /// EU data-residency posture and subject-erasure job status.
+    Compliance {
+        #[command(subcommand)]
+        command: ComplianceCommand,
+    },
+    /// Inspect agent-to-agent (A2A) cross-tenant hop receipts.
+    #[command(name = "a2a")]
+    A2a {
+        #[command(subcommand)]
+        command: A2aCommand,
+    },
     /// Stream live inbound-email (and delivery) events to the terminal and,
     /// optionally, re-POST each one to a local endpoint — the Dairo equivalent of
     /// `stripe listen`. Pulls from the durable event ledger via long-poll, so no
@@ -136,6 +176,249 @@ pub enum AuditLogCommand {
 pub enum DedicatedIpCommand {
     /// Show the dedicated IP pool status for the account.
     Status,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TemplateCommand {
+    /// List active templates (scope `mail:read`).
+    List,
+    /// Create a template and publish v1 (scope `mail:send`).
+    ///
+    /// The source is read inline with `--source` or from a file with
+    /// `--source-file` (exactly one is required). The source is dry-rendered at
+    /// publish, so a broken template fails fast.
+    Create {
+        /// URL-safe slug used to reference the template at send time.
+        #[arg(long)]
+        slug: String,
+        /// Human-readable template name.
+        #[arg(long)]
+        name: String,
+        /// Optional description.
+        #[arg(long)]
+        description: Option<String>,
+        /// React-email source for v1 (mutually exclusive with --source-file).
+        #[arg(long, conflicts_with = "source_file")]
+        source: Option<String>,
+        /// Read the React-email source for v1 from this file.
+        #[arg(long = "source-file", value_name = "PATH")]
+        source_file: Option<PathBuf>,
+        /// Optional default subject line.
+        #[arg(long)]
+        subject: Option<String>,
+        /// JSON-Schema-lite variable contract (a JSON object) validated at send time.
+        #[arg(long, value_name = "JSON")]
+        variables: Option<String>,
+        /// Optional free-text notes recorded on v1.
+        #[arg(long)]
+        notes: Option<String>,
+    },
+    /// Get a template plus a resolved version (with source).
+    Get {
+        id_or_slug: String,
+        /// Pin a specific version instead of the container's `currentVersion`.
+        #[arg(long)]
+        version: Option<u32>,
+    },
+    /// Update template metadata or re-point `currentVersion` (scope `mail:send`).
+    ///
+    /// The source is immutable — publish a new version to change it.
+    Update {
+        id_or_slug: String,
+        /// New human-readable name.
+        #[arg(long)]
+        name: Option<String>,
+        /// New description. Pass an empty string to clear it.
+        #[arg(long)]
+        description: Option<String>,
+        /// Re-point the mutable current-version pointer to roll back/forward.
+        #[arg(long = "current-version")]
+        current_version: Option<u32>,
+    },
+    /// Archive a template (scope `mail:send`).
+    Delete { id_or_slug: String },
+    /// List a template's versions, newest first (no source).
+    Versions { id_or_slug: String },
+    /// Read one version of a template, including its source.
+    Version { id_or_slug: String, version: u32 },
+    /// Publish a new immutable version (scope `mail:send`).
+    Publish {
+        id_or_slug: String,
+        /// React-email source for the new version (mutually exclusive with --source-file).
+        #[arg(long, conflicts_with = "source_file")]
+        source: Option<String>,
+        /// Read the new version's React-email source from this file.
+        #[arg(long = "source-file", value_name = "PATH")]
+        source_file: Option<PathBuf>,
+        /// Optional subject line for the new version.
+        #[arg(long)]
+        subject: Option<String>,
+        /// JSON-Schema-lite variable contract (a JSON object) for the new version.
+        #[arg(long, value_name = "JSON")]
+        variables: Option<String>,
+        /// Publish as a draft instead of advancing `currentVersion`.
+        #[arg(long = "no-promote")]
+        no_promote: bool,
+        /// Optional free-text notes recorded on the version.
+        #[arg(long)]
+        notes: Option<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum EventsCommand {
+    /// Read a keyset-paginated slice of the durable event ledger.
+    List {
+        /// Max rows to return (1..=100; server default 50).
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: Option<u32>,
+        /// Opaque keyset cursor from a prior page's `pagination.nextCursor`.
+        #[arg(long)]
+        cursor: Option<String>,
+        /// Restrict the stream to one inbox (id).
+        #[arg(long = "inbox-id")]
+        inbox_id: Option<String>,
+        /// Filter to a single event type (e.g. `message.received`).
+        #[arg(long = "type")]
+        event_type: Option<String>,
+        /// Server-side long-poll hold in seconds (0..=25). 0 returns immediately.
+        #[arg(long, value_parser = clap::value_parser!(u8).range(0..=25))]
+        wait: Option<u8>,
+        /// Return `events: []` plus the current head cursor (start-streaming bootstrap).
+        #[arg(long)]
+        tail: bool,
+    },
+    /// Re-deliver a ledger slice to your webhooks (scope `webhooks:write`).
+    ///
+    /// Provide exactly one lower bound: `--since` (a cursor), `--since-seq`
+    /// (with `--inbox-id`), or `--since-timestamp`.
+    Replay {
+        /// Keyset cursor lower bound.
+        #[arg(long)]
+        since: Option<String>,
+        /// Per-partition seq lower bound; requires `--inbox-id`.
+        #[arg(long = "since-seq")]
+        since_seq: Option<i64>,
+        /// RFC3339 lower bound on `createdAt`.
+        #[arg(long = "since-timestamp")]
+        since_timestamp: Option<String>,
+        /// Optional inbox filter (also scopes the partition when --since-seq is set).
+        #[arg(long = "inbox-id")]
+        inbox_id: Option<String>,
+        /// Optional RFC3339 upper bound on `createdAt`.
+        #[arg(long)]
+        until: Option<String>,
+        /// Restrict to these event types. Repeat for several.
+        #[arg(long = "type", value_name = "TYPE", action = clap::ArgAction::Append)]
+        types: Vec<String>,
+        /// Replay to a single webhook id; omit to replay to every active subscription.
+        #[arg(long = "webhook-id")]
+        webhook_id: Option<String>,
+        /// Cap on the replayed slice (1..=5000; server default 1000).
+        #[arg(long = "max-events", value_parser = clap::value_parser!(u32).range(1..=5000))]
+        max_events: Option<u32>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AgentCommand {
+    /// List the caller's agent passports, newest first (scope `mail:read`).
+    List,
+    /// Get a passport by its uuid id or portable `agt_…` agentId.
+    Get { id_or_agent: String },
+    /// Verify an agent's outbound attribution (public; always returns a verdict).
+    ///
+    /// Pass `--id <messageId>` to attest from an outbound record, or the
+    /// signature form (`--agent --kid --sig`, with optional signed fields) to
+    /// verify a reconstructed provenance signature.
+    Verify {
+        /// Verify from a stored outbound message id (mutually exclusive with --agent).
+        #[arg(long, conflicts_with = "agent")]
+        id: Option<String>,
+        /// Portable `agt_…` agent id (signature form; requires --kid and --sig).
+        #[arg(long, requires = "kid", requires = "sig")]
+        agent: Option<String>,
+        /// Signing key id (`kid`) for the signature form.
+        #[arg(long)]
+        kid: Option<String>,
+        /// The provenance signature to verify.
+        #[arg(long)]
+        sig: Option<String>,
+        /// Signed `from` address.
+        #[arg(long)]
+        from: Option<String>,
+        /// Signed recipients, comma-joined, matching the signed `to` field.
+        #[arg(long)]
+        to: Option<String>,
+        /// Signed subject.
+        #[arg(long)]
+        subject: Option<String>,
+        /// Signed timestamp.
+        #[arg(long)]
+        ts: Option<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ReputationCommand {
+    /// Fleet view of every agent's circuit-breaker state.
+    List,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum BudgetCommand {
+    /// Get a single budget by scope (`account`, or a key/agent `scopeId`).
+    Get { scope: String },
+    /// Set/replace a budget (scope `keys:write`). Idempotent upsert on (scope, scopeId).
+    ///
+    /// At least one enforceable limit is required.
+    Set {
+        /// Budget scope: `account`, `key`, or `agent`.
+        #[arg(long)]
+        scope: String,
+        /// Required for `key`/`agent`; must be omitted for `account`.
+        #[arg(long = "scope-id")]
+        scope_id: Option<String>,
+        /// Disable the budget (it is enabled by default).
+        #[arg(long)]
+        disabled: bool,
+        /// Maximum sends per rolling day.
+        #[arg(long = "max-sends-per-day")]
+        max_sends_per_day: Option<u64>,
+        /// Maximum new recipients per rolling hour.
+        #[arg(long = "max-new-recipients-per-hour")]
+        max_new_recipients_per_hour: Option<u64>,
+        /// Hard-stop all sends once any complaint is recorded.
+        #[arg(long = "hard-stop-on-complaint")]
+        hard_stop_on_complaint: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ComplianceCommand {
+    /// Read the data-residency / subprocessor posture (with CLOUD-Act note).
+    Residency,
+    /// Poll a subject-erasure job (tallies + signed certificate once complete).
+    #[command(name = "erasure-job", alias = "erasure-jobs")]
+    ErasureJob { job_id: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum A2aCommand {
+    /// List agent-to-agent hop receipts with keyset pagination.
+    List {
+        /// Max rows to return (1..=100; server default 50).
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: Option<u32>,
+        /// Opaque keyset cursor from a prior page's `pagination.nextCursor`.
+        #[arg(long)]
+        cursor: Option<String>,
+        /// Match either the sender or recipient inbox of the hop.
+        #[arg(long = "inbox-id")]
+        inbox_id: Option<String>,
+    },
+    /// Get a single A2A hop receipt.
+    Get { id: String },
 }
 
 #[derive(Debug, Subcommand)]
@@ -1476,6 +1759,419 @@ mod tests {
         assert!(message.contains("next"));
         assert!(message.contains("cloudflare-workers"));
         assert!(message.contains("go-http"));
+    }
+
+    #[test]
+    fn parses_template_create_with_source_and_variables() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "templates",
+            "create",
+            "--slug",
+            "welcome",
+            "--name",
+            "Welcome",
+            "--source",
+            "export default () => <p>Hi</p>;",
+            "--subject",
+            "Hello {{name}}",
+            "--variables",
+            r#"{"name":"string"}"#,
+        ]);
+        match cli.command {
+            Command::Template {
+                command:
+                    TemplateCommand::Create {
+                        slug,
+                        name,
+                        description,
+                        source,
+                        source_file,
+                        subject,
+                        variables,
+                        notes,
+                    },
+            } => {
+                assert_eq!(slug, "welcome");
+                assert_eq!(name, "Welcome");
+                assert_eq!(description, None);
+                assert_eq!(source.as_deref(), Some("export default () => <p>Hi</p>;"));
+                assert_eq!(source_file, None);
+                assert_eq!(subject.as_deref(), Some("Hello {{name}}"));
+                assert_eq!(variables.as_deref(), Some(r#"{"name":"string"}"#));
+                assert_eq!(notes, None);
+            }
+            _ => panic!("expected templates create command"),
+        }
+    }
+
+    #[test]
+    fn template_singular_alias_and_create_source_conflict() {
+        // `template` (singular) is an alias of `templates`.
+        let cli = Cli::parse_from(["dairo", "template", "list"]);
+        assert!(matches!(
+            cli.command,
+            Command::Template {
+                command: TemplateCommand::List
+            }
+        ));
+
+        // --source and --source-file are mutually exclusive.
+        let error = Cli::try_parse_from([
+            "dairo",
+            "templates",
+            "create",
+            "--slug",
+            "welcome",
+            "--name",
+            "Welcome",
+            "--source",
+            "x",
+            "--source-file",
+            "tpl.tsx",
+        ])
+        .expect_err("source + source-file should conflict");
+        let message = error.to_string();
+        assert!(message.contains("--source"));
+        assert!(message.contains("--source-file"));
+    }
+
+    #[test]
+    fn parses_template_get_with_version_and_publish_no_promote() {
+        let cli = Cli::parse_from(["dairo", "templates", "get", "welcome", "--version", "3"]);
+        match cli.command {
+            Command::Template {
+                command:
+                    TemplateCommand::Get {
+                        id_or_slug,
+                        version,
+                    },
+            } => {
+                assert_eq!(id_or_slug, "welcome");
+                assert_eq!(version, Some(3));
+            }
+            _ => panic!("expected templates get command"),
+        }
+
+        let cli = Cli::parse_from([
+            "dairo",
+            "templates",
+            "publish",
+            "welcome",
+            "--source",
+            "export default () => <p>v2</p>;",
+            "--no-promote",
+        ]);
+        match cli.command {
+            Command::Template {
+                command:
+                    TemplateCommand::Publish {
+                        id_or_slug,
+                        source,
+                        no_promote,
+                        ..
+                    },
+            } => {
+                assert_eq!(id_or_slug, "welcome");
+                assert_eq!(source.as_deref(), Some("export default () => <p>v2</p>;"));
+                assert!(no_promote);
+            }
+            _ => panic!("expected templates publish command"),
+        }
+    }
+
+    #[test]
+    fn parses_template_version_subcommand() {
+        let cli = Cli::parse_from(["dairo", "templates", "version", "welcome", "2"]);
+        match cli.command {
+            Command::Template {
+                command:
+                    TemplateCommand::Version {
+                        id_or_slug,
+                        version,
+                    },
+            } => {
+                assert_eq!(id_or_slug, "welcome");
+                assert_eq!(version, 2);
+            }
+            _ => panic!("expected templates version command"),
+        }
+    }
+
+    #[test]
+    fn parses_events_list_with_all_filters() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "events",
+            "list",
+            "--limit",
+            "50",
+            "--cursor",
+            "cur_1",
+            "--inbox-id",
+            "inbox_123",
+            "--type",
+            "message.received",
+            "--wait",
+            "10",
+            "--tail",
+        ]);
+        match cli.command {
+            Command::Events {
+                command:
+                    EventsCommand::List {
+                        limit,
+                        cursor,
+                        inbox_id,
+                        event_type,
+                        wait,
+                        tail,
+                    },
+            } => {
+                assert_eq!(limit, Some(50));
+                assert_eq!(cursor.as_deref(), Some("cur_1"));
+                assert_eq!(inbox_id.as_deref(), Some("inbox_123"));
+                assert_eq!(event_type.as_deref(), Some("message.received"));
+                assert_eq!(wait, Some(10));
+                assert!(tail);
+            }
+            _ => panic!("expected events list command"),
+        }
+    }
+
+    #[test]
+    fn events_list_rejects_out_of_range_wait() {
+        let error = Cli::try_parse_from(["dairo", "events", "list", "--wait", "26"])
+            .expect_err("events wait above 25 should fail clap validation");
+        assert!(error.to_string().contains("26"));
+    }
+
+    #[test]
+    fn parses_events_replay_with_bounds_and_types() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "events",
+            "replay",
+            "--since-seq",
+            "42",
+            "--inbox-id",
+            "inbox_123",
+            "--type",
+            "message.received",
+            "--type",
+            "email.delivered",
+            "--max-events",
+            "500",
+        ]);
+        match cli.command {
+            Command::Events {
+                command:
+                    EventsCommand::Replay {
+                        since,
+                        since_seq,
+                        inbox_id,
+                        types,
+                        max_events,
+                        ..
+                    },
+            } => {
+                assert_eq!(since, None);
+                assert_eq!(since_seq, Some(42));
+                assert_eq!(inbox_id.as_deref(), Some("inbox_123"));
+                assert_eq!(types, vec!["message.received", "email.delivered"]);
+                assert_eq!(max_events, Some(500));
+            }
+            _ => panic!("expected events replay command"),
+        }
+    }
+
+    #[test]
+    fn parses_agent_list_get_and_singular_alias() {
+        let cli = Cli::parse_from(["dairo", "agents", "list"]);
+        assert!(matches!(
+            cli.command,
+            Command::Agent {
+                command: AgentCommand::List
+            }
+        ));
+
+        let cli = Cli::parse_from(["dairo", "agent", "get", "agt_abc"]);
+        match cli.command {
+            Command::Agent {
+                command: AgentCommand::Get { id_or_agent },
+            } => assert_eq!(id_or_agent, "agt_abc"),
+            _ => panic!("expected agents get command"),
+        }
+    }
+
+    #[test]
+    fn parses_agent_verify_by_id_and_signature_form() {
+        let cli = Cli::parse_from(["dairo", "agents", "verify", "--id", "msg_123"]);
+        match cli.command {
+            Command::Agent {
+                command:
+                    AgentCommand::Verify {
+                        id,
+                        agent,
+                        kid,
+                        sig,
+                        ..
+                    },
+            } => {
+                assert_eq!(id.as_deref(), Some("msg_123"));
+                assert_eq!(agent, None);
+                assert_eq!(kid, None);
+                assert_eq!(sig, None);
+            }
+            _ => panic!("expected agents verify command"),
+        }
+
+        let cli = Cli::parse_from([
+            "dairo", "agents", "verify", "--agent", "agt_abc", "--kid", "kid_1", "--sig",
+            "deadbeef",
+        ]);
+        match cli.command {
+            Command::Agent {
+                command:
+                    AgentCommand::Verify {
+                        agent, kid, sig, ..
+                    },
+            } => {
+                assert_eq!(agent.as_deref(), Some("agt_abc"));
+                assert_eq!(kid.as_deref(), Some("kid_1"));
+                assert_eq!(sig.as_deref(), Some("deadbeef"));
+            }
+            _ => panic!("expected agents verify command"),
+        }
+    }
+
+    #[test]
+    fn agent_verify_signature_form_requires_kid_and_sig() {
+        // --agent without --kid/--sig must fail clap's `requires`.
+        let error = Cli::try_parse_from(["dairo", "agents", "verify", "--agent", "agt_abc"])
+            .expect_err("--agent without --kid/--sig should fail clap validation");
+        let message = error.to_string();
+        assert!(message.contains("--kid") || message.contains("--sig"));
+
+        // --id and --agent are mutually exclusive.
+        let error = Cli::try_parse_from([
+            "dairo", "agents", "verify", "--id", "msg_1", "--agent", "agt_abc",
+        ])
+        .expect_err("--id + --agent should conflict");
+        assert!(error.to_string().contains("--agent"));
+    }
+
+    #[test]
+    fn parses_reputation_list() {
+        let cli = Cli::parse_from(["dairo", "reputation", "list"]);
+        assert!(matches!(
+            cli.command,
+            Command::Reputation {
+                command: ReputationCommand::List
+            }
+        ));
+    }
+
+    #[test]
+    fn parses_budget_get_and_set() {
+        let cli = Cli::parse_from(["dairo", "budgets", "get", "account"]);
+        match cli.command {
+            Command::Budget {
+                command: BudgetCommand::Get { scope },
+            } => assert_eq!(scope, "account"),
+            _ => panic!("expected budgets get command"),
+        }
+
+        let cli = Cli::parse_from([
+            "dairo",
+            "budgets",
+            "set",
+            "--scope",
+            "key",
+            "--scope-id",
+            "key_123",
+            "--max-sends-per-day",
+            "1000",
+            "--hard-stop-on-complaint",
+        ]);
+        match cli.command {
+            Command::Budget {
+                command:
+                    BudgetCommand::Set {
+                        scope,
+                        scope_id,
+                        disabled,
+                        max_sends_per_day,
+                        max_new_recipients_per_hour,
+                        hard_stop_on_complaint,
+                    },
+            } => {
+                assert_eq!(scope, "key");
+                assert_eq!(scope_id.as_deref(), Some("key_123"));
+                assert!(!disabled);
+                assert_eq!(max_sends_per_day, Some(1000));
+                assert_eq!(max_new_recipients_per_hour, None);
+                assert!(hard_stop_on_complaint);
+            }
+            _ => panic!("expected budgets set command"),
+        }
+    }
+
+    #[test]
+    fn parses_compliance_residency_and_erasure_job() {
+        let cli = Cli::parse_from(["dairo", "compliance", "residency"]);
+        assert!(matches!(
+            cli.command,
+            Command::Compliance {
+                command: ComplianceCommand::Residency
+            }
+        ));
+
+        let cli = Cli::parse_from(["dairo", "compliance", "erasure-job", "job_123"]);
+        match cli.command {
+            Command::Compliance {
+                command: ComplianceCommand::ErasureJob { job_id },
+            } => assert_eq!(job_id, "job_123"),
+            _ => panic!("expected compliance erasure-job command"),
+        }
+    }
+
+    #[test]
+    fn parses_a2a_list_and_get() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "a2a",
+            "list",
+            "--limit",
+            "25",
+            "--cursor",
+            "cur_1",
+            "--inbox-id",
+            "inbox_123",
+        ]);
+        match cli.command {
+            Command::A2a {
+                command:
+                    A2aCommand::List {
+                        limit,
+                        cursor,
+                        inbox_id,
+                    },
+            } => {
+                assert_eq!(limit, Some(25));
+                assert_eq!(cursor.as_deref(), Some("cur_1"));
+                assert_eq!(inbox_id.as_deref(), Some("inbox_123"));
+            }
+            _ => panic!("expected a2a list command"),
+        }
+
+        let cli = Cli::parse_from(["dairo", "a2a", "get", "a2a_123"]);
+        match cli.command {
+            Command::A2a {
+                command: A2aCommand::Get { id },
+            } => assert_eq!(id, "a2a_123"),
+            _ => panic!("expected a2a get command"),
+        }
     }
 
     #[test]

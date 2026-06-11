@@ -60,6 +60,35 @@ All notable Dairo CLI private-preview changes are tracked here.
   (create, list, whoami) gains `allowedIps`.
 - Dedicated IPs: `dairo dedicated-ips status` → `GET /v1/dedicated-ips`
   (`mail:read`), returning the dedicated IP pool status.
+- Templates: `dairo templates list|create|get|update|delete|versions|version|publish`
+  over `/v1/templates` (+ `/{id}/versions[/{version}]`). Reads use `mail:read`;
+  `create`/`update` (PATCH)/`delete`/`publish` use `mail:send`. `create`/`publish`
+  read the React-email source inline (`--source`) or from a file
+  (`--source-file`); `--variables` takes a JSON-object schema; `get` accepts
+  `--version`, `publish` accepts `--no-promote` (publish a draft).
+- Events ledger: `dairo events list` → `GET /v1/events` (`mail:read`) with
+  `--limit/--cursor/--inbox-id/--type/--wait/--tail`; `dairo events replay` →
+  `POST /v1/events/replay` (`webhooks:write`) re-delivers a slice to your
+  webhooks given exactly one lower bound (`--since`, `--since-seq` + `--inbox-id`,
+  or `--since-timestamp`), with `--until/--type.../--webhook-id/--max-events`.
+- Agent passport: `dairo agents list|get <idOrAgent>` → `GET /v1/agents[/{id}]`
+  (`mail:read`); `dairo agents verify` → public `GET /v1/verify` (always a
+  verdict). Verify takes either `--id <messageId>` or the signature form
+  (`--agent --kid --sig`, plus optional `--from/--to/--subject/--ts`). There is
+  no PATCH/DELETE for agents.
+- Reputation: `dairo reputation list` → `GET /v1/reputation` (`mail:read`),
+  the fleet circuit-breaker view.
+- Budgets: `dairo budgets get <scope>` → `GET /v1/budgets/{scope}` (`mail:read`);
+  `dairo budgets set --scope … [--scope-id …]` → `PUT /v1/budgets`
+  (`keys:write`, idempotent upsert) with at least one limit
+  (`--max-sends-per-day`, `--max-new-recipients-per-hour`,
+  `--hard-stop-on-complaint`); `--disabled` clears the default-enabled flag.
+- Compliance: `dairo compliance residency` → `GET /v1/compliance/residency`
+  and `dairo compliance erasure-job <id>` → `GET /v1/compliance/erasure-jobs/{id}`
+  (both `mail:read`). There is no root `GET /v1/compliance`.
+- A2A mail: `dairo a2a list [--limit --cursor --inbox-id]` →
+  `GET /v1/a2a/messages` and `dairo a2a get <id>` → `GET /v1/a2a/messages/{id}`
+  (`mail:read`), the cross-tenant agent-to-agent hop receipts.
 - Added `dairo outbound` commands: `list`, `get <id>`, `events`, `bounces`,
   `complaints` — backed by the public `/v1/outbound-emails`,
   `/v1/outbound-emails/{id}`, and `/v1/outbound-events` routes (`mail:read`).
