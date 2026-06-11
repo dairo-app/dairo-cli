@@ -1,0 +1,60 @@
+import { Dairo, verifyWebhook, type WebhookDeliveryPayload } from "dairo";
+
+export interface Env {
+  DAIRO_API_KEY: string;
+  DAIRO_WEBHOOK_SECRET: string;
+}
+
+// Cloudflare Workers has no Node APIs. The Dairo SDK's verifyWebhook is async
+// and uses Web Crypto, so signature verification works here with no polyfills.
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (request.method === "POST" && url.pathname === "{{inbox_route}}") {
+      const raw = await request.text(); // RAW body, before JSON.parse
+      const signature = request.headers.get("X-Dairo-Signature") ?? "";
+      const timestamp = request.headers.get("X-Dairo-Timestamp") ?? undefined;
+      const ok = await verifyWebhook(env.DAIRO_WEBHOOK_SECRET, raw, signature, {
+        timestamp,
+        toleranceSeconds: 300,
+      }).catch(() => false);
+
+      if (!ok) {
+        return new Response("invalid signature", { status: 400 });
+      }
+
+      const event = JSON.parse(raw) as WebhookDeliveryPayload;
+      if (event.type === "{{webhook_event}}") {
+        const data = event.data as {
+          from?: string;
+          subject?: string;
+          messageId?: string;
+        };
+        console.log("inbound:", data.from, data.subject, data.messageId);
+      } else {
+        console.log("event:", event.type);
+      }
+      return new Response(null, { status: 204 });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/dairo/send") {
+      const dairo = new Dairo({ apiKey: env.DAIRO_API_KEY });
+      const { inboxId, to, subject, text } = (await request.json()) as {
+        inboxId: string;
+        to: string | string[];
+        subject?: string;
+        text?: string;
+      };
+      const result = await dairo.emails.send({
+        inboxId,
+        to,
+        subject: subject ?? "Hello from Dairo",
+        text: text ?? "Sent with the Dairo SDK.",
+      });
+      return Response.json(result);
+    }
+
+    return new Response("not found", { status: 404 });
+  },
+};

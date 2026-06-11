@@ -1,0 +1,5 @@
+import { Dairo } from "dairo";
+
+// The Dairo SDK does not read environment variables itself, so the key is wired
+// in explicitly here. Set DAIRO_API_KEY in .env (see .env.example).
+export const dairo = new Dairo({ apiKey: process.env.DAIRO_API_KEY! });

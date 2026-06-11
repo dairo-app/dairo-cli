@@ -1,0 +1,59 @@
+import json
+import os
+
+from dairo import Dairo, verify_webhook, WebhookVerificationError
+from flask import Flask, request
+
+app = Flask(__name__)
+
+# Dairo() reads DAIRO_API_KEY from the environment. Pass api_key=... to override.
+dairo = Dairo()
+
+
+@app.post("/api/dairo/send")
+def send():
+    """Send an email through your Dairo inbox.
+
+    Body: {"inboxId": str, "to": str | list[str], "subject"?: str, "text"?: str}
+    """
+    body = request.get_json(force=True)
+    result = dairo.emails.send(
+        inbox_id=body["inboxId"],
+        to=body["to"],
+        subject=body.get("subject", "Hello from Dairo"),
+        text=body.get("text", "Sent with the Dairo SDK."),
+    )
+    return result
+
+
+@app.post("{{inbox_route}}")
+def webhook():
+    """Inbound Dairo webhook handler.
+
+    Dairo signs each delivery over the RAW request body, so we read the raw
+    bytes and verify the signature BEFORE parsing JSON.
+    """
+    raw = request.get_data()  # raw bytes
+    try:
+        verify_webhook(
+            os.environ["DAIRO_WEBHOOK_SECRET"],
+            raw,
+            request.headers.get("x-dairo-signature", ""),
+            timestamp=request.headers.get("x-dairo-timestamp"),
+            tolerance_seconds=300,
+        )
+    except WebhookVerificationError:
+        return "invalid signature", 400
+
+    event = json.loads(raw)
+    if event["type"] == "{{webhook_event}}":
+        data = event["data"]
+        print("inbound:", data.get("from"), data.get("subject"), data.get("messageId"))
+    else:
+        print("event:", event["type"])
+
+    return "", 204
+
+
+if __name__ == "__main__":
+    app.run(port=5000)

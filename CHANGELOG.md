@@ -4,6 +4,27 @@ All notable Dairo CLI private-preview changes are tracked here.
 
 ## Unreleased
 
+### Tooling
+
+- New `dairo init <framework>` scaffolder. Drops a working Dairo starter into a
+  project — a configured SDK client, an inbound-webhook handler stub that
+  verifies delivery signatures against the **raw** request body, `DAIRO_API_KEY`
+  env wiring, and a `DAIRO.md` README snippet. Tier-1 frameworks: `next`,
+  `express`, `hono`, `cloudflare-workers`, `fastapi`, `flask`, `go-http`.
+  Templates are embedded in the binary, so it works offline. It is idempotent
+  (never clobbers existing files without `--force`; `package.json` is merged and
+  `.env`/`.gitignore` lines are appended only when missing), confines all writes
+  to `--dir`, and writes secret-capable files (`.env*`, `.dev.vars*`) `0600`
+  with only empty placeholders (no real secret on disk). Flags: `--dir`,
+  `--force`, `--no-install`, `--package-manager`, `--inbox-route`, `--no-verify`,
+  and global `--json` (emits the file manifest). An optional best-effort
+  `GET /v1/whoami` connectivity check runs after scaffolding (skip with
+  `--no-verify` or when no key is configured).
+  - The templates pin published SDK versions (npm `dairo`, PyPI `dairo`, Go
+    `github.com/dairo-app/dairo-go`). Those SDK publishes are **owner-gated**:
+    confirm each package is live at its pinned version before cutting a CLI
+    release.
+
 ### Security & reliability
 
 - Reject non-HTTPS base URLs so the bearer API key never travels in cleartext.

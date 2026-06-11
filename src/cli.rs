@@ -102,6 +102,21 @@ pub enum Command {
         #[command(subcommand)]
         command: DedicatedIpCommand,
     },
+    /// Stream live inbound-email (and delivery) events to the terminal and,
+    /// optionally, re-POST each one to a local endpoint — the Dairo equivalent of
+    /// `stripe listen`. Pulls from the durable event ledger via long-poll, so no
+    /// public webhook URL or tunnel is needed; a persisted cursor resumes exactly
+    /// where it left off. Requires the `mail:read` scope.
+    Listen(ListenArgs),
+    /// Scaffold a working Dairo starter into your project for a framework.
+    ///
+    /// Generates a configured SDK client, an inbound-webhook handler stub (raw
+    /// body + signature verification using the SDK's own verify helper),
+    /// `DAIRO_API_KEY` env wiring, and a README snippet — the "0-to-first-send +
+    /// first-inbound" on-ramp. Templates are embedded in the binary, so it works
+    /// offline; the only optional network touch is a friendly `GET /v1/whoami`
+    /// connectivity check after scaffolding (skip with `--no-verify`).
+    Init(InitArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -205,6 +220,162 @@ pub struct SendArgs {
     pub send_at: Option<String>,
 }
 
+#[derive(Debug, Args)]
+pub struct ListenArgs {
+    /// Local endpoint to POST each event to. Loopback URLs
+    /// (`http://localhost`, `http://127.0.0.1`, `http://[::1]`) are allowed —
+    /// this is your own machine. Plain `http://` to a non-loopback host is
+    /// rejected (use `https://` for a remote/staging target). When omitted,
+    /// `dairo listen` only prints events ("tail my inbox events live").
+    #[arg(long = "forward-to", value_name = "URL")]
+    pub forward_to: Option<String>,
+    /// Restrict the stream to one or more inboxes, by inbox id or address.
+    /// Repeat for several. A single value is pushed to the server `inboxId`
+    /// filter; multiple values stream the unfiltered account-wide event stream
+    /// (one monotonic cursor) and are filtered client-side.
+    #[arg(long = "inbox", value_name = "ID_OR_ADDRESS", action = clap::ArgAction::Append)]
+    pub inbox: Vec<String>,
+    /// Event-type filter. Repeat for several. Exact types (e.g.
+    /// `message.received`) and `*`-globs (e.g. `message.*`) are supported;
+    /// globs are matched client-side. Defaults to the inbound-sandbox set
+    /// (`message.received`, `message.quarantined`). Pass `--events '*'` for
+    /// everything, including outbound delivery events.
+    #[arg(long = "events", value_name = "GLOB", action = clap::ArgAction::Append)]
+    pub events: Vec<String>,
+    /// Terminal rendering for each event. `compact` is a one-line human log;
+    /// `json` prints each raw event as one JSON line (pipe-friendly); `pretty`
+    /// is multi-line.
+    #[arg(long = "print", value_name = "MODE", default_value_t = PrintMode::Compact)]
+    pub print: PrintMode,
+    /// Start from history instead of "now". `--replay 50` replays the last 50
+    /// events; `--replay all` replays from the beginning; `--replay 1h` replays
+    /// events from the last hour (also accepts `30m`, `2d`). Default (unset)
+    /// starts strictly after the newest existing event.
+    #[arg(long = "replay", value_name = "N|all|DURATION")]
+    pub replay: Option<String>,
+    /// Where the resume cursor is persisted (written `0600`). Defaults to a
+    /// per-key, per-filter file under the user config dir so two concurrent
+    /// listens never clobber each other's cursor.
+    #[arg(long = "state-file", value_name = "PATH")]
+    pub state_file: Option<PathBuf>,
+    /// Ignore any persisted cursor and start fresh from tail (or `--replay`).
+    #[arg(long = "no-resume")]
+    pub no_resume: bool,
+    /// Long-poll hold time per request, in seconds (1..=25). Lower = snappier
+    /// shutdown and more requests; higher = fewer requests while idle.
+    #[arg(long = "wait", value_name = "SECONDS", default_value_t = 25, value_parser = clap::value_parser!(u8).range(1..=25))]
+    pub wait: u8,
+    /// Per-event forward retry budget before logging-and-skipping. A bad local
+    /// handler can never wedge the stream forever.
+    #[arg(long = "max-forward-retries", value_name = "N", default_value_t = 5)]
+    pub max_forward_retries: u8,
+    /// Disable ephemeral HMAC signing of forwarded events. By default each run
+    /// mints a fresh signing secret, prints it once, and signs forwards so a
+    /// handler can verify with `DAIRO_WEBHOOK_SECRET=<that>`.
+    #[arg(long = "no-sign")]
+    pub no_sign: bool,
+}
+
+/// Terminal rendering mode for `dairo listen` per-event output. Independent of
+/// the global `--json` flag (which governs only the startup banner / error
+/// envelope).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum PrintMode {
+    Compact,
+    Json,
+    Pretty,
+}
+
+impl std::fmt::Display for PrintMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Compact => "compact",
+            Self::Json => "json",
+            Self::Pretty => "pretty",
+        })
+    }
+}
+
+#[derive(Debug, Args)]
+pub struct InitArgs {
+    /// Target framework. Omit to see the valid values. One of: `next`,
+    /// `express`, `hono`, `cloudflare-workers`, `fastapi`, `flask`, `go-http`.
+    pub framework: Option<Framework>,
+    /// Explicit alias for the positional framework, for scriptability. If both
+    /// the positional and this flag are given and they disagree, `init` errors.
+    #[arg(long = "framework", value_name = "FRAMEWORK")]
+    pub framework_flag: Option<Framework>,
+    /// Target project directory. Created if missing. Files are only ever written
+    /// inside this directory.
+    #[arg(long, default_value = ".")]
+    pub dir: PathBuf,
+    /// Overwrite files that already exist. Without it, `init` never clobbers an
+    /// existing file (it skips and warns), so re-running is safe and idempotent.
+    #[arg(long)]
+    pub force: bool,
+    /// Skip running the package-manager install step; only write files and print
+    /// the manual install command.
+    #[arg(long = "no-install")]
+    pub no_install: bool,
+    /// Override the auto-detected package manager: `npm`/`pnpm`/`yarn`/`bun` for
+    /// JS, `pip`/`poetry`/`uv` for Python, `go` for Go.
+    #[arg(long = "package-manager", value_name = "PM")]
+    pub package_manager: Option<String>,
+    /// URL path the webhook handler is mounted at, echoed into the README so you
+    /// know what to register with `dairo webhook create --url`. Defaults per
+    /// framework (e.g. `/api/dairo/webhook`).
+    #[arg(long = "inbox-route", value_name = "PATH")]
+    pub inbox_route: Option<String>,
+    /// Skip the post-scaffold `GET /v1/whoami` connectivity check. The check is
+    /// also auto-skipped when no API key is configured.
+    #[arg(long = "no-verify")]
+    pub no_verify: bool,
+}
+
+/// Tier-1 frameworks `dairo init` can scaffold. The first wave covers the four
+/// transport shapes (Node serverful, Node edge, Python ASGI/WSGI, Go net/http)
+/// across the JS/TS, Python, and Go SDKs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum Framework {
+    /// Next.js App Router (TypeScript) — `dairo` (npm).
+    Next,
+    /// Express (Node, TypeScript) — `dairo` (npm).
+    Express,
+    /// Hono (edge/Node) — `dairo` (npm).
+    Hono,
+    /// Cloudflare Workers (Web Crypto, no Node APIs) — `dairo` (npm).
+    #[value(name = "cloudflare-workers")]
+    CloudflareWorkers,
+    /// FastAPI (Python ASGI) — `dairo` (PyPI).
+    Fastapi,
+    /// Flask (Python WSGI) — `dairo` (PyPI).
+    Flask,
+    /// Go `net/http` — `github.com/dairo-app/dairo-go`.
+    #[value(name = "go-http")]
+    GoHttp,
+}
+
+impl Framework {
+    /// The canonical `--framework` value, matching the `ValueEnum` spelling.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Next => "next",
+            Self::Express => "express",
+            Self::Hono => "hono",
+            Self::CloudflareWorkers => "cloudflare-workers",
+            Self::Fastapi => "fastapi",
+            Self::Flask => "flask",
+            Self::GoHttp => "go-http",
+        }
+    }
+}
+
+impl std::fmt::Display for Framework {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum EmailListCommand {
     /// List email lists.
@@ -251,6 +422,19 @@ pub enum McpCommand {
         /// MCP server name in the target client.
         #[arg(long, default_value = "dairo")]
         name: String,
+    },
+    /// Print the Dairo MCP tool catalog (from the hosted /v1/mcp/catalog).
+    Catalog {
+        /// Print the raw catalog JSON instead of a table.
+        #[arg(long)]
+        json: bool,
+        /// Annotate each tool with whether the active API key can call it
+        /// (requests `?for=me`) and show only the allowed tools.
+        #[arg(long = "for-me")]
+        for_me: bool,
+        /// Show only tools in this family (e.g. `mail`, `outbound`, `agents`).
+        #[arg(long)]
+        family: Option<String>,
     },
 }
 
@@ -663,6 +847,105 @@ mod tests {
     }
 
     #[test]
+    fn parses_listen_with_defaults() {
+        let cli = Cli::parse_from(["dairo", "listen"]);
+        match cli.command {
+            Command::Listen(ListenArgs {
+                forward_to,
+                inbox,
+                events,
+                print,
+                replay,
+                state_file,
+                no_resume,
+                wait,
+                max_forward_retries,
+                no_sign,
+            }) => {
+                assert_eq!(forward_to, None);
+                assert!(inbox.is_empty());
+                assert!(events.is_empty());
+                assert_eq!(print, PrintMode::Compact);
+                assert_eq!(replay, None);
+                assert_eq!(state_file, None);
+                assert!(!no_resume);
+                assert_eq!(wait, 25);
+                assert_eq!(max_forward_retries, 5);
+                assert!(!no_sign);
+            }
+            _ => panic!("expected listen command"),
+        }
+    }
+
+    #[test]
+    fn parses_listen_with_all_flags() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "listen",
+            "--forward-to",
+            "http://localhost:3000/webhook",
+            "--inbox",
+            "agent@acme.dev",
+            "--inbox",
+            "inbox_123",
+            "--events",
+            "message.received",
+            "--events",
+            "*",
+            "--print",
+            "json",
+            "--replay",
+            "1h",
+            "--state-file",
+            "/tmp/listen.cursor",
+            "--no-resume",
+            "--wait",
+            "10",
+            "--max-forward-retries",
+            "3",
+            "--no-sign",
+        ]);
+        match cli.command {
+            Command::Listen(args) => {
+                assert_eq!(
+                    args.forward_to.as_deref(),
+                    Some("http://localhost:3000/webhook")
+                );
+                assert_eq!(args.inbox, vec!["agent@acme.dev", "inbox_123"]);
+                assert_eq!(args.events, vec!["message.received", "*"]);
+                assert_eq!(args.print, PrintMode::Json);
+                assert_eq!(args.replay.as_deref(), Some("1h"));
+                assert_eq!(args.state_file, Some(PathBuf::from("/tmp/listen.cursor")));
+                assert!(args.no_resume);
+                assert_eq!(args.wait, 10);
+                assert_eq!(args.max_forward_retries, 3);
+                assert!(args.no_sign);
+            }
+            _ => panic!("expected listen command"),
+        }
+    }
+
+    #[test]
+    fn listen_rejects_out_of_range_wait() {
+        let error = Cli::try_parse_from(["dairo", "listen", "--wait", "26"])
+            .expect_err("wait above 25 should fail clap validation");
+        assert!(error.to_string().contains("26"));
+
+        let error = Cli::try_parse_from(["dairo", "listen", "--wait", "0"])
+            .expect_err("wait of 0 should fail clap validation");
+        assert!(error.to_string().contains('0'));
+    }
+
+    #[test]
+    fn listen_rejects_unknown_print_mode() {
+        let error = Cli::try_parse_from(["dairo", "listen", "--print", "verbose"])
+            .expect_err("unknown print mode should fail clap validation");
+        let message = error.to_string();
+        assert!(message.contains("verbose"));
+        assert!(message.contains("compact"));
+    }
+
+    #[test]
     fn parses_dedicated_ips_status_command() {
         let cli = Cli::parse_from(["dairo", "dedicated-ips", "status"]);
         assert!(matches!(
@@ -1055,6 +1338,48 @@ mod tests {
     }
 
     #[test]
+    fn parses_mcp_catalog_defaults() {
+        let cli = Cli::parse_from(["dairo", "mcp", "catalog"]);
+        match cli.command {
+            Command::Mcp {
+                command:
+                    McpCommand::Catalog {
+                        json,
+                        for_me,
+                        family,
+                    },
+            } => {
+                assert!(!json);
+                assert!(!for_me);
+                assert_eq!(family, None);
+            }
+            _ => panic!("expected mcp catalog command"),
+        }
+    }
+
+    #[test]
+    fn parses_mcp_catalog_with_flags() {
+        let cli = Cli::parse_from([
+            "dairo", "mcp", "catalog", "--json", "--for-me", "--family", "outbound",
+        ]);
+        match cli.command {
+            Command::Mcp {
+                command:
+                    McpCommand::Catalog {
+                        json,
+                        for_me,
+                        family,
+                    },
+            } => {
+                assert!(json);
+                assert!(for_me);
+                assert_eq!(family.as_deref(), Some("outbound"));
+            }
+            _ => panic!("expected mcp catalog command"),
+        }
+    }
+
+    #[test]
     fn webhook_create_rejects_unknown_events() {
         let error = Cli::try_parse_from([
             "dairo",
@@ -1071,5 +1396,102 @@ mod tests {
         assert!(message.contains("message.created"));
         assert!(message.contains("message.received"));
         assert!(message.contains("email.complained"));
+    }
+
+    #[test]
+    fn parses_init_command() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "init",
+            "next",
+            "--dir",
+            "/tmp/project",
+            "--no-install",
+            "--no-verify",
+            "--inbox-route",
+            "/hooks/dairo",
+            "--package-manager",
+            "pnpm",
+        ]);
+        match cli.command {
+            Command::Init(InitArgs {
+                framework,
+                framework_flag,
+                dir,
+                force,
+                no_install,
+                package_manager,
+                inbox_route,
+                no_verify,
+            }) => {
+                assert_eq!(framework, Some(Framework::Next));
+                assert_eq!(framework_flag, None);
+                assert_eq!(dir, PathBuf::from("/tmp/project"));
+                assert!(!force);
+                assert!(no_install);
+                assert_eq!(package_manager.as_deref(), Some("pnpm"));
+                assert_eq!(inbox_route.as_deref(), Some("/hooks/dairo"));
+                assert!(no_verify);
+            }
+            _ => panic!("expected init command"),
+        }
+    }
+
+    #[test]
+    fn parses_init_with_defaults_and_no_framework() {
+        let cli = Cli::parse_from(["dairo", "init"]);
+        match cli.command {
+            Command::Init(args) => {
+                assert_eq!(args.framework, None);
+                assert_eq!(args.framework_flag, None);
+                assert_eq!(args.dir, PathBuf::from("."));
+                assert!(!args.force);
+                assert!(!args.no_install);
+                assert!(!args.no_verify);
+                assert_eq!(args.package_manager, None);
+                assert_eq!(args.inbox_route, None);
+            }
+            _ => panic!("expected init command"),
+        }
+    }
+
+    #[test]
+    fn init_accepts_framework_flag_alias() {
+        let cli = Cli::parse_from(["dairo", "init", "--framework", "fastapi"]);
+        match cli.command {
+            Command::Init(args) => {
+                assert_eq!(args.framework, None);
+                assert_eq!(args.framework_flag, Some(Framework::Fastapi));
+            }
+            _ => panic!("expected init command"),
+        }
+    }
+
+    #[test]
+    fn init_rejects_unknown_framework() {
+        let error = Cli::try_parse_from(["dairo", "init", "rocket"])
+            .expect_err("unknown framework should fail clap validation");
+        let message = error.to_string();
+        assert!(message.contains("rocket"));
+        assert!(message.contains("next"));
+        assert!(message.contains("cloudflare-workers"));
+        assert!(message.contains("go-http"));
+    }
+
+    #[test]
+    fn init_accepts_every_tier1_framework() {
+        for value in [
+            "next",
+            "express",
+            "hono",
+            "cloudflare-workers",
+            "fastapi",
+            "flask",
+            "go-http",
+        ] {
+            let cli = Cli::try_parse_from(["dairo", "init", value])
+                .unwrap_or_else(|_| panic!("framework {value} should parse"));
+            assert!(matches!(cli.command, Command::Init(_)));
+        }
     }
 }

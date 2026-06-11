@@ -56,6 +56,20 @@ pub fn sign_webhook(secret: &str, raw_body: &[u8]) -> String {
     format!("v1={:x}", mac.finalize().into_bytes())
 }
 
+/// Signs `raw_body` for a local `dairo listen --forward-to` delivery, producing
+/// the exact `X-Dairo-Signature: v1=<hex>` value a Dairo webhook handler
+/// verifies against `DAIRO_WEBHOOK_SECRET=<secret>`.
+///
+/// This is a thin, intention-revealing wrapper over [`sign_webhook`]: the
+/// derivation (`key = hex(sha256(secret))`, HMAC-SHA256 over the raw bytes) is
+/// identical to the production fan-out, so `dairo listen` can mint an ephemeral
+/// `whsec_...` secret per run, sign forwards with it, and a handler written
+/// against real Dairo webhooks verifies them unchanged. The secret never leaves
+/// the developer's machine.
+pub fn sign_body(secret: &str, raw_body: &[u8]) -> String {
+    sign_webhook(secret, raw_body)
+}
+
 /// Verifies a Dairo webhook delivery in constant time.
 ///
 /// - `secret`: the `whsec_...` value returned when the webhook was created.
@@ -240,6 +254,17 @@ mod tests {
             verify_webhook("", b"{}", "v1=ab", &fresh_ts(), 300),
             Err(WebhookError::EmptySecret)
         );
+    }
+
+    #[test]
+    fn sign_body_matches_sign_webhook_and_verifies() {
+        // `sign_body` (the forward-signing entry point used by `dairo listen`)
+        // must produce a signature that round-trips through `verify_webhook`,
+        // i.e. it is byte-identical to the production scheme.
+        let body = br#"{"id":"evt_listen","type":"message.received"}"#;
+        let sig = sign_body(SECRET, body);
+        assert_eq!(sig, sign_webhook(SECRET, body));
+        assert!(verify_webhook(SECRET, body, &sig, &fresh_ts(), 300).is_ok());
     }
 
     #[test]

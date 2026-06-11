@@ -1,0 +1,38 @@
+import { verifyWebhookRequest, type WebhookDeliveryPayload } from "dairo";
+
+// POST {{inbox_route}} — inbound Dairo webhook handler.
+//
+// Dairo signs each delivery over the RAW request body, so we read the body as
+// text BEFORE parsing it as JSON and verify the signature against those exact
+// bytes. Verifying re-serialized JSON would fail because byte ordering and
+// whitespace would differ from what Dairo signed.
+export async function POST(req: Request) {
+  const raw = await req.text(); // RAW body, before JSON.parse
+  const ok = await verifyWebhookRequest(
+    process.env.DAIRO_WEBHOOK_SECRET!,
+    raw,
+    req.headers,
+    300, // tolerance in seconds for the X-Dairo-Timestamp replay bound
+  ).catch(() => false);
+
+  if (!ok) {
+    return new Response("invalid signature", { status: 400 });
+  }
+
+  const event = JSON.parse(raw) as WebhookDeliveryPayload;
+  switch (event.type) {
+    case "{{webhook_event}}": {
+      const data = event.data as {
+        from?: string;
+        subject?: string;
+        messageId?: string;
+      };
+      console.log("inbound:", data.from, data.subject, data.messageId);
+      break;
+    }
+    default:
+      console.log("event:", event.type);
+  }
+
+  return new Response(null, { status: 204 });
+}

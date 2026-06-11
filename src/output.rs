@@ -1,12 +1,13 @@
 use anyhow::Result;
 
+use crate::cli::PrintMode;
 use crate::mcp_install::McpInstallReport;
 
 use crate::api::{
     ApiKey, AttachmentDownloadUrlResponse, CreateApiKeyResponse, CreateWebhookResponse,
     DeleteResponse, Domain, EmailList, EmailListDetailResponse, EmailListImportResponse,
-    EmailListSendResponse, Inbox, Message, SendEmailResponse, SendEmailWarning, Thread, Webhook,
-    WhoamiResponse,
+    EmailListSendResponse, Inbox, LedgerEvent, Message, SendEmailResponse, SendEmailWarning,
+    Thread, Webhook, WhoamiResponse,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,6 +87,35 @@ fn reports_to_json(reports: &[McpInstallReport]) -> serde_json::Value {
             "verify": report.verify
         })).collect::<Vec<_>>()
     })
+}
+
+/// Human-readable report for `dairo init`. The JSON form is emitted by
+/// `init::run` itself (it owns the full manifest shape); this renders the
+/// terminal output: the per-file create/skip/merge plan, install status, the
+/// optional `whoami` line, and a "Next steps" block. Modeled on
+/// [`print_mcp_install`].
+pub fn print_init(
+    framework: &str,
+    dir: &str,
+    reports: &[crate::init::InitReport],
+    install_summary: &str,
+    verify: Option<&str>,
+    next_steps: &[String],
+) {
+    println!("Dairo {framework} starter scaffolded in {dir}");
+    for report in reports {
+        println!("  {:<14} {}", report.action, report.rel_path);
+    }
+    println!("Dependencies: {install_summary}");
+    if let Some(verify) = verify {
+        println!("Connectivity: {verify}");
+    }
+    if !next_steps.is_empty() {
+        println!("Next steps:");
+        for (index, step) in next_steps.iter().enumerate() {
+            println!("  {}. {step}", index + 1);
+        }
+    }
 }
 
 pub fn print_whoami(response: &WhoamiResponse, format: OutputFormat) -> Result<()> {
@@ -609,4 +639,228 @@ pub fn print_delete_response(
         println!("{resource} was not deleted.");
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// `dairo listen` rendering
+// ---------------------------------------------------------------------------
+
+/// Startup-banner summary of a `dairo listen` run, rendered once before the
+/// stream begins.
+pub struct ListenBanner {
+    pub forward_to: Option<String>,
+    pub inboxes: Vec<String>,
+    pub events: Vec<String>,
+    pub print: PrintMode,
+    pub wait: u8,
+    pub replay: Option<String>,
+    pub state_file: String,
+    /// The ephemeral signing secret to print once (if signing is enabled).
+    pub signing_secret: Option<String>,
+}
+
+/// Prints the startup banner. The banner always goes to stderr so it never
+/// pollutes a `--print json` stdout stream meant for piping into `jq`.
+pub fn print_listen_banner(banner: &ListenBanner, json_banner: bool) {
+    if json_banner {
+        let payload = serde_json::json!({
+            "listen": {
+                "forwardTo": banner.forward_to,
+                "inboxes": banner.inboxes,
+                "events": banner.events,
+                "print": banner.print.to_string(),
+                "wait": banner.wait,
+                "replay": banner.replay,
+                "stateFile": banner.state_file,
+                "signing": banner.signing_secret.is_some(),
+            }
+        });
+        eprintln!(
+            "{}",
+            serde_json::to_string_pretty(&payload).unwrap_or_default()
+        );
+    } else {
+        eprintln!("dairo listen — streaming events from the durable ledger. Ctrl-C to stop.");
+        match &banner.forward_to {
+            Some(url) => eprintln!("  forwarding to: {url}"),
+            None => eprintln!("  mode: print-only (no --forward-to)"),
+        }
+        let inboxes = if banner.inboxes.is_empty() {
+            "all inboxes".to_string()
+        } else {
+            banner.inboxes.join(", ")
+        };
+        eprintln!("  inboxes: {inboxes}");
+        eprintln!("  events: {}", banner.events.join(", "));
+        if let Some(replay) = &banner.replay {
+            eprintln!("  replay: {replay}");
+        }
+        eprintln!("  long-poll: {}s", banner.wait);
+        eprintln!("  state file: {}", banner.state_file);
+    }
+    // The signing secret is printed (once) regardless of banner format so the
+    // operator can point their handler's DAIRO_WEBHOOK_SECRET at it.
+    if let Some(secret) = &banner.signing_secret {
+        eprintln!("  signing secret (set DAIRO_WEBHOOK_SECRET to verify): {secret}");
+    }
+}
+
+/// Renders one ledger event per `--print` mode. `json` goes to stdout (pipeable);
+/// `compact`/`pretty` go to stdout as the human stream.
+pub fn print_listen_event(event: &LedgerEvent, mode: PrintMode) {
+    match mode {
+        PrintMode::Json => {
+            // One raw event per line for `| jq`.
+            match serde_json::to_string(event) {
+                Ok(line) => println!("{line}"),
+                Err(error) => eprintln!("(failed to serialize event {}: {error})", event.event_id),
+            }
+        }
+        PrintMode::Compact => {
+            let when = event
+                .occurred_at
+                .as_deref()
+                .or(event.created_at.as_deref())
+                .unwrap_or("-");
+            let from = event_from(event);
+            let subject = event_subject(event);
+            let inbox = event.inbox_id.as_deref().unwrap_or("-");
+            println!(
+                "{when}  {:<22}  inbox={inbox}  {from}{subject}",
+                event.event_type
+            );
+        }
+        PrintMode::Pretty => {
+            println!("event {}  ({})", event.event_type, event.event_id);
+            if let Some(when) = event.occurred_at.as_deref().or(event.created_at.as_deref()) {
+                println!("  at: {when}");
+            }
+            if let Some(inbox) = &event.inbox_id {
+                println!("  inbox: {inbox}");
+            }
+            if let Some(message_id) = &event.message_id {
+                println!("  message: {message_id}");
+            }
+            if let Some(thread_id) = &event.thread_id {
+                println!("  thread: {thread_id}");
+            }
+            let from = event_from(event);
+            if !from.is_empty() {
+                println!("  {}", from.trim_end());
+            }
+            let subject = event_subject(event);
+            if !subject.is_empty() {
+                println!("  {}", subject.trim_start());
+            }
+            if let Some(seq) = event.seq {
+                if let Some(partition) = &event.partition_key {
+                    println!("  ledger: {partition} #{seq}");
+                }
+            }
+        }
+    }
+}
+
+/// Extracts a `from=<addr> ` fragment from the event payload when present
+/// (inbound message events carry it under `data.from`).
+fn event_from(event: &LedgerEvent) -> String {
+    let from = event
+        .data
+        .get("from")
+        .and_then(|value| match value {
+            serde_json::Value::String(s) => Some(s.clone()),
+            serde_json::Value::Object(map) => map
+                .get("address")
+                .and_then(|a| a.as_str())
+                .map(str::to_string),
+            _ => None,
+        })
+        .unwrap_or_default();
+    if from.is_empty() {
+        String::new()
+    } else {
+        format!("from={from} ")
+    }
+}
+
+/// Extracts a `subject="..."` fragment (or the messageId fallback) from the
+/// event payload for the compact log line.
+fn event_subject(event: &LedgerEvent) -> String {
+    if let Some(subject) = event.data.get("subject").and_then(|v| v.as_str()) {
+        if !subject.is_empty() {
+            return format!("subject=\"{subject}\"");
+        }
+    }
+    match &event.message_id {
+        Some(message_id) => format!("messageId={message_id}"),
+        None => String::new(),
+    }
+}
+
+/// Prints a forward result line for one event. `Ok(status)` is the HTTP status of
+/// a successful forward; `Err(reason)` is a final failure after retries.
+pub fn print_listen_forward_result(event_id: &str, result: std::result::Result<u16, &str>) {
+    match result {
+        Ok(status) => eprintln!("  → forwarded {event_id} (HTTP {status})"),
+        Err(reason) => eprintln!("  → forward FAILED {event_id}: {reason}"),
+    }
+}
+
+/// Surfaces server-reported ledger gaps (missing per-partition `seq`) as a
+/// visible warning. The stream keeps going — this is a reliability signal, not a
+/// fatal error.
+pub fn print_listen_gaps(gaps: &[serde_json::Value]) {
+    for gap in gaps {
+        let partition = gap
+            .get("partitionKey")
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
+        let missing = gap
+            .get("missingSeq")
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "[]".to_string());
+        eprintln!("  ! gap detected in partition {partition}: missing seq {missing}");
+    }
+}
+
+/// Prints a transient poll/persist error without tearing down the stream.
+pub fn print_listen_poll_error(message: &str) {
+    eprintln!("  ! {message}");
+}
+
+/// Prints the shutdown summary after Ctrl-C.
+pub fn print_listen_summary(
+    received: u64,
+    forwarded: u64,
+    forward_failed: u64,
+    gaps_seen: u64,
+    forwarding: bool,
+    json_banner: bool,
+) {
+    if json_banner {
+        let payload = serde_json::json!({
+            "summary": {
+                "received": received,
+                "forwarded": forwarded,
+                "forwardFailed": forward_failed,
+                "gapsSeen": gaps_seen,
+            }
+        });
+        eprintln!(
+            "{}",
+            serde_json::to_string_pretty(&payload).unwrap_or_default()
+        );
+        return;
+    }
+    eprintln!();
+    if forwarding {
+        eprintln!(
+            "Stopped. {received} event(s) received, {forwarded} forwarded, {forward_failed} failed.",
+        );
+    } else {
+        eprintln!("Stopped. {received} event(s) received.");
+    }
+    if gaps_seen > 0 {
+        eprintln!("{gaps_seen} ledger gap(s) were detected during this run.");
+    }
 }

@@ -1,0 +1,48 @@
+# Dairo + Flask
+
+This starter was scaffolded by `dairo init flask`. It is a Flask app with an
+outbound send route and an inbound webhook handler that verifies delivery
+signatures.
+
+## Files
+
+- `app.py` — the Flask app: `POST /api/dairo/send` and the inbound webhook
+  handler at `POST {{inbox_route}}`.
+
+## 1. Set your API key
+
+```sh
+cp .env.example .env
+```
+
+```text
+DAIRO_API_KEY=dairo_...
+DAIRO_WEBHOOK_SECRET=whsec_...
+```
+
+`Dairo()` reads `DAIRO_API_KEY` from the environment.
+
+## 2. Install and run
+
+```sh
+{{install_cmd}}
+flask --app app run --port 5000
+```
+
+## 3. Register the webhook
+
+```sh
+dairo webhook create --url https://<your-tunnel>{{inbox_route}} --event {{webhook_event}}
+```
+
+Local development:
+
+```sh
+dairo listen --forward-to http://localhost:5000{{inbox_route}}
+```
+
+## Raw body gotcha
+
+`request.get_data()` returns the **raw bytes**. Dairo signs over those bytes, so
+verify before `json.loads`. Do not use `request.get_json()` for the webhook body
+— verify the raw bytes first.

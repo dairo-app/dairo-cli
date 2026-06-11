@@ -141,6 +141,110 @@ fn json_version_preserves_normal_version_output() {
 }
 
 #[test]
+fn init_scaffolds_next_and_is_idempotent() {
+    let project = tempdir().unwrap();
+    let home = tempdir().unwrap();
+
+    let run = || {
+        let mut cmd = Command::cargo_bin("dairo").unwrap();
+        cmd.env_remove("DAIRO_API_KEY")
+            .env_remove("DAIRO_API_URL")
+            .env("HOME", home.path())
+            .env("XDG_CONFIG_HOME", home.path().join(".config"))
+            .args([
+                "init",
+                "next",
+                "--dir",
+                project.path().to_str().unwrap(),
+                "--no-install",
+                "--no-verify",
+            ])
+            .assert()
+            .success();
+    };
+
+    // First run scaffolds all expected files.
+    run();
+    let route = project.path().join("app/api/dairo/webhook/route.ts");
+    assert!(route.exists(), "webhook route should be created");
+    assert!(project.path().join("lib/dairo.ts").exists());
+    assert!(project.path().join("package.json").exists());
+    assert!(project.path().join("DAIRO.md").exists());
+
+    let env_example = std::fs::read_to_string(project.path().join(".env.example")).unwrap();
+    assert!(env_example.contains("DAIRO_API_KEY="));
+    // Every KEY= line must have an EMPTY value — never a real secret.
+    for line in env_example.lines().filter(|l| l.contains('=')) {
+        let value = line.split_once('=').map(|(_, v)| v.trim()).unwrap_or("");
+        assert!(
+            value.is_empty(),
+            ".env.example must never contain a real secret value, found: {line}"
+        );
+    }
+
+    // The webhook handler must verify against the raw body using the SDK helper.
+    let handler = std::fs::read_to_string(&route).unwrap();
+    assert!(handler.contains("verifyWebhookRequest"));
+    assert!(handler.contains("req.text()"));
+
+    // User edits a generated file; re-running without --force must NOT clobber it.
+    std::fs::write(&route, "// my edits\n").unwrap();
+    run();
+    assert_eq!(
+        std::fs::read_to_string(&route).unwrap(),
+        "// my edits\n",
+        "re-running init must be idempotent and never clobber without --force"
+    );
+}
+
+#[test]
+fn init_json_emits_file_manifest() {
+    let project = tempdir().unwrap();
+    let home = tempdir().unwrap();
+
+    let mut cmd = Command::cargo_bin("dairo").unwrap();
+    let assert = cmd
+        .env_remove("DAIRO_API_KEY")
+        .env_remove("DAIRO_API_URL")
+        .env("HOME", home.path())
+        .env("XDG_CONFIG_HOME", home.path().join(".config"))
+        .args([
+            "--json",
+            "init",
+            "go-http",
+            "--dir",
+            project.path().to_str().unwrap(),
+            "--no-install",
+            "--no-verify",
+        ])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    let payload: Value = serde_json::from_str(&stdout).expect("stdout should be JSON");
+    assert_eq!(payload["framework"], "go-http");
+    assert_eq!(payload["install"]["status"], "skipped");
+    let files = payload["files"].as_array().expect("files array");
+    assert!(files
+        .iter()
+        .any(|f| f["path"] == "main.go" && f["action"] == "created"));
+}
+
+#[test]
+fn init_without_framework_in_non_tty_errors_with_valid_values() {
+    let project = tempdir().unwrap();
+    let mut cmd = Command::cargo_bin("dairo").unwrap();
+    let assert = cmd
+        .args(["init", "--dir", project.path().to_str().unwrap()])
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
+    assert!(stderr.contains("next"));
+    assert!(stderr.contains("go-http"));
+}
+
+#[test]
 fn json_empty_token_stdin_error_is_clean_json() {
     let mut cmd = Command::cargo_bin("dairo").unwrap();
     let assert = cmd

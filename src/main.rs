@@ -1,6 +1,10 @@
 mod api;
 mod cli;
 mod config;
+mod fsutil;
+mod init;
+mod listen;
+mod mcp_catalog;
 mod mcp_install;
 mod output;
 mod webhook;
@@ -95,6 +99,12 @@ async fn run(cli: Cli) -> Result<()> {
         } => {
             verify_webhook_from_stdin(&secret, &signature, &timestamp, tolerance_seconds, cli.json)
         }
+        // Scaffolding is a client-only operation: it writes embedded templates
+        // and only optionally calls `whoami` (handled inside `init::run`, which
+        // resolves its own config and degrades gracefully when no key is set).
+        // So it is handled before the generic API-client construction that would
+        // otherwise hard-require a key.
+        Command::Init(args) => init::run(args, cli.json).await,
         command => {
             let config = Config::load_from_path(&config_path)?;
             let api_key = config.resolve_api_key()?;
@@ -312,6 +322,16 @@ async fn run(cli: Cli) -> Result<()> {
                         let reports = mcp_install::install(client, &name, &base_url, &api_key)?;
                         output::print_mcp_install(&reports, format)
                     }
+                    McpCommand::Catalog {
+                        json,
+                        for_me,
+                        family,
+                    } => {
+                        let catalog = client.mcp_catalog(for_me).await?;
+                        let catalog_format =
+                            OutputFormat::from_json_flag(format == OutputFormat::Json || json);
+                        mcp_catalog::render(&catalog, catalog_format, for_me, family.as_deref())
+                    }
                 },
                 Command::Send(args) => {
                     let response = client.send_email(&build_send_request(args, true)?).await?;
@@ -420,7 +440,16 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_json(&response, format)
                     }
                 },
+                Command::Listen(args) => {
+                    // `listen` does its own rendering and its errors are already
+                    // descriptive, so it bypasses the generic "failed to print
+                    // command output" context the other arms share.
+                    return listen::run_listen(&client, args, &api_key, cli.json).await;
+                }
                 Command::Auth { .. } => unreachable!("auth handled before API client construction"),
+                Command::Init(_) => {
+                    unreachable!("init is handled before API client construction")
+                }
             }
             .context("failed to print command output")
         }

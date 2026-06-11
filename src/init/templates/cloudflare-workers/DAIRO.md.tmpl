@@ -1,0 +1,46 @@
+# Dairo + Cloudflare Workers
+
+This starter was scaffolded by `dairo init cloudflare-workers`. It is a Worker
+with an outbound send route and an inbound webhook handler that verifies delivery
+signatures using Web Crypto (no Node APIs).
+
+## Files
+
+- `src/index.ts` — the Worker `fetch` handler: `POST /api/dairo/send` and the
+  inbound webhook handler at `POST {{inbox_route}}`.
+- `wrangler.toml` — Worker config.
+
+## 1. Set your secrets
+
+Workers reads secrets from the runtime, not `.env`. For local `wrangler dev`,
+copy the example to `.dev.vars`:
+
+```sh
+cp .dev.vars.example .dev.vars
+```
+
+For deployed Workers, set real secrets:
+
+```sh
+wrangler secret put DAIRO_API_KEY
+wrangler secret put DAIRO_WEBHOOK_SECRET
+```
+
+## 2. Install and run
+
+```sh
+{{install_cmd}}
+wrangler dev
+```
+
+## 3. Register the webhook
+
+```sh
+dairo webhook create --url https://<your-worker>{{inbox_route}} --event {{webhook_event}}
+```
+
+## Edge-safe verification
+
+The SDK's `verifyWebhook` is async and uses the Web Crypto API, so it runs on
+Workers with no Node polyfills. The handler reads `await request.text()` (the
+**raw body**) and verifies against those exact bytes before parsing JSON.

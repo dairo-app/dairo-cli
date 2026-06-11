@@ -1,0 +1,65 @@
+import { Hono } from "hono";
+import { Dairo, verifyWebhookRequest, type WebhookDeliveryPayload } from "dairo";
+
+type Bindings = {
+  DAIRO_API_KEY: string;
+  DAIRO_WEBHOOK_SECRET: string;
+};
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+// POST {{inbox_route}} — inbound Dairo webhook handler.
+//
+// c.req.text() returns the RAW request body. Dairo signs over those exact
+// bytes, so we verify before parsing JSON. verifyWebhookRequest is async and
+// Web-Crypto-capable, so this works on Workers/Bun/Node alike.
+app.post("{{inbox_route}}", async (c) => {
+  const raw = await c.req.text(); // RAW body, before JSON.parse
+  const secret =
+    c.env?.DAIRO_WEBHOOK_SECRET ?? process.env.DAIRO_WEBHOOK_SECRET!;
+  const ok = await verifyWebhookRequest(
+    secret,
+    raw,
+    c.req.raw.headers,
+    300,
+  ).catch(() => false);
+
+  if (!ok) {
+    return c.text("invalid signature", 400);
+  }
+
+  const event = JSON.parse(raw) as WebhookDeliveryPayload;
+  if (event.type === "{{webhook_event}}") {
+    const data = event.data as {
+      from?: string;
+      subject?: string;
+      messageId?: string;
+    };
+    console.log("inbound:", data.from, data.subject, data.messageId);
+  } else {
+    console.log("event:", event.type);
+  }
+
+  return c.body(null, 204);
+});
+
+// POST /api/dairo/send — send an email through your Dairo inbox.
+app.post("/api/dairo/send", async (c) => {
+  const apiKey = c.env?.DAIRO_API_KEY ?? process.env.DAIRO_API_KEY!;
+  const dairo = new Dairo({ apiKey });
+  const { inboxId, to, subject, text } = await c.req.json<{
+    inboxId: string;
+    to: string | string[];
+    subject?: string;
+    text?: string;
+  }>();
+  const result = await dairo.emails.send({
+    inboxId,
+    to,
+    subject: subject ?? "Hello from Dairo",
+    text: text ?? "Sent with the Dairo SDK.",
+  });
+  return c.json(result);
+});
+
+export default app;

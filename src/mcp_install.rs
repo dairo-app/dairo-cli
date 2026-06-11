@@ -1,14 +1,9 @@
 use anyhow::{Context, Result};
 use serde_json::{json, Value};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
-
-#[cfg(unix)]
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::{fs, path::PathBuf};
 
 use crate::cli::McpClient;
+use crate::fsutil::{ensure_parent_private, write_atomic_0600};
 
 #[derive(Debug, Clone)]
 pub struct McpInstallReport {
@@ -82,7 +77,7 @@ fn install_hermes(name: &str, endpoint: &str, api_key: &str) -> Result<McpInstal
                 contents.push_str("\nmcp_servers:\n");
             }
             contents.push_str(&block);
-            write_private(&path, contents.as_bytes())?;
+            write_atomic_0600(&path, contents.as_bytes())?;
             "configured".to_string()
         };
     Ok(McpInstallReport {
@@ -107,7 +102,7 @@ fn install_codex(name: &str, endpoint: &str, api_key: &str) -> Result<McpInstall
         contents.push_str(&format!(
             "\n[mcp_servers.{name}]\nurl = \"{endpoint}\"\nheaders = {{ Authorization = \"Bearer {api_key}\" }}\n"
         ));
-        write_private(&path, contents.as_bytes())?;
+        write_atomic_0600(&path, contents.as_bytes())?;
         "configured".to_string()
     };
     Ok(McpInstallReport {
@@ -139,7 +134,7 @@ fn install_cursor(name: &str, endpoint: &str, api_key: &str) -> Result<McpInstal
             "url": endpoint,
             "headers": { "Authorization": format!("Bearer {api_key}") }
         });
-        write_private(&path, serde_json::to_string_pretty(&value)?.as_bytes())?;
+        write_atomic_0600(&path, serde_json::to_string_pretty(&value)?.as_bytes())?;
         "configured".to_string()
     };
     Ok(McpInstallReport {
@@ -170,7 +165,7 @@ fn install_claude_project(name: &str, endpoint: &str, api_key: &str) -> Result<M
             "url": endpoint,
             "headers": { "Authorization": format!("Bearer {api_key}") }
         });
-        write_private(&path, serde_json::to_string_pretty(&value)?.as_bytes())?;
+        write_atomic_0600(&path, serde_json::to_string_pretty(&value)?.as_bytes())?;
         "configured".to_string()
     };
     Ok(McpInstallReport {
@@ -187,34 +182,6 @@ fn read_optional(path: &PathBuf) -> Result<String> {
     } else {
         Ok(String::new())
     }
-}
-
-fn ensure_parent_private(path: &Path) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
-        #[cfg(unix)]
-        fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).ok();
-    }
-    Ok(())
-}
-
-#[cfg(unix)]
-fn write_private(path: &PathBuf, contents: &[u8]) -> Result<()> {
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .mode(0o600)
-        .open(path)
-        .with_context(|| format!("opening {}", path.display()))?;
-    use std::io::Write;
-    file.write_all(contents)
-        .with_context(|| format!("writing {}", path.display()))
-}
-
-#[cfg(not(unix))]
-fn write_private(path: &PathBuf, contents: &[u8]) -> Result<()> {
-    fs::write(path, contents).with_context(|| format!("writing {}", path.display()))
 }
 
 fn home() -> Result<PathBuf> {

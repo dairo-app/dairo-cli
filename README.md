@@ -92,6 +92,54 @@ Config file locations follow the platform config directory, for example
 
 ## Commands
 
+### Scaffold a project (`dairo init`)
+
+`dairo init <framework>` drops a working Dairo starter into your project: a
+configured SDK client, an inbound-webhook handler stub that verifies delivery
+signatures against the raw request body, `DAIRO_API_KEY` env wiring, and a
+`DAIRO.md` README snippet. Templates are embedded in the binary, so it works
+offline.
+
+```sh
+dairo init next
+```
+
+Tier-1 frameworks: `next`, `express`, `hono`, `cloudflare-workers`, `fastapi`,
+`flask`, `go-http`. The first three pull the `dairo` npm SDK, the Python pair
+pull the `dairo` PyPI SDK, and `go-http` pulls `github.com/dairo-app/dairo-go`.
+
+Flags:
+
+- `--dir <PATH>` — target project directory (default `.`, created if missing).
+  All writes are confined to this directory.
+- `--force` — overwrite files that already exist. Without it, `init` never
+  clobbers an existing file: it skips and warns, so re-running is safe and
+  idempotent. `package.json` is always merged (your other keys are preserved),
+  and `.env`/`.gitignore` lines are only appended when missing (existing values
+  are never overwritten).
+- `--no-install` — only write files and print the manual install command.
+- `--package-manager <pm>` — override auto-detection
+  (`npm`/`pnpm`/`yarn`/`bun`, `pip`/`poetry`/`uv`, or `go`).
+- `--inbox-route <PATH>` — the URL path the webhook handler is mounted at
+  (default `/api/dairo/webhook`).
+- `--no-verify` — skip the post-scaffold `GET /v1/whoami` connectivity check
+  (also auto-skipped when no API key is configured).
+- `--json` — emit the file manifest (`{ framework, dir, files, install,
+  nextSteps }`) instead of human text.
+
+The generated `.env.example` (or `.dev.vars.example` for Cloudflare Workers)
+contains only empty `DAIRO_API_KEY=` / `DAIRO_WEBHOOK_SECRET=` placeholders — a
+real secret is never written to disk. Secret-capable files are written `0600` on
+Unix.
+
+After scaffolding, register the webhook and (for local development) forward live
+events to it:
+
+```sh
+dairo webhook create --url https://<your-host>/api/dairo/webhook --event message.received
+dairo listen --forward-to http://localhost:3000/api/dairo/webhook
+```
+
 List domains:
 
 ```sh

@@ -1,0 +1,68 @@
+import express from "express";
+import { verifyWebhookRequest, type WebhookDeliveryPayload } from "dairo";
+import { dairo } from "./dairo";
+
+const app = express();
+
+// IMPORTANT: the webhook route must use express.raw() so req.body is the RAW
+// request bytes. Dairo signs over the raw body, so verification fails if the
+// body has been re-parsed/re-serialized by express.json(). Mount this route
+// with express.raw() BEFORE any global express.json() middleware.
+app.post(
+  "{{inbox_route}}",
+  express.raw({ type: "*/*" }),
+  async (req, res) => {
+    const raw = req.body as Buffer; // RAW bytes from express.raw()
+    const ok = await verifyWebhookRequest(
+      process.env.DAIRO_WEBHOOK_SECRET!,
+      raw,
+      req.headers,
+      300,
+    ).catch(() => false);
+
+    if (!ok) {
+      res.status(400).send("invalid signature");
+      return;
+    }
+
+    const event = JSON.parse(raw.toString("utf8")) as WebhookDeliveryPayload;
+    if (event.type === "{{webhook_event}}") {
+      const data = event.data as {
+        from?: string;
+        subject?: string;
+        messageId?: string;
+      };
+      console.log("inbound:", data.from, data.subject, data.messageId);
+    } else {
+      console.log("event:", event.type);
+    }
+
+    res.status(204).end();
+  },
+);
+
+// JSON body parsing for the rest of the app. Declared AFTER the raw webhook
+// route so it never consumes the webhook body.
+app.use(express.json());
+
+// POST /api/dairo/send — send an email through your Dairo inbox.
+app.post("/api/dairo/send", async (req, res) => {
+  const { inboxId, to, subject, text } = req.body as {
+    inboxId: string;
+    to: string | string[];
+    subject?: string;
+    text?: string;
+  };
+  const result = await dairo.emails.send({
+    inboxId,
+    to,
+    subject: subject ?? "Hello from Dairo",
+    text: text ?? "Sent with the Dairo SDK.",
+  });
+  res.json(result);
+});
+
+const port = Number(process.env.PORT ?? 3000);
+app.listen(port, () => {
+  console.log(`listening on http://localhost:${port}`);
+});

@@ -1,0 +1,49 @@
+# Dairo + FastAPI
+
+This starter was scaffolded by `dairo init fastapi`. It is a FastAPI app with an
+outbound send route and an inbound webhook handler that verifies delivery
+signatures.
+
+## Files
+
+- `main.py` — `app = FastAPI()`: `POST /api/dairo/send` and the inbound webhook
+  handler at `POST {{inbox_route}}`.
+
+## 1. Set your API key
+
+```sh
+cp .env.example .env
+```
+
+```text
+DAIRO_API_KEY=dairo_...
+DAIRO_WEBHOOK_SECRET=whsec_...
+```
+
+`Dairo()` reads `DAIRO_API_KEY` from the environment. Load `.env` with your
+preferred tool (e.g. `python-dotenv`) or export the vars in your shell.
+
+## 2. Install and run
+
+```sh
+{{install_cmd}}
+uvicorn main:app --reload
+```
+
+## 3. Register the webhook
+
+```sh
+dairo webhook create --url https://<your-tunnel>{{inbox_route}} --event {{webhook_event}}
+```
+
+Local development:
+
+```sh
+dairo listen --forward-to http://localhost:8000{{inbox_route}}
+```
+
+## Raw body gotcha
+
+`await request.body()` returns the **raw bytes**. Dairo signs over those bytes,
+so verify before `json.loads`. `verify_webhook` raises `WebhookVerificationError`
+on any failure (bad signature or stale timestamp).

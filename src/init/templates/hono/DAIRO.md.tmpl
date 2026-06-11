@@ -1,0 +1,49 @@
+# Dairo + Hono
+
+This starter was scaffolded by `dairo init hono`. It includes a Hono app with an
+outbound send route and an inbound webhook handler that verifies delivery
+signatures. It runs on Workers, Bun, and Node.
+
+## Files
+
+- `src/index.ts` — the Hono app: `POST /api/dairo/send` and the inbound webhook
+  handler at `POST {{inbox_route}}`.
+
+## 1. Set your API key
+
+```sh
+cp .env.example .env
+```
+
+```text
+DAIRO_API_KEY=dairo_...
+DAIRO_WEBHOOK_SECRET=whsec_...
+```
+
+On Cloudflare Workers, set these as Worker secrets and bindings instead of `.env`.
+
+## 2. Install and run
+
+```sh
+{{install_cmd}}
+```
+
+Run with your preferred Hono adapter (Node, Bun, or `wrangler dev` for Workers).
+
+## 3. Register the webhook
+
+```sh
+dairo webhook create --url https://<your-host>{{inbox_route}} --event {{webhook_event}}
+```
+
+Local development:
+
+```sh
+dairo listen --forward-to http://localhost:3000{{inbox_route}}
+```
+
+## Raw body gotcha
+
+`c.req.text()` returns the **raw request body** — verify against those exact
+bytes before parsing JSON. `verifyWebhookRequest` is async/Web-Crypto-capable so
+it works in edge runtimes without Node polyfills.

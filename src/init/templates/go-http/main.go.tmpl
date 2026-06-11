@@ -1,0 +1,88 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"log"
+	"net/http"
+	"os"
+
+	dairo "github.com/dairo-app/dairo-go"
+)
+
+func main() {
+	client := dairo.NewClient(os.Getenv("DAIRO_API_KEY"))
+
+	// POST {{inbox_route}} — inbound Dairo webhook handler.
+	//
+	// Dairo signs each delivery over the RAW request body, so we read all the
+	// bytes and verify the signature BEFORE unmarshaling JSON. VerifyWebhookRequest
+	// reads the X-Dairo-Signature / X-Dairo-Timestamp headers off r.Header.
+	http.HandleFunc("{{inbox_route}}", func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "could not read body", http.StatusBadRequest)
+			return
+		}
+		if err := dairo.VerifyWebhookRequest(
+			os.Getenv("DAIRO_WEBHOOK_SECRET"),
+			body,
+			r.Header,
+			dairo.DefaultWebhookTolerance,
+		); err != nil {
+			http.Error(w, "invalid signature", http.StatusBadRequest)
+			return
+		}
+
+		var event struct {
+			Type string `json:"type"`
+			Data struct {
+				From      string `json:"from"`
+				Subject   string `json:"subject"`
+				MessageID string `json:"messageId"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(body, &event); err != nil {
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
+		if event.Type == "{{webhook_event}}" {
+			log.Println("inbound:", event.Data.From, event.Data.Subject, event.Data.MessageID)
+		} else {
+			log.Println("event:", event.Type)
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	// POST /api/dairo/send — send an email through your Dairo inbox.
+	http.HandleFunc("/api/dairo/send", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			InboxID string   `json:"inboxId"`
+			To      []string `json:"to"`
+			Subject string   `json:"subject"`
+			Text    string   `json:"text"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
+		result, err := client.SendEmail(context.Background(), dairo.SendEmailRequest{
+			InboxID: body.InboxID,
+			To:      body.To,
+			Subject: body.Subject,
+			Text:    body.Text,
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("content-type", "application/json")
+		_ = json.NewEncoder(w).Encode(result)
+	})
+
+	addr := ":8080"
+	log.Printf("listening on http://localhost%s", addr)
+	log.Fatal(http.ListenAndServe(addr, nil))
+}

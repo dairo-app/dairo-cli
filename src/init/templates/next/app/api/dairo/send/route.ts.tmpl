@@ -1,0 +1,21 @@
+import { dairo } from "@/lib/dairo";
+
+// POST /api/dairo/send — send an email through your Dairo inbox.
+// Body: { inboxId: string, to: string | string[], subject?: string, text?: string }
+export async function POST(req: Request) {
+  const { inboxId, to, subject, text } = (await req.json()) as {
+    inboxId: string;
+    to: string | string[];
+    subject?: string;
+    text?: string;
+  };
+
+  const result = await dairo.emails.send({
+    inboxId,
+    to,
+    subject: subject ?? "Hello from Dairo",
+    text: text ?? "Sent with the Dairo SDK.",
+  });
+
+  return Response.json(result);
+}

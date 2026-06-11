@@ -1,0 +1,49 @@
+# Dairo + Express
+
+This starter was scaffolded by `dairo init express`. It includes a configured
+Dairo SDK client and an Express server with an outbound send route and an inbound
+webhook handler that verifies delivery signatures.
+
+## Files
+
+- `src/dairo.ts` — the configured `Dairo` client (`new Dairo({ apiKey })`).
+- `src/server.ts` — the Express app: `POST /api/dairo/send` and the inbound
+  webhook handler at `POST {{inbox_route}}`.
+
+## 1. Set your API key
+
+```sh
+cp .env.example .env
+```
+
+```text
+DAIRO_API_KEY=dairo_...
+DAIRO_WEBHOOK_SECRET=whsec_...
+```
+
+## 2. Install and run
+
+```sh
+{{install_cmd}}
+npx tsx src/server.ts
+```
+
+## 3. Register the webhook
+
+```sh
+dairo webhook create --url https://<your-tunnel>{{inbox_route}} --event {{webhook_event}}
+```
+
+For local development:
+
+```sh
+dairo listen --forward-to http://localhost:3000{{inbox_route}}
+```
+
+## Raw body gotcha
+
+Dairo signs the **raw request body**. The webhook route uses
+`express.raw({ type: "*/*" })` so `req.body` is a `Buffer` of the exact bytes.
+Do **not** place a global `express.json()` before the webhook route — it would
+consume and re-parse the body, and signature verification would fail. In this
+template `express.json()` is declared *after* the webhook route for that reason.

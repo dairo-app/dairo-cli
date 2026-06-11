@@ -1,0 +1,47 @@
+# Dairo + Go (net/http)
+
+This starter was scaffolded by `dairo init go-http`. It is a `net/http` server
+with an outbound send route and an inbound webhook handler that verifies delivery
+signatures.
+
+## Files
+
+- `main.go` — the server: `POST /api/dairo/send` and the inbound webhook handler
+  at `POST {{inbox_route}}`.
+- `go.mod` — module stub requiring `github.com/dairo-app/dairo-go`.
+
+## 1. Set your API key
+
+```sh
+cp .env.example .env
+export DAIRO_API_KEY=dairo_...
+export DAIRO_WEBHOOK_SECRET=whsec_...
+```
+
+The Go SDK reads the key from the value you pass to `dairo.NewClient(...)`; this
+template passes `os.Getenv("DAIRO_API_KEY")`.
+
+## 2. Install and run
+
+```sh
+{{install_cmd}}
+go run .
+```
+
+## 3. Register the webhook
+
+```sh
+dairo webhook create --url https://<your-tunnel>{{inbox_route}} --event {{webhook_event}}
+```
+
+Local development:
+
+```sh
+dairo listen --forward-to http://localhost:8080{{inbox_route}}
+```
+
+## Raw body gotcha
+
+`io.ReadAll(r.Body)` reads the **raw bytes**. `dairo.VerifyWebhookRequest` checks
+the signature against those bytes using the `X-Dairo-Signature` /
+`X-Dairo-Timestamp` headers; verify before `json.Unmarshal`.

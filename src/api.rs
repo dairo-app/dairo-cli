@@ -400,6 +400,29 @@ impl ApiClient {
             .await
     }
 
+    /// Reads a keyset-paginated slice of the durable event ledger
+    /// (`GET /v1/events`). Scope: `mail:read`. This is the substrate `dairo
+    /// listen` rides: each call returns events oldest-first in `(createdAt, id)`
+    /// order plus a `nextCursor` to resume from.
+    ///
+    /// The endpoint supports two additive query params used by `dairo listen`:
+    /// `tail=true` (return only the head cursor as of now, with `events: []`) and
+    /// `wait=<0..=25>` seconds (server-side long-poll that holds the request open
+    /// until a row appears or the budget elapses). Because a `wait` hang can keep
+    /// the request open for up to `wait` seconds, this method overrides the
+    /// shared 30s client timeout with a per-request `wait + 5s` deadline so the
+    /// long-poll always returns cleanly inside the budget rather than tripping the
+    /// global timeout.
+    pub async fn list_events(&self, query: &EventsQuery) -> Result<EventsResponse> {
+        let mut request = self.build_request(Method::GET, &["v1", "events"], None::<&()>)?;
+        apply_events_query(request.url_mut(), query);
+        // Long-poll: a `wait`-second hang must fit inside the request timeout.
+        // Add a 5s margin for connect + the server returning the final empty
+        // page. `tail`/`wait=0` requests still get a sane bounded timeout.
+        *request.timeout_mut() = Some(events_request_timeout(query.wait));
+        self.execute_json(request).await
+    }
+
     pub async fn list_outbound_events(
         &self,
         email_id: Option<&str>,
@@ -415,6 +438,23 @@ impl ApiClient {
             if let Some(limit) = limit {
                 pairs.append_pair("limit", &limit.to_string());
             }
+        }
+        self.execute_json(request).await
+    }
+
+    /// Fetches the public MCP tool catalog (`GET /v1/mcp/catalog`), the single
+    /// source of truth for the hosted MCP surface served at `api.dairo.app/mcp`.
+    ///
+    /// The catalog itself is public and cacheable; the bearer key this client
+    /// always attaches is ignored by the endpoint unless `for_me` is set. When
+    /// `for_me` is true we add `?for=me`, which makes the server annotate every
+    /// tool with `allowed: bool` (and echo `keyScopes`) computed from the calling
+    /// key's scopes — a pure in-memory filter, no extra round-trips.
+    pub async fn mcp_catalog(&self, for_me: bool) -> Result<serde_json::Value> {
+        let mut request =
+            self.build_request(Method::GET, &["v1", "mcp", "catalog"], None::<&()>)?;
+        if for_me {
+            request.url_mut().query_pairs_mut().append_pair("for", "me");
         }
         self.execute_json(request).await
     }
@@ -985,6 +1025,26 @@ pub struct AuditLogQuery {
     pub cursor: Option<String>,
 }
 
+/// Query for `GET /v1/events`, the keyset-paginated read over the durable event
+/// ledger that `dairo listen` polls.
+///
+/// - `since` is the opaque keyset cursor (`pagination.nextCursor` from a prior
+///   page) the slice resumes strictly after; absent = from the start.
+/// - `inbox_id`/`event_type` map to the server's single-valued `inboxId`/`type`
+///   filters. `dairo listen` only sets `inboxId` for a single `--inbox`; multiple
+///   inboxes stream unfiltered and filter client-side (one monotonic cursor).
+/// - `wait` is the long-poll hold time in seconds (server clamps to 0..=25).
+/// - `tail` requests only the head cursor "as of now" (`events: []`).
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct EventsQuery {
+    pub since: Option<String>,
+    pub limit: Option<u32>,
+    pub inbox_id: Option<String>,
+    pub event_type: Option<String>,
+    pub wait: Option<u8>,
+    pub tail: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MessageListResponse {
     pub messages: Vec<Message>,
@@ -1015,6 +1075,54 @@ pub struct Pagination {
     pub next_cursor: Option<String>,
     #[serde(default, rename = "hasMore")]
     pub has_more: bool,
+}
+
+/// Response shape of `GET /v1/events`: a page of ledger events, the keyset
+/// pagination state, and a per-partition `gaps` list (a lost-event detector
+/// surfaced as-is to the operator).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventsResponse {
+    #[serde(default)]
+    pub events: Vec<LedgerEvent>,
+    pub pagination: Pagination,
+    /// Per-partition missing-`seq` reports. Free-form JSON (each entry is
+    /// `{ partitionKey, missingSeq: [...] }`); rendered verbatim as a warning.
+    #[serde(default)]
+    pub gaps: Vec<serde_json::Value>,
+}
+
+/// One row from the durable event ledger, matching the backend's
+/// `map_ledger_row` projection. Optional join keys (`messageId`, `threadId`,
+/// `inboxId`, ...) are absent for events that do not carry them, so every field
+/// past the always-present `event_id`/`event_type`/`seq` is defaulted.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LedgerEvent {
+    #[serde(rename = "eventId")]
+    pub event_id: String,
+    #[serde(rename = "type")]
+    pub event_type: String,
+    #[serde(default)]
+    pub seq: Option<i64>,
+    #[serde(default, rename = "partitionKey")]
+    pub partition_key: Option<String>,
+    #[serde(default, rename = "inboxId")]
+    pub inbox_id: Option<String>,
+    #[serde(default, rename = "threadId")]
+    pub thread_id: Option<String>,
+    #[serde(default, rename = "idempotencyKey")]
+    pub idempotency_key: Option<String>,
+    #[serde(default, rename = "outboundEmailId")]
+    pub outbound_email_id: Option<String>,
+    #[serde(default, rename = "messageId")]
+    pub message_id: Option<String>,
+    #[serde(default, rename = "providerMessageId")]
+    pub provider_message_id: Option<String>,
+    #[serde(default, rename = "occurredAt")]
+    pub occurred_at: Option<String>,
+    #[serde(default, rename = "createdAt")]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub data: serde_json::Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1138,6 +1246,39 @@ fn apply_thread_query(url: &mut Url, query: &ThreadListQuery) {
     if let Some(value) = &query.cursor {
         pairs.append_pair("cursor", value);
     }
+}
+
+fn apply_events_query(url: &mut Url, query: &EventsQuery) {
+    let mut pairs = url.query_pairs_mut();
+    if let Some(value) = &query.since {
+        pairs.append_pair("since", value);
+    }
+    if let Some(value) = query.limit {
+        pairs.append_pair("limit", &value.to_string());
+    }
+    if let Some(value) = &query.inbox_id {
+        pairs.append_pair("inboxId", value);
+    }
+    if let Some(value) = &query.event_type {
+        pairs.append_pair("type", value);
+    }
+    if let Some(value) = query.wait {
+        pairs.append_pair("wait", &value.to_string());
+    }
+    if query.tail {
+        pairs.append_pair("tail", "true");
+    }
+}
+
+/// Per-request timeout for `GET /v1/events`: a long-poll hang holds the request
+/// open for up to `wait` seconds, so the deadline is `wait + 5s` (connect +
+/// final-page margin). A `wait`-less call (tail / immediate) still gets the 5s
+/// floor rather than the shared 30s timeout, which is plenty for a single
+/// index-covered read.
+const EVENTS_REQUEST_TIMEOUT_MARGIN: Duration = Duration::from_secs(5);
+
+fn events_request_timeout(wait: Option<u8>) -> Duration {
+    Duration::from_secs(u64::from(wait.unwrap_or(0))) + EVENTS_REQUEST_TIMEOUT_MARGIN
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -1674,6 +1815,137 @@ mod tests {
 
         assert_eq!(message.text_body.as_deref(), Some("Full plain body"));
         assert_eq!(message.html_body.as_deref(), Some("<p>Full html body</p>"));
+    }
+
+    #[test]
+    fn events_query_serializes_tail_and_wait_and_filters() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let mut request = client
+            .build_request(Method::GET, &["v1", "events"], None::<&()>)
+            .unwrap();
+        apply_events_query(
+            request.url_mut(),
+            &EventsQuery {
+                since: Some("cursor_abc".to_string()),
+                limit: Some(50),
+                inbox_id: Some("inbox_123".to_string()),
+                event_type: Some("message.received".to_string()),
+                wait: Some(25),
+                tail: false,
+            },
+        );
+        let query = request.url().query().unwrap();
+        assert!(query.contains("since=cursor_abc"));
+        assert!(query.contains("limit=50"));
+        assert!(query.contains("inboxId=inbox_123"));
+        assert!(query.contains("type=message.received"));
+        assert!(query.contains("wait=25"));
+        assert!(!query.contains("tail="));
+    }
+
+    #[test]
+    fn events_query_tail_sets_only_tail_param() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let mut request = client
+            .build_request(Method::GET, &["v1", "events"], None::<&()>)
+            .unwrap();
+        apply_events_query(
+            request.url_mut(),
+            &EventsQuery {
+                tail: true,
+                limit: Some(1),
+                ..Default::default()
+            },
+        );
+        let query = request.url().query().unwrap();
+        assert!(query.contains("tail=true"));
+        assert!(query.contains("limit=1"));
+        assert!(!query.contains("since="));
+        assert!(!query.contains("wait="));
+    }
+
+    #[test]
+    fn events_request_timeout_tracks_wait_plus_margin() {
+        // A 25s long-poll hang must fit inside the request timeout (wait + 5s).
+        assert_eq!(events_request_timeout(Some(25)), Duration::from_secs(30));
+        // tail / immediate (no wait) still gets the 5s floor, not the 30s default.
+        assert_eq!(events_request_timeout(None), Duration::from_secs(5));
+        assert_eq!(events_request_timeout(Some(0)), Duration::from_secs(5));
+    }
+
+    #[test]
+    fn deserializes_events_response_with_ledger_rows_and_gaps() {
+        let response: EventsResponse = serde_json::from_value(serde_json::json!({
+            "events": [
+                {
+                    "eventId": "evt_1",
+                    "type": "message.received",
+                    "seq": 7,
+                    "partitionKey": "inbox:abc",
+                    "inboxId": "abc",
+                    "threadId": "thread_1",
+                    "idempotencyKey": "idem-1",
+                    "outboundEmailId": null,
+                    "messageId": "msg_1",
+                    "providerMessageId": null,
+                    "occurredAt": "2026-06-11T00:00:00Z",
+                    "createdAt": "2026-06-11T00:00:01Z",
+                    "data": { "from": "sender@example.com", "subject": "Hi" }
+                }
+            ],
+            "pagination": { "nextCursor": "cursor_xyz", "hasMore": true },
+            "gaps": [ { "partitionKey": "inbox:abc", "missingSeq": [5, 6] } ]
+        }))
+        .unwrap();
+
+        assert_eq!(response.events.len(), 1);
+        let event = &response.events[0];
+        assert_eq!(event.event_id, "evt_1");
+        assert_eq!(event.event_type, "message.received");
+        assert_eq!(event.seq, Some(7));
+        assert_eq!(event.message_id.as_deref(), Some("msg_1"));
+        assert_eq!(event.data["subject"], "Hi");
+        assert_eq!(
+            response.pagination.next_cursor.as_deref(),
+            Some("cursor_xyz")
+        );
+        assert!(response.pagination.has_more);
+        assert_eq!(response.gaps.len(), 1);
+        assert_eq!(response.gaps[0]["partitionKey"], "inbox:abc");
+    }
+
+    #[test]
+    fn deserializes_tail_response_with_empty_events() {
+        // The tail bootstrap returns events:[] plus the head cursor.
+        let response: EventsResponse = serde_json::from_value(serde_json::json!({
+            "events": [],
+            "pagination": { "nextCursor": "cursor_head", "hasMore": false },
+            "gaps": []
+        }))
+        .unwrap();
+        assert!(response.events.is_empty());
+        assert_eq!(
+            response.pagination.next_cursor.as_deref(),
+            Some("cursor_head")
+        );
+        assert!(!response.pagination.has_more);
+    }
+
+    #[test]
+    fn deserializes_ledger_event_without_optional_join_keys() {
+        // Outbound/delivery events omit message-specific keys; those must default
+        // to None rather than fail deserialization.
+        let event: LedgerEvent = serde_json::from_value(serde_json::json!({
+            "eventId": "evt_2",
+            "type": "email.delivered"
+        }))
+        .unwrap();
+        assert_eq!(event.event_id, "evt_2");
+        assert_eq!(event.event_type, "email.delivered");
+        assert_eq!(event.message_id, None);
+        assert_eq!(event.inbox_id, None);
+        assert_eq!(event.seq, None);
+        assert!(event.data.is_null());
     }
 
     #[test]
