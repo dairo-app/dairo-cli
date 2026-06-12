@@ -80,18 +80,26 @@ impl ApiClient {
             .await
     }
 
-    pub async fn list_domains(&self) -> Result<DomainListResponse> {
+    /// Lists domains (`GET /v1/domains`, scope `domains:read`). The live API
+    /// returns the unified list envelope (`{ object:"list", data:[...] }`); the
+    /// CLI reads `.data`.
+    pub async fn list_domains(&self) -> Result<ListEnvelope<Domain>> {
         self.execute_json(self.build_request(Method::GET, &["v1", "domains"], None::<&()>)?)
             .await
     }
 
-    pub async fn create_domain(&self, body: &CreateDomainRequest) -> Result<DomainListResponse> {
+    /// Adds a domain and returns the single created domain object
+    /// (`POST /v1/domains`, scope `domains:write`). The redesign returns the
+    /// created domain, never the whole collection.
+    pub async fn create_domain(&self, body: &CreateDomainRequest) -> Result<Domain> {
         self.execute_json(self.build_request(Method::POST, &["v1", "domains"], Some(body))?)
             .await
     }
 
-    pub async fn delete_domain(&self, domain: &str) -> Result<DomainListResponse> {
-        self.execute_json(self.build_request(
+    /// Removes a domain (`DELETE /v1/domains/{domain}`, scope `domains:write`).
+    /// Returns 204 No Content (no body).
+    pub async fn delete_domain(&self, domain: &str) -> Result<()> {
+        self.execute_no_content(self.build_request(
             Method::DELETE,
             &["v1", "domains", domain],
             None::<&()>,
@@ -99,27 +107,34 @@ impl ApiClient {
         .await
     }
 
-    pub async fn recheck_domain(&self, domain: &str) -> Result<DomainListResponse> {
+    /// Re-runs DNS verification for a domain (`POST /v1/domains/{domain}/verify`,
+    /// scope `domains:write`; was `.../recheck`). Returns the single domain object.
+    pub async fn recheck_domain(&self, domain: &str) -> Result<Domain> {
         self.execute_json(self.build_request(
             Method::POST,
-            &["v1", "domains", domain, "recheck"],
+            &["v1", "domains", domain, "verify"],
             None::<&()>,
         )?)
         .await
     }
 
-    pub async fn list_inboxes(&self) -> Result<InboxListResponse> {
+    /// Lists inboxes (`GET /v1/inboxes`, scope `inboxes:read`).
+    pub async fn list_inboxes(&self) -> Result<ListEnvelope<Inbox>> {
         self.execute_json(self.build_request(Method::GET, &["v1", "inboxes"], None::<&()>)?)
             .await
     }
 
-    pub async fn create_inbox(&self, body: &CreateInboxRequest) -> Result<InboxResponse> {
+    /// Creates an inbox (`POST /v1/inboxes`, scope `inboxes:write`). Returns the
+    /// single inbox object.
+    pub async fn create_inbox(&self, body: &CreateInboxRequest) -> Result<Inbox> {
         self.execute_json(self.build_request(Method::POST, &["v1", "inboxes"], Some(body))?)
             .await
     }
 
-    pub async fn delete_inbox(&self, inbox: &str) -> Result<DeleteResponse> {
-        self.execute_json(self.build_request(
+    /// Deletes an inbox (`DELETE /v1/inboxes/{inbox}`, scope `inboxes:write`).
+    /// Returns 204 No Content.
+    pub async fn delete_inbox(&self, inbox: &str) -> Result<()> {
+        self.execute_no_content(self.build_request(
             Method::DELETE,
             &["v1", "inboxes", inbox],
             None::<&()>,
@@ -127,45 +142,147 @@ impl ApiClient {
         .await
     }
 
-    pub async fn send_email(&self, body: &SendEmailRequest) -> Result<SendEmailResponse> {
-        self.execute_json(self.build_request(Method::POST, &["v1", "send-email"], Some(body))?)
-            .await
+    /// Gets an inbox extraction schema (`GET /v1/inboxes/{inbox}/schema`, scope
+    /// `inboxes:read`). The path segment accepts the inbox uuid or address.
+    pub async fn get_inbox_schema(&self, inbox: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "inboxes", inbox, "schema"],
+            None::<&()>,
+        )?)
+        .await
     }
 
-    pub async fn list_email_lists(&self) -> Result<EmailListListResponse> {
-        self.execute_json(self.build_request(Method::GET, &["v1", "email-lists"], None::<&()>)?)
-            .await
-    }
-
-    pub async fn create_email_list(
+    /// Attaches/replaces an inbox extraction schema
+    /// (`PUT /v1/inboxes/{inbox}/schema`, scope `inboxes:write`).
+    pub async fn set_inbox_schema(
         &self,
-        body: &CreateEmailListRequest,
-    ) -> Result<EmailListResponse> {
-        self.execute_json(self.build_request(Method::POST, &["v1", "email-lists"], Some(body))?)
+        inbox: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::PUT,
+            &["v1", "inboxes", inbox, "schema"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Deletes an inbox extraction schema
+    /// (`DELETE /v1/inboxes/{inbox}/schema`, scope `inboxes:write`).
+    pub async fn delete_inbox_schema(&self, inbox: &str) -> Result<()> {
+        self.execute_no_content(self.build_request(
+            Method::DELETE,
+            &["v1", "inboxes", inbox, "schema"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Registers a verification-code wait
+    /// (`POST /v1/inboxes/{inbox}/verification-waits`, scope `inboxes:write`).
+    pub async fn register_verification_wait(
+        &self,
+        inbox: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "inboxes", inbox, "verification-waits"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Lists verification-code waits for an inbox
+    /// (`GET /v1/inboxes/{inbox}/verification-waits`, scope `inboxes:read`).
+    pub async fn list_verification_waits(&self, inbox: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "inboxes", inbox, "verification-waits"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Gets one verification-code wait
+    /// (`GET /v1/inboxes/{inbox}/verification-waits/{waitId}`, scope
+    /// `inboxes:read`).
+    pub async fn get_verification_wait(
+        &self,
+        inbox: &str,
+        wait_id: &str,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "inboxes", inbox, "verification-waits", wait_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Cancels one verification-code wait
+    /// (`DELETE /v1/inboxes/{inbox}/verification-waits/{waitId}`, scope
+    /// `inboxes:write`). The backend returns the canceled wait object.
+    pub async fn cancel_verification_wait(
+        &self,
+        inbox: &str,
+        wait_id: &str,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "inboxes", inbox, "verification-waits", wait_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Sends (or schedules) an outbound email (`POST /v1/emails`, scope
+    /// `mail:send`; was `/v1/send-email`). The response is the single `email`
+    /// object envelope.
+    pub async fn send_email(&self, body: &SendEmailRequest) -> Result<SendEmailResponse> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "emails"], Some(body))?)
             .await
     }
 
+    /// Lists active lists (`GET /v1/lists`, scope `lists:read`; was
+    /// `/v1/email-lists`).
+    pub async fn list_email_lists(&self) -> Result<ListEnvelope<EmailList>> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "lists"], None::<&()>)?)
+            .await
+    }
+
+    /// Creates a list (`POST /v1/lists`, scope `lists:write`). Returns the single
+    /// list object.
+    pub async fn create_email_list(&self, body: &CreateEmailListRequest) -> Result<EmailList> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "lists"], Some(body))?)
+            .await
+    }
+
+    /// Gets a list plus its active members (`GET /v1/lists/{id}`, scope
+    /// `lists:read`). The members are carried as a field on the single list object.
     pub async fn get_email_list(&self, list_id: &str) -> Result<EmailListDetailResponse> {
         self.execute_json(self.build_request(
             Method::GET,
-            &["v1", "email-lists", list_id],
+            &["v1", "lists", list_id],
             None::<&()>,
         )?)
         .await
     }
 
-    pub async fn delete_email_list(&self, list_id: &str) -> Result<DeleteResponse> {
-        self.execute_json(self.build_request(
+    /// Archives a list (`DELETE /v1/lists/{id}`, scope `lists:write`). Returns 204.
+    pub async fn delete_email_list(&self, list_id: &str) -> Result<()> {
+        self.execute_no_content(self.build_request(
             Method::DELETE,
-            &["v1", "email-lists", list_id],
+            &["v1", "lists", list_id],
             None::<&()>,
         )?)
         .await
     }
 
-    /// Upserts members via the canonical `POST /members` endpoint (<= 2000
-    /// members). `import_email_list_members` posts to the `/members/import`
-    /// alias which the backend treats identically.
+    /// Upserts members via the canonical `POST /v1/lists/{id}/members` endpoint
+    /// (<= 2000 members). The `/members/import` alias was removed in the redesign;
+    /// both the manual add and CSV import now post here.
     pub async fn add_email_list_members(
         &self,
         list_id: &str,
@@ -173,20 +290,7 @@ impl ApiClient {
     ) -> Result<EmailListImportResponse> {
         self.execute_json(self.build_request(
             Method::POST,
-            &["v1", "email-lists", list_id, "members"],
-            Some(body),
-        )?)
-        .await
-    }
-
-    pub async fn import_email_list_members(
-        &self,
-        list_id: &str,
-        body: &EmailListMembersRequest,
-    ) -> Result<EmailListImportResponse> {
-        self.execute_json(self.build_request(
-            Method::POST,
-            &["v1", "email-lists", list_id, "members", "import"],
+            &["v1", "lists", list_id, "members"],
             Some(body),
         )?)
         .await
@@ -199,17 +303,21 @@ impl ApiClient {
     ) -> Result<EmailListSendResponse> {
         self.execute_json(self.build_request(
             Method::POST,
-            &["v1", "email-lists", list_id, "send"],
+            &["v1", "lists", list_id, "send"],
             Some(body),
         )?)
         .await
     }
 
-    pub async fn list_webhooks(&self) -> Result<WebhookListResponse> {
+    /// Lists webhook subscriptions (`GET /v1/webhooks`, scope `webhooks:read`).
+    pub async fn list_webhooks(&self) -> Result<ListEnvelope<Webhook>> {
         self.execute_json(self.build_request(Method::GET, &["v1", "webhooks"], None::<&()>)?)
             .await
     }
 
+    /// Creates a webhook and returns its one-time signing secret as a field on
+    /// the created object (`POST /v1/webhooks`, scope `webhooks:write`). The
+    /// redesign puts `signingSecret` on the object, not a sibling top-level key.
     pub async fn create_webhook(
         &self,
         body: &CreateWebhookRequest,
@@ -218,8 +326,10 @@ impl ApiClient {
             .await
     }
 
-    pub async fn delete_webhook(&self, webhook: &str) -> Result<DeleteResponse> {
-        self.execute_json(self.build_request(
+    /// Deletes a webhook (`DELETE /v1/webhooks/{webhook}`, scope `webhooks:write`).
+    /// Returns 204 No Content.
+    pub async fn delete_webhook(&self, webhook: &str) -> Result<()> {
+        self.execute_no_content(self.build_request(
             Method::DELETE,
             &["v1", "webhooks", webhook],
             None::<&()>,
@@ -227,18 +337,23 @@ impl ApiClient {
         .await
     }
 
-    pub async fn list_api_keys(&self) -> Result<ApiKeyListResponse> {
+    /// Lists API keys (`GET /v1/api-keys`, scope `keys:read`).
+    pub async fn list_api_keys(&self) -> Result<ListEnvelope<ApiKey>> {
         self.execute_json(self.build_request(Method::GET, &["v1", "api-keys"], None::<&()>)?)
             .await
     }
 
+    /// Creates an API key and returns its one-time secret as a field on the
+    /// created object (`POST /v1/api-keys`, scope `keys:write`).
     pub async fn create_api_key(&self, body: &CreateApiKeyRequest) -> Result<CreateApiKeyResponse> {
         self.execute_json(self.build_request(Method::POST, &["v1", "api-keys"], Some(body))?)
             .await
     }
 
-    pub async fn revoke_api_key(&self, api_key_id: &str) -> Result<DeleteResponse> {
-        self.execute_json(self.build_request(
+    /// Revokes an API key (`DELETE /v1/api-keys/{apiKeyId}`, scope `keys:write`).
+    /// Returns 204 No Content.
+    pub async fn revoke_api_key(&self, api_key_id: &str) -> Result<()> {
+        self.execute_no_content(self.build_request(
             Method::DELETE,
             &["v1", "api-keys", api_key_id],
             None::<&()>,
@@ -246,13 +361,18 @@ impl ApiClient {
         .await
     }
 
-    pub async fn list_messages(&self, query: &MessageListQuery) -> Result<MessageListResponse> {
+    /// Lists messages with keyset pagination (`GET /v1/messages`, scope
+    /// `mail:read`). Returns the unified list envelope. Passing `channel=a2a`
+    /// folds in the former `/v1/a2a/messages` agent-to-agent surface.
+    pub async fn list_messages(&self, query: &MessageListQuery) -> Result<ListEnvelope<Message>> {
         let mut request = self.build_request(Method::GET, &["v1", "messages"], None::<&()>)?;
         apply_message_query(request.url_mut(), query);
         self.execute_json(request).await
     }
 
-    pub async fn get_message(&self, message_id: &str) -> Result<MessageResponse> {
+    /// Gets a single message including its full bodies (`GET /v1/messages/{id}`,
+    /// scope `mail:read`). The redesign returns the flat message object.
+    pub async fn get_message(&self, message_id: &str) -> Result<Message> {
         self.execute_json(self.build_request(
             Method::GET,
             &["v1", "messages", message_id],
@@ -327,12 +447,17 @@ impl ApiClient {
             .map_err(ApiError::Transport)
     }
 
-    pub async fn list_threads(&self, query: &ThreadListQuery) -> Result<ThreadListResponse> {
+    /// Lists threads with keyset pagination (`GET /v1/threads`, scope
+    /// `mail:read`). Returns the unified list envelope.
+    pub async fn list_threads(&self, query: &ThreadListQuery) -> Result<ListEnvelope<Thread>> {
         let mut request = self.build_request(Method::GET, &["v1", "threads"], None::<&()>)?;
         apply_thread_query(request.url_mut(), query);
         self.execute_json(request).await
     }
 
+    /// Gets a thread plus its messages (`GET /v1/threads/{id}`, scope
+    /// `mail:read`). The redesign flattens the thread object with `messages` as a
+    /// field on it.
     pub async fn get_thread(&self, thread_id: &str) -> Result<ThreadResponse> {
         self.execute_json(self.build_request(
             Method::GET,
@@ -342,9 +467,11 @@ impl ApiClient {
         .await
     }
 
+    /// Lists outbound emails, most recent first (`GET /v1/emails`, scope
+    /// `mail:read`; was `/v1/outbound-emails`). Passes through the unified list
+    /// envelope verbatim.
     pub async fn list_outbound_emails(&self, limit: Option<u32>) -> Result<serde_json::Value> {
-        let mut request =
-            self.build_request(Method::GET, &["v1", "outbound-emails"], None::<&()>)?;
+        let mut request = self.build_request(Method::GET, &["v1", "emails"], None::<&()>)?;
         if let Some(limit) = limit {
             request
                 .url_mut()
@@ -354,23 +481,25 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
+    /// Gets one outbound email plus its delivery-event timeline
+    /// (`GET /v1/emails/{id}`, scope `mail:read`; was `/v1/outbound-emails/{id}`).
     pub async fn get_outbound_email(&self, email_id: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::GET,
-            &["v1", "outbound-emails", email_id],
+            &["v1", "emails", email_id],
             None::<&()>,
         )?)
         .await
     }
 
-    /// Cancels a scheduled outbound email. Returns the canceled outbound email
-    /// (`{ "email": { ... status: "canceled", canceledAt } }`), or surfaces the
-    /// backend's `409 Conflict` if the email is no longer scheduled. Scope:
-    /// `mail:send`.
+    /// Cancels a scheduled outbound email (`POST /v1/emails/{id}/cancel`, scope
+    /// `mail:send`). Returns the canceled `email` object (`status: "canceled"`),
+    /// or surfaces the backend's `409 Conflict` if the email is no longer
+    /// scheduled.
     pub async fn cancel_outbound_email(&self, email_id: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::POST,
-            &["v1", "outbound-emails", email_id, "cancel"],
+            &["v1", "emails", email_id, "cancel"],
             None::<&()>,
         )?)
         .await
@@ -423,33 +552,38 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
+    /// Lists the delivery-event timeline for one outbound email
+    /// (`GET /v1/emails/{id}/events`, scope `mail:read`). The redesign folds the
+    /// former flat `/v1/outbound-events?emailId=` reader into this per-email
+    /// sub-resource, so an `email_id` is now required.
     pub async fn list_outbound_events(
         &self,
-        email_id: Option<&str>,
+        email_id: &str,
         limit: Option<u32>,
     ) -> Result<serde_json::Value> {
-        let mut request =
-            self.build_request(Method::GET, &["v1", "outbound-events"], None::<&()>)?;
-        {
-            let mut pairs = request.url_mut().query_pairs_mut();
-            if let Some(email_id) = email_id {
-                pairs.append_pair("emailId", email_id);
-            }
-            if let Some(limit) = limit {
-                pairs.append_pair("limit", &limit.to_string());
-            }
+        let mut request = self.build_request(
+            Method::GET,
+            &["v1", "emails", email_id, "events"],
+            None::<&()>,
+        )?;
+        if let Some(limit) = limit {
+            request
+                .url_mut()
+                .query_pairs_mut()
+                .append_pair("limit", &limit.to_string());
         }
         self.execute_json(request).await
     }
 
     // --- Templates (templates.rs) -----------------------------------------
-    // Named container + immutable, append-only versions. GET reads use
-    // `mail:read`; create/patch/delete/version-publish use `mail:send`. Bodies
-    // carry free-form `source`/`variables`, so requests are assembled as
-    // `serde_json::Value` and responses pass through verbatim — matching the
-    // outbound/audit-logs precedent.
+    // Named container + immutable, append-only versions. Reads use
+    // `templates:read`; create/patch/delete/version-publish use `templates:write`
+    // (de-overloaded off mail:read/mail:send). Bodies carry free-form
+    // `source`/`variables`, so requests are assembled as `serde_json::Value` and
+    // responses pass through verbatim — matching the outbound/audit-logs
+    // precedent.
 
-    /// Lists active templates (`GET /v1/templates`, scope `mail:read`).
+    /// Lists active templates (`GET /v1/templates`, scope `templates:read`).
     pub async fn list_templates(&self) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(Method::GET, &["v1", "templates"], None::<&()>)?)
             .await
@@ -560,7 +694,7 @@ impl ApiClient {
     // is a `webhooks:write` POST.
 
     /// Re-delivers a ledger slice to the user's webhooks (`POST
-    /// /v1/events/replay`, scope `webhooks:write`). The body must carry exactly
+    /// /v1/events/replay`, scope `events:write`). The body must carry exactly
     /// one lower bound (`since`, `sinceSeq` + `inboxId`, or `sinceTimestamp`).
     pub async fn replay_events(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
@@ -572,19 +706,19 @@ impl ApiClient {
     }
 
     // --- Agent passport (agent_passport.rs) -------------------------------
-    // CRUD reuses `mail:read` (reads). `verify` is a public, unauthenticated
-    // verdict endpoint — it always answers 200 with a verdict, so a failed
-    // verification is not a request error.
+    // CRUD reads use `agents:read`. `verify` is a public, unauthenticated verdict
+    // endpoint — it always answers 200 with a verdict, so a failed verification is
+    // not a request error.
 
     /// Lists the caller's agent passports, newest first (`GET /v1/agents`,
-    /// scope `mail:read`).
+    /// scope `agents:read`).
     pub async fn list_agents(&self) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(Method::GET, &["v1", "agents"], None::<&()>)?)
             .await
     }
 
     /// Gets a passport by its uuid `id` or portable `agt_…` `agentId` (`GET
-    /// /v1/agents/{idOrAgent}`, scope `mail:read`).
+    /// /v1/agents/{idOrAgent}`, scope `agents:read`).
     pub async fn get_agent(&self, id_or_agent: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::GET,
@@ -594,12 +728,14 @@ impl ApiClient {
         .await
     }
 
-    /// Verifies an agent's outbound attribution (`GET /v1/verify`). Public/
-    /// unauthenticated; always answers a verdict. Pass `{ id }` to attest from
-    /// an outbound record, or `{ agent, kid, sig, ... }` to verify a
-    /// reconstructed provenance signature. The bearer key is ignored here.
+    /// Verifies an agent's outbound attribution (`GET /v1/agents/verify`; was
+    /// `/v1/verify`). Public/unauthenticated; always answers a verdict. Pass
+    /// `{ id }` to attest from an outbound record, or `{ agent, kid, sig, ... }`
+    /// to verify a reconstructed provenance signature. The bearer key is ignored
+    /// here.
     pub async fn verify_agent(&self, query: &VerifyAgentQuery) -> Result<serde_json::Value> {
-        let mut request = self.build_request(Method::GET, &["v1", "verify"], None::<&()>)?;
+        let mut request =
+            self.build_request(Method::GET, &["v1", "agents", "verify"], None::<&()>)?;
         apply_verify_query(request.url_mut(), query);
         self.execute_json(request).await
     }
@@ -607,10 +743,15 @@ impl ApiClient {
     // --- Reputation (agent_reputation.rs) ---------------------------------
 
     /// Fleet view of every agent's circuit-breaker state, newest-tripped first
-    /// (`GET /v1/reputation`, scope `mail:read`).
+    /// (`GET /v1/agents/reputation`, scope `agents:read`; was top-level
+    /// `/v1/reputation`).
     pub async fn list_reputation(&self) -> Result<serde_json::Value> {
-        self.execute_json(self.build_request(Method::GET, &["v1", "reputation"], None::<&()>)?)
-            .await
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "agents", "reputation"],
+            None::<&()>,
+        )?)
+        .await
     }
 
     // --- Budgets (budgets.rs) ---------------------------------------------
@@ -618,8 +759,15 @@ impl ApiClient {
     // `get` resolver takes a scope (`account`, or a key/agent `scopeId`); `set`
     // is an idempotent upsert keyed on `(scope, scopeId)`.
 
+    /// Lists every budget with its live windowed usage (`GET /v1/budgets`, scope
+    /// `budgets:read`).
+    pub async fn list_budgets(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "budgets"], None::<&()>)?)
+            .await
+    }
+
     /// Gets a single budget by scope: `account`, or a key/agent budget by its
-    /// `scopeId` (`GET /v1/budgets/{scope}`, scope `mail:read`).
+    /// `scopeId` (`GET /v1/budgets/{scope}`, scope `budgets:read`).
     pub async fn get_budget(&self, scope: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::GET,
@@ -629,52 +777,81 @@ impl ApiClient {
         .await
     }
 
-    /// Sets/replaces a budget (`PUT /v1/budgets`, scope `keys:write`).
+    /// Sets/replaces a budget (`PUT /v1/budgets`, scope `budgets:write`).
     /// Idempotent upsert keyed on `(scope, scopeId)`.
     pub async fn set_budget(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(Method::PUT, &["v1", "budgets"], Some(body))?)
             .await
     }
 
-    // --- Compliance (compliance.rs) ---------------------------------------
-    // EU sovereignty surfaces. All reads reuse `mail:read`. There is no root
-    // `GET /v1/compliance`: only `residency`, `erasure-jobs/{id}`, and
-    // `audit-export`.
+    /// Deletes a budget by scope (`DELETE /v1/budgets/{scope}`, scope
+    /// `budgets:write`). Returns 204 No Content; replaces the old
+    /// `enabled:false` disable-as-delete.
+    pub async fn delete_budget(&self, scope: &str) -> Result<()> {
+        self.execute_no_content(self.build_request(
+            Method::DELETE,
+            &["v1", "budgets", scope],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    // --- Compliance / account (compliance.rs) -----------------------------
+    // EU sovereignty surfaces. The `/v1/compliance/*` junk-drawer is gone:
+    // residency is now an account property, erasure jobs are a real resource.
 
     /// Reads the data-residency / subprocessor posture, including the honest
-    /// CLOUD-Act exposure note (`GET /v1/compliance/residency`, scope
-    /// `mail:read`).
+    /// CLOUD-Act exposure note (`GET /v1/account/residency`, scope
+    /// `account:read`; was `/v1/compliance/residency`).
     pub async fn compliance_residency(&self) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::GET,
-            &["v1", "compliance", "residency"],
+            &["v1", "account", "residency"],
             None::<&()>,
         )?)
         .await
+    }
+
+    /// Enqueues a GDPR erasure job (`POST /v1/erasure-jobs`, scope
+    /// `compliance:write`; merges the former `/compliance/erase` +
+    /// `/compliance/purge-inbox` via a typed body). Accepted async with 202.
+    pub async fn create_erasure_job(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "erasure-jobs"], Some(body))?)
+            .await
+    }
+
+    /// Lists erasure jobs, newest first (`GET /v1/erasure-jobs`, scope
+    /// `compliance:read`).
+    pub async fn list_erasure_jobs(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "erasure-jobs"], None::<&()>)?)
+            .await
     }
 
     /// Polls a subject-erasure job, including tallies and the signed deletion
-    /// certificate once completed (`GET /v1/compliance/erasure-jobs/{id}`, scope
-    /// `mail:read`).
+    /// certificate once completed (`GET /v1/erasure-jobs/{id}`, scope
+    /// `compliance:read`; was `/v1/compliance/erasure-jobs/{id}`).
     pub async fn get_erasure_job(&self, job_id: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::GET,
-            &["v1", "compliance", "erasure-jobs", job_id],
+            &["v1", "erasure-jobs", job_id],
             None::<&()>,
         )?)
         .await
     }
 
-    // --- A2A mail (a2a_mail.rs) -------------------------------------------
-    // Cross-tenant agent-to-agent hop receipts. Reads reuse `mail:read`.
+    // --- A2A mail (folded into messages) ----------------------------------
+    // Cross-tenant agent-to-agent hop receipts. The private `/v1/a2a/messages`
+    // acronym is gone: A2A hops are read through the messages surface with
+    // `channel=a2a` (REDESIGN §9 rows 14-15).
 
-    /// Lists agent-to-agent hop receipts with keyset pagination (`GET
-    /// /v1/a2a/messages`, scope `mail:read`).
+    /// Lists agent-to-agent hop receipts with keyset pagination
+    /// (`GET /v1/messages?channel=a2a`, scope `mail:read`; was
+    /// `/v1/a2a/messages`).
     pub async fn list_a2a_messages(&self, query: &A2aMessageQuery) -> Result<serde_json::Value> {
-        let mut request =
-            self.build_request(Method::GET, &["v1", "a2a", "messages"], None::<&()>)?;
+        let mut request = self.build_request(Method::GET, &["v1", "messages"], None::<&()>)?;
         {
             let mut pairs = request.url_mut().query_pairs_mut();
+            pairs.append_pair("channel", "a2a");
             if let Some(limit) = query.limit {
                 pairs.append_pair("limit", &limit.to_string());
             }
@@ -688,15 +865,11 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
-    /// Gets a single A2A hop receipt (`GET /v1/a2a/messages/{id}`, scope
-    /// `mail:read`).
+    /// Gets a single A2A hop receipt (`GET /v1/messages/{id}`, scope `mail:read`;
+    /// was `/v1/a2a/messages/{id}` — an a2a id resolves here too).
     pub async fn get_a2a_message(&self, id: &str) -> Result<serde_json::Value> {
-        self.execute_json(self.build_request(
-            Method::GET,
-            &["v1", "a2a", "messages", id],
-            None::<&()>,
-        )?)
-        .await
+        self.execute_json(self.build_request(Method::GET, &["v1", "messages", id], None::<&()>)?)
+            .await
     }
 
     /// Fetches the public MCP tool catalog (`GET /v1/mcp/catalog`), the single
@@ -846,6 +1019,29 @@ impl ApiClient {
 
         Err(ApiError::Api { status, message })
     }
+
+    /// Executes a mutating request that returns no body on success. The redesign
+    /// answers every successful delete with `204 No Content` (and no JSON body),
+    /// so this drains the success case without attempting to parse a body and
+    /// still surfaces the structured error envelope on failure.
+    async fn execute_no_content(&self, request: Request) -> Result<()> {
+        let response = self.send_with_retry(request).await?;
+        let status = response.status();
+
+        if status.is_success() {
+            return Ok(());
+        }
+
+        let message = match response.json::<ErrorResponse>().await {
+            Ok(error) => error.error.display_message(),
+            Err(_) => status
+                .canonical_reason()
+                .unwrap_or("unexpected API error")
+                .to_string(),
+        };
+
+        Err(ApiError::Api { status, message })
+    }
 }
 
 /// Rejects base URLs that would send the bearer API key in cleartext. HTTPS is
@@ -927,14 +1123,26 @@ pub struct WhoamiStorage {
     pub breakdown: serde_json::Value,
 }
 
+/// The unified list envelope every list endpoint now returns
+/// (`{ "object": "list", "data": [...], "pagination": { nextCursor, hasMore } }`).
+/// The CLI reads the typed rows from `data` and the cursor from `pagination`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CreateDomainRequest {
-    pub domain: String,
+pub struct ListEnvelope<T> {
+    #[serde(default = "default_list_object")]
+    pub object: String,
+    #[serde(default = "Vec::new")]
+    pub data: Vec<T>,
+    #[serde(default)]
+    pub pagination: Pagination,
+}
+
+fn default_list_object() -> String {
+    "list".to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DomainListResponse {
-    pub domains: Vec<Domain>,
+pub struct CreateDomainRequest {
+    pub domain: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -969,19 +1177,12 @@ pub struct CreateInboxRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct InboxResponse {
-    pub inbox: Inbox,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct InboxListResponse {
-    pub inboxes: Vec<Inbox>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Inbox {
     pub id: String,
     pub address: String,
+    // The redesign dropped the duplicate `username` field; `localPart` is the
+    // single canonical name. Defaulted so older payloads still deserialize.
+    #[serde(default)]
     pub username: String,
     #[serde(rename = "localPart")]
     pub local_part: String,
@@ -1081,18 +1282,12 @@ pub struct EmailListMemberInput {
     pub name: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EmailListListResponse {
-    pub lists: Vec<EmailList>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EmailListResponse {
-    pub list: EmailList,
-}
-
+/// `GET /v1/lists/{id}` now returns the flat list object with its members
+/// carried as a `members` field on it (the redesign dropped the `{ list, members }`
+/// wrapper). The list's own fields are flattened in alongside `members`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EmailListDetailResponse {
+    #[serde(flatten)]
     pub list: EmailList,
     #[serde(default)]
     pub members: Vec<EmailListMember>,
@@ -1155,7 +1350,10 @@ pub struct SendEmailWarning {
     pub reason: Option<String>,
     #[serde(default)]
     pub message: Option<String>,
-    #[serde(default, rename = "sourceOutboundEmailId")]
+    // The redesign renamed the source-send join key to `sourceEmailId`
+    // (camelCase of `source_email_id`); accept the old name as a fallback so a
+    // mixed-version response still maps.
+    #[serde(default, rename = "sourceEmailId", alias = "sourceOutboundEmailId")]
     pub source_outbound_email_id: Option<String>,
     #[serde(default, rename = "providerMessageId")]
     pub provider_message_id: Option<String>,
@@ -1174,11 +1372,6 @@ pub struct CreateWebhookRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WebhookListResponse {
-    pub webhooks: Vec<Webhook>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Webhook {
     pub id: String,
     pub url: String,
@@ -1190,9 +1383,15 @@ pub struct Webhook {
     pub last_delivery_at: Option<String>,
 }
 
+/// `POST /v1/webhooks` returns the created webhook object with the one-time
+/// `signingSecret` as a field on it (plus `secretShownOnce: true`), not a sibling
+/// top-level key. The webhook fields are flattened in and the secret is read off
+/// the same object.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateWebhookResponse {
+    #[serde(flatten)]
     pub webhook: Webhook,
+    #[serde(rename = "signingSecret")]
     pub secret: String,
 }
 
@@ -1216,12 +1415,6 @@ pub struct CreateApiKeyRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ApiKeyListResponse {
-    #[serde(rename = "apiKeys")]
-    pub api_keys: Vec<ApiKey>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApiKey {
     pub id: String,
     pub name: String,
@@ -1237,9 +1430,12 @@ pub struct ApiKey {
     pub last_used_at: Option<String>,
 }
 
+/// `POST /v1/api-keys` returns the created API-key object with the one-time
+/// `secret` as a field on it (plus `secretShownOnce: true`). The key fields are
+/// flattened in and the secret is read off the same object.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateApiKeyResponse {
-    #[serde(rename = "apiKey")]
+    #[serde(flatten)]
     pub api_key: ApiKey,
     pub secret: String,
 }
@@ -1251,11 +1447,6 @@ impl std::fmt::Debug for CreateApiKeyResponse {
             .field("secret", &"[REDACTED]")
             .finish()
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DeleteResponse {
-    pub deleted: bool,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -1324,8 +1515,9 @@ pub struct VerifyAgentQuery {
     pub ts: Option<String>,
 }
 
-/// Query for `GET /v1/a2a/messages`: keyset pagination over agent-to-agent hop
-/// receipts. `inbox_id` matches either end (sender or recipient) of the hop.
+/// Query for the A2A view now read through `GET /v1/messages?channel=a2a`
+/// (formerly `GET /v1/a2a/messages`): keyset pagination over agent-to-agent
+/// hop receipts. `inbox_id` matches either end (sender or recipient) of the hop.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct A2aMessageQuery {
     pub limit: Option<u32>,
@@ -1333,33 +1525,20 @@ pub struct A2aMessageQuery {
     pub inbox_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MessageListResponse {
-    pub messages: Vec<Message>,
-    pub pagination: Pagination,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MessageResponse {
-    pub message: Message,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ThreadListResponse {
-    pub threads: Vec<Thread>,
-    pub pagination: Pagination,
-}
-
+/// `GET /v1/threads/{id}` now returns the flat thread object with its messages
+/// carried as a `messages` field on it (the redesign dropped the
+/// `{ thread, messages }` wrapper).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ThreadResponse {
+    #[serde(flatten)]
     pub thread: Thread,
     #[serde(default)]
     pub messages: Vec<Message>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pagination {
-    #[serde(rename = "nextCursor")]
+    #[serde(default, rename = "nextCursor")]
     pub next_cursor: Option<String>,
     #[serde(default, rename = "hasMore")]
     pub has_more: bool,
@@ -1692,10 +1871,10 @@ mod tests {
         // same logical request must yield the same default key.
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
         let first = client
-            .build_request(Method::POST, &["v1", "send-email"], None::<&()>)
+            .build_request(Method::POST, &["v1", "emails"], None::<&()>)
             .unwrap();
         let second = client
-            .build_request(Method::POST, &["v1", "send-email"], None::<&()>)
+            .build_request(Method::POST, &["v1", "emails"], None::<&()>)
             .unwrap();
         let key_of = |req: &Request| {
             req.headers()
@@ -1714,7 +1893,7 @@ mod tests {
         let request = client
             .build_request_with_idempotency(
                 Method::POST,
-                &["v1", "send-email"],
+                &["v1", "emails"],
                 None::<&()>,
                 Some("caller-key-123"),
             )
@@ -1752,16 +1931,12 @@ mod tests {
     fn email_list_delete_targets_list_resource() {
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
         let request = client
-            .build_request(
-                Method::DELETE,
-                &["v1", "email-lists", "list_123"],
-                None::<&()>,
-            )
+            .build_request(Method::DELETE, &["v1", "lists", "list_123"], None::<&()>)
             .unwrap();
         assert_eq!(request.method(), Method::DELETE);
         assert_eq!(
             request.url().as_str(),
-            "https://api.example.test/v1/email-lists/list_123"
+            "https://api.example.test/v1/lists/list_123"
         );
     }
 
@@ -1771,14 +1946,14 @@ mod tests {
         let request = client
             .build_request(
                 Method::POST,
-                &["v1", "domains", "weird domain.example", "recheck"],
+                &["v1", "domains", "weird domain.example", "verify"],
                 None::<&()>,
             )
             .unwrap();
 
         assert_eq!(
             request.url().as_str(),
-            "https://api.example.test/v1/domains/weird%20domain.example/recheck"
+            "https://api.example.test/v1/domains/weird%20domain.example/verify"
         );
     }
 
@@ -1944,12 +2119,17 @@ mod tests {
 
     #[test]
     fn deserializes_api_key_allowed_ips_and_defaults_to_empty() {
-        let response: ApiKeyListResponse = serde_json::from_value(serde_json::json!({
-            "apiKeys": [
+        // The live API now returns the unified list envelope: rows live under
+        // `data`, each carrying its `object: "api_key"` discriminator (ignored).
+        let response: ListEnvelope<ApiKey> = serde_json::from_value(serde_json::json!({
+            "object": "list",
+            "data": [
                 {
+                    "object": "api_key",
                     "id": "key_1",
                     "name": "scoped",
                     "prefix": "dairo_test_a",
+                    "environment": "test",
                     "scopes": ["mail:send"],
                     "allowedIps": ["203.0.113.0/24"],
                     "status": "active",
@@ -1957,20 +2137,23 @@ mod tests {
                     "lastUsedAt": null
                 },
                 {
+                    "object": "api_key",
                     "id": "key_2",
                     "name": "open",
                     "prefix": "dairo_test_b",
+                    "environment": "test",
                     "scopes": ["mail:read"],
                     "status": "active",
                     "createdAt": "2026-06-01T00:00:00Z",
                     "lastUsedAt": null
                 }
-            ]
+            ],
+            "pagination": { "nextCursor": null, "hasMore": false }
         }))
         .unwrap();
 
-        assert_eq!(response.api_keys[0].allowed_ips, vec!["203.0.113.0/24"]);
-        assert!(response.api_keys[1].allowed_ips.is_empty());
+        assert_eq!(response.data[0].allowed_ips, vec!["203.0.113.0/24"]);
+        assert!(response.data[1].allowed_ips.is_empty());
     }
 
     #[test]
@@ -1979,14 +2162,14 @@ mod tests {
         let request = client
             .build_request(
                 Method::POST,
-                &["v1", "outbound-emails", "email_123", "cancel"],
+                &["v1", "emails", "email_123", "cancel"],
                 None::<&()>,
             )
             .unwrap();
         assert_eq!(request.method(), Method::POST);
         assert_eq!(
             request.url().as_str(),
-            "https://api.example.test/v1/outbound-emails/email_123/cancel"
+            "https://api.example.test/v1/emails/email_123/cancel"
         );
     }
 
@@ -2075,9 +2258,12 @@ mod tests {
 
     #[test]
     fn deserializes_webhook_delivery_state_without_secret_hash() {
-        let response: WebhookListResponse = serde_json::from_value(serde_json::json!({
-            "webhooks": [
+        // Unified list envelope: webhooks live under `data`.
+        let response: ListEnvelope<Webhook> = serde_json::from_value(serde_json::json!({
+            "object": "list",
+            "data": [
                 {
+                    "object": "webhook",
                     "id": "wh_123",
                     "url": "https://example.com/hook",
                     "events": ["message.received", "email.delivered"],
@@ -2085,11 +2271,12 @@ mod tests {
                     "createdAt": "2026-06-01T00:00:00Z",
                     "lastDeliveryAt": "2026-06-02T10:00:00Z"
                 }
-            ]
+            ],
+            "pagination": { "nextCursor": null, "hasMore": false }
         }))
         .unwrap();
 
-        let webhook = &response.webhooks[0];
+        let webhook = &response.data[0];
         assert_eq!(webhook.events[0], "message.received");
         assert_eq!(
             webhook.last_delivery_at.as_deref(),
@@ -2290,6 +2477,46 @@ mod tests {
     }
 
     #[test]
+    fn inbox_schema_targets_schema_subresource() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::PUT,
+                &["v1", "inboxes", "agent@example.com", "schema"],
+                Some(&serde_json::json!({ "schema": {} })),
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::PUT);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/inboxes/agent@example.com/schema"
+        );
+    }
+
+    #[test]
+    fn verification_wait_targets_wait_subresource() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::DELETE,
+                &[
+                    "v1",
+                    "inboxes",
+                    "inbox_123",
+                    "verification-waits",
+                    "wait_123",
+                ],
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::DELETE);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/inboxes/inbox_123/verification-waits/wait_123"
+        );
+    }
+
+    #[test]
     fn events_replay_targets_replay_route() {
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
         let request = client
@@ -2324,45 +2551,41 @@ mod tests {
     }
 
     #[test]
-    fn erasure_job_targets_compliance_route() {
+    fn erasure_job_targets_erasure_jobs_route() {
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
         let request = client
-            .build_request(
-                Method::GET,
-                &["v1", "compliance", "erasure-jobs", "job_123"],
-                None::<&()>,
-            )
+            .build_request(Method::GET, &["v1", "erasure-jobs", "job_123"], None::<&()>)
             .unwrap();
         assert_eq!(
             request.url().as_str(),
-            "https://api.example.test/v1/compliance/erasure-jobs/job_123"
+            "https://api.example.test/v1/erasure-jobs/job_123"
         );
     }
 
     #[test]
     fn a2a_message_targets_messages_route() {
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        // A2A single hops fold into the messages surface (an a2a id resolves on
+        // GET /v1/messages/{id}); the private /v1/a2a acronym is gone.
         let request = client
-            .build_request(
-                Method::GET,
-                &["v1", "a2a", "messages", "a2a_123"],
-                None::<&()>,
-            )
+            .build_request(Method::GET, &["v1", "messages", "a2a_123"], None::<&()>)
             .unwrap();
         assert_eq!(
             request.url().as_str(),
-            "https://api.example.test/v1/a2a/messages/a2a_123"
+            "https://api.example.test/v1/messages/a2a_123"
         );
     }
 
     #[test]
-    fn a2a_query_serializes_pagination_and_inbox_filter() {
+    fn a2a_query_serializes_channel_pagination_and_inbox_filter() {
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        // The A2A list folds into GET /v1/messages?channel=a2a.
         let mut request = client
-            .build_request(Method::GET, &["v1", "a2a", "messages"], None::<&()>)
+            .build_request(Method::GET, &["v1", "messages"], None::<&()>)
             .unwrap();
         {
             let mut pairs = request.url_mut().query_pairs_mut();
+            pairs.append_pair("channel", "a2a");
             let query = A2aMessageQuery {
                 limit: Some(25),
                 cursor: Some("cursor_abc".to_string()),
@@ -2379,6 +2602,7 @@ mod tests {
             }
         }
         let query = request.url().query().unwrap();
+        assert!(query.contains("channel=a2a"));
         assert!(query.contains("limit=25"));
         assert!(query.contains("cursor=cursor_abc"));
         assert!(query.contains("inboxId=inbox_123"));
@@ -2388,7 +2612,7 @@ mod tests {
     fn verify_query_by_message_id_sends_only_id() {
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
         let mut request = client
-            .build_request(Method::GET, &["v1", "verify"], None::<&()>)
+            .build_request(Method::GET, &["v1", "agents", "verify"], None::<&()>)
             .unwrap();
         apply_verify_query(
             request.url_mut(),
@@ -2405,7 +2629,7 @@ mod tests {
     fn verify_query_by_signature_sends_all_present_fields() {
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
         let mut request = client
-            .build_request(Method::GET, &["v1", "verify"], None::<&()>)
+            .build_request(Method::GET, &["v1", "agents", "verify"], None::<&()>)
             .unwrap();
         apply_verify_query(
             request.url_mut(),

@@ -1,47 +1,180 @@
 {
-  "name": "dairo-public-sdk-contract",
+  "name": "dairo-public-api-live-openapi-contract",
   "openapiVersion": "3.1.0",
-  "operationCount": 23,
+  "operationCount": 73,
   "operations": [
+    {
+      "method": "GET",
+      "operationId": "getResidency",
+      "parameters": [],
+      "path": "/v1/account/residency",
+      "scopes": [
+        "account:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listAgents",
+      "parameters": [],
+      "path": "/v1/agents",
+      "scopes": [
+        "agents:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createAgent",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/agents",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAgent",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}",
+      "scopes": [
+        "agents:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "bindAgent",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/bindings",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "clearAgentReputation",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/reputation",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAgentReputation",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/reputation",
+      "scopes": [
+        "agents:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAgentJwks",
+      "parameters": [],
+      "path": "/v1/agents/jwks",
+      "scopes": [],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listAgentReputation",
+      "parameters": [],
+      "path": "/v1/agents/reputation",
+      "scopes": [
+        "agents:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "verifyProvenance",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "id"
+        },
+        {
+          "in": "query",
+          "name": "agent"
+        },
+        {
+          "in": "query",
+          "name": "kid"
+        },
+        {
+          "in": "query",
+          "name": "from"
+        },
+        {
+          "in": "query",
+          "name": "to"
+        },
+        {
+          "in": "query",
+          "name": "subject"
+        },
+        {
+          "in": "query",
+          "name": "ts"
+        },
+        {
+          "in": "query",
+          "name": "sig"
+        }
+      ],
+      "path": "/v1/agents/verify",
+      "scopes": [],
+      "contractSource": "openapi"
+    },
     {
       "method": "GET",
       "operationId": "listApiKeys",
       "parameters": [],
       "path": "/v1/api-keys",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/ApiKeyListResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
-        "keys:write"
-      ]
+        "keys:read"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "POST",
       "operationId": "createApiKey",
-      "parameters": [],
+      "parameters": [
+        {}
+      ],
       "path": "/v1/api-keys",
-      "requestSchema": "#/components/schemas/CreateApiKeyRequest",
-      "responseSchemas": {
-        "200": "#/components/schemas/CreateApiKeyResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "keys:write"
-      ]
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "DELETE",
@@ -53,20 +186,40 @@
         }
       ],
       "path": "/v1/api-keys/{apiKeyId}",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/DeleteResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "keys:write"
-      ]
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchApiKey",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "apiKeyId"
+        }
+      ],
+      "path": "/v1/api-keys/{apiKeyId}",
+      "scopes": [
+        "keys:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAttachment",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "attachmentId"
+        }
+      ],
+      "path": "/v1/attachments/{attachmentId}",
+      "scopes": [
+        "mail:read"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "GET",
@@ -78,18 +231,10 @@
         }
       ],
       "path": "/v1/attachments/{attachmentId}/download",
-      "requestSchema": null,
-      "responseSchemas": {
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "mail:read"
-      ]
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "GET",
@@ -100,71 +245,128 @@
           "name": "attachmentId"
         },
         {
-          "name": "expiryHours",
           "in": "query",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 168
-          }
+          "name": "expiryHours"
         }
       ],
       "path": "/v1/attachments/{attachmentId}/url",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/AttachmentDownloadUrlResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "mail:read"
-      ]
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listAuditLogs",
+      "parameters": [
+        {},
+        {}
+      ],
+      "path": "/v1/audit-logs",
+      "scopes": [
+        "account:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "exportAuditLedger",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "from"
+        },
+        {
+          "in": "query",
+          "name": "to"
+        },
+        {
+          "in": "query",
+          "name": "format"
+        }
+      ],
+      "path": "/v1/audit-logs/export",
+      "scopes": [
+        "account:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listBudgets",
+      "parameters": [],
+      "path": "/v1/budgets",
+      "scopes": [
+        "budgets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PUT",
+      "operationId": "setBudget",
+      "parameters": [],
+      "path": "/v1/budgets",
+      "scopes": [
+        "budgets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteBudget",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "scope"
+        }
+      ],
+      "path": "/v1/budgets/{scope}",
+      "scopes": [
+        "budgets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getBudget",
+      "parameters": [],
+      "path": "/v1/budgets/{scope}",
+      "scopes": [
+        "budgets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listDedicatedIps",
+      "parameters": [],
+      "path": "/v1/dedicated-ips",
+      "scopes": [
+        "dedicated-ips:read"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "GET",
       "operationId": "listDomains",
       "parameters": [],
       "path": "/v1/domains",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/DomainListResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
-        "domains:write"
-      ]
+        "domains:read"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "POST",
       "operationId": "createDomain",
-      "parameters": [],
+      "parameters": [
+        {}
+      ],
       "path": "/v1/domains",
-      "requestSchema": "#/components/schemas/CreateDomainRequest",
-      "responseSchemas": {
-        "200": "#/components/schemas/DomainListResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "domains:write"
-      ]
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "DELETE",
@@ -176,85 +378,211 @@
         }
       ],
       "path": "/v1/domains/{domain}",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/DomainListResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "domains:write"
-      ]
+      ],
+      "contractSource": "openapi"
     },
     {
-      "method": "POST",
-      "operationId": "recheckDomain",
+      "method": "PATCH",
+      "operationId": "patchDomain",
       "parameters": [
         {
           "in": "path",
           "name": "domain"
         }
       ],
-      "path": "/v1/domains/{domain}/recheck",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/DomainListResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
+      "path": "/v1/domains/{domain}",
       "scopes": [
         "domains:write"
-      ]
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "verifyDomain",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "domain"
+        }
+      ],
+      "path": "/v1/domains/{domain}/verify",
+      "scopes": [
+        "domains:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listOutboundEmails",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/emails",
+      "scopes": [
+        "mail:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "sendEmail",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/emails",
+      "scopes": [
+        "mail:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getOutboundEmail",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "emailId"
+        }
+      ],
+      "path": "/v1/emails/{emailId}",
+      "scopes": [
+        "mail:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "cancelOutboundEmail",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "emailId"
+        }
+      ],
+      "path": "/v1/emails/{emailId}/cancel",
+      "scopes": [
+        "mail:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listOutboundEvents",
+      "parameters": [
+        {},
+        {
+          "in": "query",
+          "name": "emailId"
+        },
+        {
+          "in": "path",
+          "name": "emailId"
+        }
+      ],
+      "path": "/v1/emails/{emailId}/events",
+      "scopes": [
+        "mail:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listErasureJobs",
+      "parameters": [],
+      "path": "/v1/erasure-jobs",
+      "scopes": [
+        "compliance:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createErasureJob",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/erasure-jobs",
+      "scopes": [
+        "compliance:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getErasureJob",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "jobId"
+        }
+      ],
+      "path": "/v1/erasure-jobs/{jobId}",
+      "scopes": [
+        "compliance:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listEvents",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "since"
+        },
+        {},
+        {
+          "in": "query",
+          "name": "inboxId"
+        },
+        {
+          "in": "query",
+          "name": "type"
+        },
+        {
+          "in": "query",
+          "name": "idempotencyKey"
+        }
+      ],
+      "path": "/v1/events",
+      "scopes": [
+        "events:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "replayEvents",
+      "parameters": [],
+      "path": "/v1/events/replay",
+      "scopes": [
+        "events:write"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "GET",
       "operationId": "listInboxes",
       "parameters": [],
       "path": "/v1/inboxes",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/InboxListResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
-        "mail:read"
-      ]
+        "inboxes:read"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "POST",
       "operationId": "createInbox",
-      "parameters": [],
+      "parameters": [
+        {}
+      ],
       "path": "/v1/inboxes",
-      "requestSchema": "#/components/schemas/CreateInboxRequest",
-      "responseSchemas": {
-        "200": "#/components/schemas/InboxResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
-        "domains:write"
-      ]
+        "inboxes:write"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "DELETE",
@@ -266,25 +594,231 @@
         }
       ],
       "path": "/v1/inboxes/{inbox}",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/DeleteResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
-        "domains:write"
-      ]
+        "inboxes:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchInbox",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "inbox"
+        }
+      ],
+      "path": "/v1/inboxes/{inbox}",
+      "scopes": [
+        "inboxes:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteInboxSchema",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "inbox"
+        }
+      ],
+      "path": "/v1/inboxes/{inbox}/schema",
+      "scopes": [
+        "inboxes:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getInboxSchema",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "inbox"
+        }
+      ],
+      "path": "/v1/inboxes/{inbox}/schema",
+      "scopes": [
+        "inboxes:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PUT",
+      "operationId": "setInboxSchema",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "inbox"
+        }
+      ],
+      "path": "/v1/inboxes/{inbox}/schema",
+      "scopes": [
+        "inboxes:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listVerificationWaits",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "inbox"
+        },
+        {
+          "in": "query",
+          "name": "limit"
+        }
+      ],
+      "path": "/v1/inboxes/{inbox}/verification-waits",
+      "scopes": [
+        "inboxes:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "registerVerificationWait",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "inbox"
+        }
+      ],
+      "path": "/v1/inboxes/{inbox}/verification-waits",
+      "scopes": [
+        "inboxes:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "cancelVerificationWait",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "inbox"
+        },
+        {
+          "in": "path",
+          "name": "waitId"
+        }
+      ],
+      "path": "/v1/inboxes/{inbox}/verification-waits/{waitId}",
+      "scopes": [
+        "inboxes:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getVerificationWait",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "inbox"
+        },
+        {
+          "in": "path",
+          "name": "waitId"
+        }
+      ],
+      "path": "/v1/inboxes/{inbox}/verification-waits/{waitId}",
+      "scopes": [
+        "inboxes:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listEmailLists",
+      "parameters": [],
+      "path": "/v1/lists",
+      "scopes": [
+        "lists:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createEmailList",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/lists",
+      "scopes": [
+        "lists:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteEmailList",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "listId"
+        }
+      ],
+      "path": "/v1/lists/{listId}",
+      "scopes": [
+        "lists:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getEmailList",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "listId"
+        }
+      ],
+      "path": "/v1/lists/{listId}",
+      "scopes": [
+        "lists:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "addEmailListMembers",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "listId"
+        }
+      ],
+      "path": "/v1/lists/{listId}/members",
+      "scopes": [
+        "lists:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "sendEmailList",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "listId"
+        }
+      ],
+      "path": "/v1/lists/{listId}/send",
+      "scopes": [
+        "lists:write"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "GET",
       "operationId": "listMessages",
       "parameters": [
+        {},
+        {},
         {
           "in": "query",
           "name": "inboxId"
@@ -296,23 +830,17 @@
         {
           "in": "query",
           "name": "direction"
+        },
+        {
+          "in": "query",
+          "name": "channel"
         }
       ],
       "path": "/v1/messages",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/MessageListResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "mail:read"
-      ]
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "GET",
@@ -324,65 +852,147 @@
         }
       ],
       "path": "/v1/messages/{messageId}",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/MessageResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "mail:read"
-      ]
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listTemplates",
+      "parameters": [],
+      "path": "/v1/templates",
+      "scopes": [
+        "templates:read"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "POST",
-      "operationId": "sendEmail",
-      "parameters": [],
-      "path": "/v1/send-email",
-      "requestSchema": "#/components/schemas/SendEmailRequest",
-      "responseSchemas": {
-        "202": "#/components/schemas/SendEmailResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
+      "operationId": "createTemplate",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/templates",
       "scopes": [
-        "mail:send"
-      ]
+        "templates:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}",
+      "scopes": [
+        "templates:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        },
+        {
+          "in": "query",
+          "name": "version"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}",
+      "scopes": [
+        "templates:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "updateTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}",
+      "scopes": [
+        "templates:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listTemplateVersions",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}/versions",
+      "scopes": [
+        "templates:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "publishTemplateVersion",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}/versions",
+      "scopes": [
+        "templates:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getTemplateVersion",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        },
+        {
+          "in": "path",
+          "name": "version"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}/versions/{version}",
+      "scopes": [
+        "templates:read"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "GET",
       "operationId": "listThreads",
       "parameters": [
+        {},
+        {},
         {
           "in": "query",
           "name": "inboxId"
         }
       ],
       "path": "/v1/threads",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/ThreadListResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "mail:read"
-      ]
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "GET",
@@ -394,60 +1004,32 @@
         }
       ],
       "path": "/v1/threads/{threadId}",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/ThreadResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "mail:read"
-      ]
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "GET",
       "operationId": "listWebhooks",
       "parameters": [],
       "path": "/v1/webhooks",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/WebhookListResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
-        "webhooks:write"
-      ]
+        "webhooks:read"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "POST",
       "operationId": "createWebhook",
-      "parameters": [],
+      "parameters": [
+        {}
+      ],
       "path": "/v1/webhooks",
-      "requestSchema": "#/components/schemas/CreateWebhookRequest",
-      "responseSchemas": {
-        "200": "#/components/schemas/CreateWebhookResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "webhooks:write"
-      ]
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "DELETE",
@@ -459,97 +1041,35 @@
         }
       ],
       "path": "/v1/webhooks/{webhook}",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/DeleteResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
       "scopes": [
         "webhooks:write"
-      ]
-    },
-    {
-      "method": "GET",
-      "operationId": "listAuditLogs",
-      "parameters": [
-        {
-          "in": "query",
-          "name": "limit"
-        },
-        {
-          "in": "query",
-          "name": "cursor"
-        }
       ],
-      "path": "/v1/audit-logs",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/AuditLogListResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
-      "scopes": [
-        "mail:read"
-      ]
+      "contractSource": "openapi"
     },
     {
-      "method": "POST",
-      "operationId": "cancelOutboundEmail",
+      "method": "PATCH",
+      "operationId": "patchWebhook",
       "parameters": [
         {
           "in": "path",
-          "name": "id"
+          "name": "webhook"
         }
       ],
-      "path": "/v1/outbound-emails/{id}/cancel",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/CancelOutboundEmailResponse",
-        "409": "#/components/schemas/ErrorResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
+      "path": "/v1/webhooks/{webhook}",
       "scopes": [
-        "mail:send"
-      ]
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
     },
     {
       "method": "GET",
-      "operationId": "listDedicatedIps",
+      "operationId": "whoami",
       "parameters": [],
-      "path": "/v1/dedicated-ips",
-      "requestSchema": null,
-      "responseSchemas": {
-        "200": "#/components/schemas/DedicatedIpListResponse",
-        "400": "#/components/schemas/ErrorResponse",
-        "401": "#/components/schemas/ErrorResponse",
-        "403": "#/components/schemas/ErrorResponse",
-        "404": "#/components/schemas/ErrorResponse",
-        "422": "#/components/schemas/ErrorResponse",
-        "429": "#/components/schemas/ErrorResponse",
-        "500": "#/components/schemas/ErrorResponse"
-      },
+      "path": "/v1/whoami",
       "scopes": [
-        "mail:read"
-      ]
+        "__any__"
+      ],
+      "contractSource": "openapi"
     }
-  ],
-  "source": "backend/dairo-api/openapi/dairo.openapi.json",
-  "version": 1
+  ]
 }

@@ -136,6 +136,12 @@ pub enum Command {
         #[command(subcommand)]
         command: ComplianceCommand,
     },
+    /// Enqueue and inspect GDPR subject-erasure / inbox-purge jobs.
+    #[command(name = "erasure-jobs", alias = "erasure-job")]
+    ErasureJobs {
+        #[command(subcommand)]
+        command: ErasureJobCommand,
+    },
     /// Inspect agent-to-agent (A2A) cross-tenant hop receipts.
     #[command(name = "a2a")]
     A2a {
@@ -367,9 +373,11 @@ pub enum ReputationCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum BudgetCommand {
+    /// List every budget with its live windowed usage (scope `budgets:read`).
+    List,
     /// Get a single budget by scope (`account`, or a key/agent `scopeId`).
     Get { scope: String },
-    /// Set/replace a budget (scope `keys:write`). Idempotent upsert on (scope, scopeId).
+    /// Set/replace a budget (scope `budgets:write`). Idempotent upsert on (scope, scopeId).
     ///
     /// At least one enforceable limit is required.
     Set {
@@ -392,6 +400,10 @@ pub enum BudgetCommand {
         #[arg(long = "hard-stop-on-complaint")]
         hard_stop_on_complaint: bool,
     },
+    /// Delete a budget by scope (scope `budgets:write`).
+    ///
+    /// Replaces the old disable-as-delete; returns 204 on success.
+    Delete { scope: String },
 }
 
 #[derive(Debug, Subcommand)]
@@ -399,8 +411,33 @@ pub enum ComplianceCommand {
     /// Read the data-residency / subprocessor posture (with CLOUD-Act note).
     Residency,
     /// Poll a subject-erasure job (tallies + signed certificate once complete).
+    ///
+    /// Alias of `dairo erasure-jobs get`; kept for backward compatibility.
     #[command(name = "erasure-job", alias = "erasure-jobs")]
     ErasureJob { job_id: String },
+}
+
+/// Subject-erasure / inbox-purge jobs (scope `compliance:read` to read,
+/// `compliance:write` to enqueue). The `/v1/compliance/*` junk-drawer was
+/// replaced by this real `/v1/erasure-jobs` resource.
+#[derive(Debug, Subcommand)]
+pub enum ErasureJobCommand {
+    /// List erasure jobs, newest first (scope `compliance:read`).
+    List,
+    /// Enqueue a GDPR erasure job (scope `compliance:write`).
+    ///
+    /// Provide exactly one of `--subject-email` (erase a data subject across all
+    /// stored mail) or `--inbox-id` (purge an inbox).
+    Create {
+        /// Erase this data subject's mail across the account.
+        #[arg(long = "subject-email", conflicts_with = "inbox_id")]
+        subject_email: Option<String>,
+        /// Purge this inbox.
+        #[arg(long = "inbox-id")]
+        inbox_id: Option<String>,
+    },
+    /// Poll a job (tallies + signed certificate once complete; scope `compliance:read`).
+    Get { job_id: String },
 }
 
 #[derive(Debug, Subcommand)]
@@ -435,24 +472,29 @@ pub enum OutboundCommand {
     /// Fails with a conflict if the email is no longer scheduled (already sent,
     /// queued, or canceled).
     Cancel { email_id: String },
-    /// List outbound delivery events (delivered, bounced, complained, ...).
+    /// List the delivery-event timeline for one outbound email
+    /// (delivered, bounced, complained, ...).
+    ///
+    /// Events are now a per-email sub-resource (`GET /v1/emails/{id}/events`),
+    /// so `--email-id` is required.
     Events {
         #[arg(long = "email-id")]
-        email_id: Option<String>,
+        email_id: String,
         #[arg(long)]
         limit: Option<u32>,
     },
-    /// List only bounce events.
+    /// List only the bounce events for one outbound email.
     Bounces {
         #[arg(long = "email-id")]
-        email_id: Option<String>,
+        email_id: String,
         #[arg(long)]
         limit: Option<u32>,
     },
-    /// List only complaint events (recipients who reported spam).
+    /// List only the complaint events (recipients who reported spam) for one
+    /// outbound email.
     Complaints {
         #[arg(long = "email-id")]
-        email_id: Option<String>,
+        email_id: String,
         #[arg(long)]
         limit: Option<u32>,
     },
@@ -828,6 +870,73 @@ pub enum InboxCommand {
     },
     /// Delete an inbox by ID.
     Delete { inbox_id: String },
+    /// Manage the JSON extraction schema attached to an inbox.
+    Schema {
+        #[command(subcommand)]
+        command: InboxSchemaCommand,
+    },
+    /// Register and inspect durable verification-code waits.
+    #[command(name = "verification-waits", alias = "verification-wait")]
+    VerificationWaits {
+        #[command(subcommand)]
+        command: VerificationWaitCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum InboxSchemaCommand {
+    /// Get the schema attached to an inbox.
+    Get { inbox: String },
+    /// Attach or replace an inbox extraction schema.
+    Set {
+        inbox: String,
+        /// JSON-Schema-lite object. Omit to clear to passthrough.
+        #[arg(long, value_name = "JSON")]
+        schema: Option<String>,
+        /// Read the JSON-Schema-lite object from a file.
+        #[arg(long = "schema-file", value_name = "PATH", conflicts_with = "schema")]
+        schema_file: Option<PathBuf>,
+        /// Validation failure behavior.
+        #[arg(long, value_enum)]
+        on_validation_error: Option<InboxSchemaValidationMode>,
+        /// Optional extractor prompt context.
+        #[arg(long)]
+        extraction_hint: Option<String>,
+    },
+    /// Delete the schema attached to an inbox.
+    Delete { inbox: String },
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum InboxSchemaValidationMode {
+    Quarantine,
+    Passthrough,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum VerificationWaitCommand {
+    /// Register a new wait for an inbound verification code.
+    Register {
+        inbox: String,
+        /// Wait lifetime in seconds (30..=1800).
+        #[arg(long = "timeout-sec", value_parser = clap::value_parser!(u32).range(30..=1800))]
+        timeout_sec: u32,
+        /// Optional case-insensitive substring matched against the From address.
+        #[arg(long = "from-hint")]
+        from_hint: Option<String>,
+        /// Optional regex with exactly one capture group for the code.
+        #[arg(long)]
+        pattern: Option<String>,
+        /// Optional idempotency key for safe retries.
+        #[arg(long = "idempotency-key")]
+        idempotency_key: Option<String>,
+    },
+    /// List waits for an inbox.
+    List { inbox: String },
+    /// Get one wait.
+    Get { inbox: String, wait_id: String },
+    /// Cancel one wait.
+    Cancel { inbox: String, wait_id: String },
 }
 
 #[derive(Debug, Subcommand)]
@@ -2188,6 +2297,205 @@ mod tests {
             let cli = Cli::try_parse_from(["dairo", "init", value])
                 .unwrap_or_else(|_| panic!("framework {value} should parse"));
             assert!(matches!(cli.command, Command::Init(_)));
+        }
+    }
+
+    #[test]
+    fn parses_budget_list_and_delete_commands() {
+        let list = Cli::parse_from(["dairo", "budgets", "list"]);
+        assert!(matches!(
+            list.command,
+            Command::Budget {
+                command: BudgetCommand::List
+            }
+        ));
+
+        let delete = Cli::parse_from(["dairo", "budgets", "delete", "account"]);
+        match delete.command {
+            Command::Budget {
+                command: BudgetCommand::Delete { scope },
+            } => assert_eq!(scope, "account"),
+            _ => panic!("expected budgets delete command"),
+        }
+    }
+
+    #[test]
+    fn parses_erasure_jobs_commands() {
+        let list = Cli::parse_from(["dairo", "erasure-jobs", "list"]);
+        assert!(matches!(
+            list.command,
+            Command::ErasureJobs {
+                command: ErasureJobCommand::List
+            }
+        ));
+
+        let create = Cli::parse_from([
+            "dairo",
+            "erasure-jobs",
+            "create",
+            "--subject-email",
+            "max@example.com",
+        ]);
+        match create.command {
+            Command::ErasureJobs {
+                command:
+                    ErasureJobCommand::Create {
+                        subject_email,
+                        inbox_id,
+                    },
+            } => {
+                assert_eq!(subject_email.as_deref(), Some("max@example.com"));
+                assert_eq!(inbox_id, None);
+            }
+            _ => panic!("expected erasure-jobs create command"),
+        }
+
+        let get = Cli::parse_from(["dairo", "erasure-jobs", "get", "job_123"]);
+        match get.command {
+            Command::ErasureJobs {
+                command: ErasureJobCommand::Get { job_id },
+            } => assert_eq!(job_id, "job_123"),
+            _ => panic!("expected erasure-jobs get command"),
+        }
+    }
+
+    #[test]
+    fn erasure_jobs_create_rejects_both_targets() {
+        // --subject-email and --inbox-id are mutually exclusive at the clap layer.
+        let error = Cli::try_parse_from([
+            "dairo",
+            "erasure-jobs",
+            "create",
+            "--subject-email",
+            "max@example.com",
+            "--inbox-id",
+            "inbox_123",
+        ])
+        .expect_err("both erasure targets at once should fail clap validation");
+        assert!(error.to_string().contains("--inbox-id"));
+    }
+
+    #[test]
+    fn parses_inbox_schema_commands() {
+        let set = Cli::parse_from([
+            "dairo",
+            "inbox",
+            "schema",
+            "set",
+            "agent@example.com",
+            "--schema",
+            r#"{"code":{"type":"string","required":true}}"#,
+            "--on-validation-error",
+            "passthrough",
+            "--extraction-hint",
+            "Find the one-time code.",
+        ]);
+        match set.command {
+            Command::Inbox {
+                command:
+                    InboxCommand::Schema {
+                        command:
+                            InboxSchemaCommand::Set {
+                                inbox,
+                                schema,
+                                schema_file,
+                                on_validation_error,
+                                extraction_hint,
+                            },
+                    },
+            } => {
+                assert_eq!(inbox, "agent@example.com");
+                assert_eq!(
+                    schema.as_deref(),
+                    Some(r#"{"code":{"type":"string","required":true}}"#)
+                );
+                assert_eq!(schema_file, None);
+                assert!(matches!(
+                    on_validation_error,
+                    Some(InboxSchemaValidationMode::Passthrough)
+                ));
+                assert_eq!(extraction_hint.as_deref(), Some("Find the one-time code."));
+            }
+            _ => panic!("expected inbox schema set command"),
+        }
+
+        let get = Cli::parse_from(["dairo", "inbox", "schema", "get", "inbox_123"]);
+        assert!(matches!(
+            get.command,
+            Command::Inbox {
+                command: InboxCommand::Schema {
+                    command: InboxSchemaCommand::Get { .. }
+                }
+            }
+        ));
+    }
+
+    #[test]
+    fn parses_verification_wait_commands() {
+        let register = Cli::parse_from([
+            "dairo",
+            "inbox",
+            "verification-waits",
+            "register",
+            "inbox_123",
+            "--timeout-sec",
+            "120",
+            "--from-hint",
+            "github.com",
+            "--pattern",
+            r#"code: ([0-9]{6})"#,
+            "--idempotency-key",
+            "wait-1",
+        ]);
+        match register.command {
+            Command::Inbox {
+                command:
+                    InboxCommand::VerificationWaits {
+                        command:
+                            VerificationWaitCommand::Register {
+                                inbox,
+                                timeout_sec,
+                                from_hint,
+                                pattern,
+                                idempotency_key,
+                            },
+                    },
+            } => {
+                assert_eq!(inbox, "inbox_123");
+                assert_eq!(timeout_sec, 120);
+                assert_eq!(from_hint.as_deref(), Some("github.com"));
+                assert_eq!(pattern.as_deref(), Some(r#"code: ([0-9]{6})"#));
+                assert_eq!(idempotency_key.as_deref(), Some("wait-1"));
+            }
+            _ => panic!("expected verification-waits register command"),
+        }
+
+        let error = Cli::try_parse_from([
+            "dairo",
+            "inbox",
+            "verification-waits",
+            "register",
+            "inbox_123",
+            "--timeout-sec",
+            "10",
+        ])
+        .expect_err("timeout below backend minimum should fail clap validation");
+        assert!(error.to_string().contains("timeout-sec"));
+    }
+
+    #[test]
+    fn outbound_events_requires_email_id() {
+        // Events are now a per-email sub-resource, so --email-id is required.
+        let error = Cli::try_parse_from(["dairo", "outbound", "events"])
+            .expect_err("outbound events without --email-id should fail clap validation");
+        assert!(error.to_string().contains("--email-id"));
+
+        let cli = Cli::parse_from(["dairo", "outbound", "events", "--email-id", "email_123"]);
+        match cli.command {
+            Command::Outbound {
+                command: OutboundCommand::Events { email_id, .. },
+            } => assert_eq!(email_id, "email_123"),
+            _ => panic!("expected outbound events command"),
         }
     }
 }

@@ -4,10 +4,9 @@ use crate::cli::PrintMode;
 use crate::mcp_install::McpInstallReport;
 
 use crate::api::{
-    ApiKey, AttachmentDownloadUrlResponse, CreateApiKeyResponse, CreateWebhookResponse,
-    DeleteResponse, Domain, EmailList, EmailListDetailResponse, EmailListImportResponse,
-    EmailListSendResponse, Inbox, LedgerEvent, Message, SendEmailResponse, SendEmailWarning,
-    Thread, Webhook, WhoamiResponse,
+    ApiKey, AttachmentDownloadUrlResponse, CreateApiKeyResponse, CreateWebhookResponse, Domain,
+    EmailList, EmailListDetailResponse, EmailListImportResponse, EmailListSendResponse, Inbox,
+    LedgerEvent, Message, SendEmailResponse, SendEmailWarning, Thread, Webhook, WhoamiResponse,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,16 +32,18 @@ pub fn print_json(value: &serde_json::Value, _format: OutputFormat) -> Result<()
     Ok(())
 }
 
-/// Returns a copy of an `{ "events": [...] }` payload keeping only events whose
-/// `type` matches `kind` ("bounce"/"complaint"), case-insensitively (stored SES
-/// types are capitalized) plus the webhook form (email.bounced/complained).
+/// Returns a copy of a unified list envelope (`{ "object": "list", "data": [...] }`)
+/// keeping only events whose `type` matches `kind` ("bounce"/"complaint"),
+/// case-insensitively (stored SES types are capitalized) plus the webhook form
+/// (email.bounced/complained). The per-email events endpoint
+/// (`GET /v1/emails/{id}/events`) now wraps its rows under `data`.
 pub fn filter_events_of_type(mut value: serde_json::Value, kind: &str) -> serde_json::Value {
     let webhook_form = match kind {
         "bounce" => "email.bounced",
         "complaint" => "email.complained",
         _ => "",
     };
-    if let Some(events) = value.get_mut("events").and_then(|v| v.as_array_mut()) {
+    if let Some(events) = value.get_mut("data").and_then(|v| v.as_array_mut()) {
         events.retain(|event| {
             event
                 .get("type")
@@ -623,21 +624,23 @@ pub fn print_attachment_share_url(
     Ok(())
 }
 
-pub fn print_delete_response(
-    response: &DeleteResponse,
-    resource: &str,
-    format: OutputFormat,
-) -> Result<()> {
+/// Reports a successful delete. The redesign answers deletes with `204 No
+/// Content` (no body), so success is implied by the call returning `Ok(())`. In
+/// JSON mode we still emit a stable `{ "deleted": true, "resource": ... }`
+/// acknowledgement so scripts that parsed the old `DeleteResponse` keep working.
+pub fn print_deleted(resource: &str, format: OutputFormat) -> Result<()> {
     if format == OutputFormat::Json {
-        println!("{}", serde_json::to_string_pretty(response)?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "deleted": true,
+                "resource": resource,
+            }))?
+        );
         return Ok(());
     }
 
-    if response.deleted {
-        println!("Deleted {resource}.");
-    } else {
-        println!("{resource} was not deleted.");
-    }
+    println!("Deleted {resource}.");
     Ok(())
 }
 

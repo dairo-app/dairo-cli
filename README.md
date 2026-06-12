@@ -237,15 +237,15 @@ and the latest successful delivery time when the backend has one. The create
 command prints a one-time signing secret. Store it immediately.
 
 Inspect outbound email history and delivery events via the `dairo outbound`
-commands (backed by `GET /v1/outbound-emails` and `GET /v1/outbound-events`):
+commands (backed by `GET /v1/emails` and `GET /v1/emails/{emailId}/events`):
 
 ```sh
 dairo outbound list --limit 20            # recent outbound emails
 dairo outbound get <emailId>              # one email + its delivery timeline
 dairo outbound cancel <emailId>           # cancel a scheduled (not-yet-sent) email
 dairo outbound events --email-id <id>     # delivery events (delivered/bounced/...)
-dairo outbound bounces                    # only bounce events
-dairo outbound complaints                 # only complaint events
+dairo outbound bounces --email-id <id>    # only bounce events
+dairo outbound complaints --email-id <id> # only complaint events
 ```
 
 Outbound emails carry `status` (including `scheduled` and `canceled`) plus

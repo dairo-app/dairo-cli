@@ -45,11 +45,17 @@ All notable Dairo CLI private-preview changes are tracked here.
 
 ### Endpoints
 
+- API redesign alignment: the CLI now uses the current `/v1/emails`,
+  `/v1/lists`, `/v1/messages`, `/v1/agents/*`, `/v1/account/residency`,
+  `/v1/erasure-jobs`, and `/v1/inboxes/{inbox}/verification-waits` surfaces.
+  Legacy paths such as `/v1/send-email`, `/v1/outbound-*`,
+  `/v1/email-lists`, `/v1/a2a/*`, and `/v1/compliance/*` are old/replaced
+  migration references only.
 - Scheduled send: `dairo send --send-at <RFC3339>` stages a future send. The
   `SendEmailRequest` gains `sendAt` and `SendEmailResponse` gains `scheduledAt`
   (status `scheduled`).
 - Cancel a scheduled send: `dairo outbound cancel <id>` →
-  `POST /v1/outbound-emails/{id}/cancel` (`mail:send`); returns the canceled
+  `POST /v1/emails/{id}/cancel` (`mail:send`); returns the canceled
   email or a conflict if it is no longer scheduled. The outbound-email model
   gains `scheduled`/`canceled` statuses and `scheduledAt`/`canceledAt` fields.
 - Audit logs: `dairo audit-logs list [--limit N] [--cursor C]` →
@@ -72,32 +78,36 @@ All notable Dairo CLI private-preview changes are tracked here.
   webhooks given exactly one lower bound (`--since`, `--since-seq` + `--inbox-id`,
   or `--since-timestamp`), with `--until/--type.../--webhook-id/--max-events`.
 - Agent passport: `dairo agents list|get <idOrAgent>` → `GET /v1/agents[/{id}]`
-  (`mail:read`); `dairo agents verify` → public `GET /v1/verify` (always a
+  (`agents:read`); `dairo agents verify` → public `GET /v1/agents/verify` (always a
   verdict). Verify takes either `--id <messageId>` or the signature form
   (`--agent --kid --sig`, plus optional `--from/--to/--subject/--ts`). There is
   no PATCH/DELETE for agents.
-- Reputation: `dairo reputation list` → `GET /v1/reputation` (`mail:read`),
+- Reputation: `dairo reputation list` → `GET /v1/agents/reputation` (`agents:read`),
   the fleet circuit-breaker view.
-- Budgets: `dairo budgets get <scope>` → `GET /v1/budgets/{scope}` (`mail:read`);
+- Budgets: `dairo budgets list|get <scope>` → `GET /v1/budgets[/{scope}]` (`budgets:read`);
   `dairo budgets set --scope … [--scope-id …]` → `PUT /v1/budgets`
-  (`keys:write`, idempotent upsert) with at least one limit
+  (`budgets:write`, idempotent upsert) with at least one limit
   (`--max-sends-per-day`, `--max-new-recipients-per-hour`,
-  `--hard-stop-on-complaint`); `--disabled` clears the default-enabled flag.
-- Compliance: `dairo compliance residency` → `GET /v1/compliance/residency`
-  and `dairo compliance erasure-job <id>` → `GET /v1/compliance/erasure-jobs/{id}`
-  (both `mail:read`). There is no root `GET /v1/compliance`.
+  `--hard-stop-on-complaint`); `dairo budgets delete <scope>` → `DELETE
+  /v1/budgets/{scope}`.
+- Compliance: `dairo compliance residency` → `GET /v1/account/residency`
+  (`account:read`). `dairo erasure-jobs list|create|get` uses
+  `/v1/erasure-jobs` (`compliance:read`/`compliance:write`).
 - A2A mail: `dairo a2a list [--limit --cursor --inbox-id]` →
-  `GET /v1/a2a/messages` and `dairo a2a get <id>` → `GET /v1/a2a/messages/{id}`
+  `GET /v1/messages?channel=a2a` and `dairo a2a get <id>` → `GET /v1/messages/{id}`
   (`mail:read`), the cross-tenant agent-to-agent hop receipts.
 - Added `dairo outbound` commands: `list`, `get <id>`, `events`, `bounces`,
-  `complaints` — backed by the public `/v1/outbound-emails`,
-  `/v1/outbound-emails/{id}`, and `/v1/outbound-events` routes (`mail:read`).
+  `complaints` — backed by the public `/v1/emails`,
+  `/v1/emails/{id}`, and `/v1/emails/{id}/events` routes (`mail:read`).
   Surfaces delivery/bounce/complaint outcomes after an async `queued` send.
 - `dairo attachments share` now calls the branded `/v1/attachments/{id}/link`
   route (returns a Dairo `shareUrl`) instead of the raw signed-S3 `/url` route.
-- Added `dairo lists delete <listId>` (`DELETE /v1/email-lists/{listId}`).
-- `dairo lists add` now uses the canonical `POST /v1/email-lists/{listId}/members`
-  endpoint; CSV import continues to use the `/members/import` alias.
+- Added `dairo lists delete <listId>` (`DELETE /v1/lists/{listId}`).
+- `dairo lists add` and CSV import now use the canonical
+  `POST /v1/lists/{listId}/members` endpoint.
+- Added `dairo inbox schema get|set|delete` for
+  `/v1/inboxes/{inbox}/schema` and `dairo inbox verification-waits
+  register|list|get|cancel` for `/v1/inboxes/{inbox}/verification-waits`.
 
 ## 0.1.0 - Private preview
 

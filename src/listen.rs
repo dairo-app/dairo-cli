@@ -658,7 +658,7 @@ async fn resolve_inbox_filter(client: &ApiClient, requested: &[String]) -> Resul
             .list_inboxes()
             .await
             .context("failed to resolve --inbox address to an inbox id")?
-            .inboxes
+            .data
     } else {
         Vec::new()
     };

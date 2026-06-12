@@ -21,8 +21,9 @@ use clap::Parser;
 use cli::{
     A2aCommand, AgentCommand, ApiKeyCommand, AttachmentCommand, AttachmentDelivery,
     AuditLogCommand, AuthCommand, BudgetCommand, Cli, Command, ComplianceCommand,
-    DedicatedIpCommand, DomainCommand, EmailListCommand, EventsCommand, InboxCommand, McpCommand,
-    MessageCommand, OutboundCommand, ReputationCommand, TemplateCommand, ThreadCommand,
+    DedicatedIpCommand, DomainCommand, EmailListCommand, ErasureJobCommand, EventsCommand,
+    InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode, McpCommand, MessageCommand,
+    OutboundCommand, ReputationCommand, TemplateCommand, ThreadCommand, VerificationWaitCommand,
     WebhookCommand,
 };
 use config::Config;
@@ -127,30 +128,30 @@ async fn run(cli: Cli) -> Result<()> {
                 Command::Domain { command } => match command {
                     DomainCommand::List => {
                         let response = client.list_domains().await?;
-                        output::print_domains(&response.domains, format)
+                        output::print_domains(&response.data, format)
                     }
                     DomainCommand::Add { domain } => {
-                        let response = client
+                        let domain = client
                             .create_domain(&CreateDomainRequest { domain })
                             .await?;
-                        output::print_domains(&response.domains, format)
+                        output::print_domains(std::slice::from_ref(&domain), format)
                     }
                     DomainCommand::Recheck { domain } => {
-                        let response = client.recheck_domain(&domain).await?;
-                        output::print_domains(&response.domains, format)
+                        let domain = client.recheck_domain(&domain).await?;
+                        output::print_domains(std::slice::from_ref(&domain), format)
                     }
                     DomainCommand::Delete { domain } => {
-                        let response = client.delete_domain(&domain).await?;
-                        output::print_domains(&response.domains, format)
+                        client.delete_domain(&domain).await?;
+                        output::print_deleted("domain", format)
                     }
                 },
                 Command::Inbox { command } => match command {
                     InboxCommand::List => {
                         let response = client.list_inboxes().await?;
-                        output::print_inboxes(&response.inboxes, format)
+                        output::print_inboxes(&response.data, format)
                     }
                     InboxCommand::Create { username, domain } => {
-                        let response = client
+                        let inbox = client
                             .create_inbox(&CreateInboxRequest {
                                 username,
                                 domain,
@@ -158,11 +159,17 @@ async fn run(cli: Cli) -> Result<()> {
                                 mode: None,
                             })
                             .await?;
-                        output::print_inbox(&response.inbox, format)
+                        output::print_inbox(&inbox, format)
                     }
                     InboxCommand::Delete { inbox_id } => {
-                        let response = client.delete_inbox(&inbox_id).await?;
-                        output::print_delete_response(&response, "inbox", format)
+                        client.delete_inbox(&inbox_id).await?;
+                        output::print_deleted("inbox", format)
+                    }
+                    InboxCommand::Schema { command } => {
+                        run_inbox_schema(&client, command, format).await
+                    }
+                    InboxCommand::VerificationWaits { command } => {
+                        run_verification_waits(&client, command, format).await
                     }
                 },
                 Command::Message { command } => match command {
@@ -182,15 +189,15 @@ async fn run(cli: Cli) -> Result<()> {
                                 cursor,
                             })
                             .await?;
-                        output::print_messages(&response.messages, format)
+                        output::print_messages(&response.data, format)
                     }
                     MessageCommand::Get { message_id } => {
-                        let response = client.get_message(&message_id).await?;
-                        output::print_message(&response.message, format)
+                        let message = client.get_message(&message_id).await?;
+                        output::print_message(&message, format)
                     }
                     MessageCommand::DownloadAttachments { message_id, out } => {
-                        let response = client.get_message(&message_id).await?;
-                        if response.message.attachments.is_empty() {
+                        let message = client.get_message(&message_id).await?;
+                        if message.attachments.is_empty() {
                             println!("No attachments found for message {message_id}.");
                             Ok(())
                         } else {
@@ -198,7 +205,7 @@ async fn run(cli: Cli) -> Result<()> {
                                 format!("creating output directory {}", out.display())
                             })?;
                             let mut used_paths = HashSet::new();
-                            for attachment in response.message.attachments {
+                            for attachment in message.attachments {
                                 let bytes =
                                     client.download_attachment_bytes(&attachment.id).await?;
                                 let path = unique_attachment_output_path(
@@ -261,7 +268,7 @@ async fn run(cli: Cli) -> Result<()> {
                                 cursor,
                             })
                             .await?;
-                        output::print_threads(&response.threads, format)
+                        output::print_threads(&response.data, format)
                     }
                     ThreadCommand::Get { thread_id } => {
                         let response = client.get_thread(&thread_id).await?;
@@ -271,7 +278,7 @@ async fn run(cli: Cli) -> Result<()> {
                 Command::Webhook { command } => match command {
                     WebhookCommand::List => {
                         let response = client.list_webhooks().await?;
-                        output::print_webhooks(&response.webhooks, format)
+                        output::print_webhooks(&response.data, format)
                     }
                     WebhookCommand::Create { url, events } => {
                         let events = events
@@ -284,8 +291,8 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_created_webhook(&response, format)
                     }
                     WebhookCommand::Delete { webhook } => {
-                        let response = client.delete_webhook(&webhook).await?;
-                        output::print_delete_response(&response, "webhook", format)
+                        client.delete_webhook(&webhook).await?;
+                        output::print_deleted("webhook", format)
                     }
                     WebhookCommand::Verify { .. } => {
                         unreachable!("webhook verify is handled before API client construction")
@@ -294,7 +301,7 @@ async fn run(cli: Cli) -> Result<()> {
                 Command::ApiKey { command } => match command {
                     ApiKeyCommand::List => {
                         let response = client.list_api_keys().await?;
-                        output::print_api_keys(&response.api_keys, format)
+                        output::print_api_keys(&response.data, format)
                     }
                     ApiKeyCommand::Create {
                         name,
@@ -316,8 +323,8 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_created_api_key(&response, format)
                     }
                     ApiKeyCommand::Revoke { api_key_id } => {
-                        let response = client.revoke_api_key(&api_key_id).await?;
-                        output::print_delete_response(&response, "API key", format)
+                        client.revoke_api_key(&api_key_id).await?;
+                        output::print_deleted("API key", format)
                     }
                 },
                 Command::Mcp { command } => match command {
@@ -354,24 +361,18 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_json(&response, format)
                     }
                     OutboundCommand::Events { email_id, limit } => {
-                        let response = client
-                            .list_outbound_events(email_id.as_deref(), limit)
-                            .await?;
+                        let response = client.list_outbound_events(&email_id, limit).await?;
                         output::print_json(&response, format)
                     }
                     OutboundCommand::Bounces { email_id, limit } => {
-                        let response = client
-                            .list_outbound_events(email_id.as_deref(), limit)
-                            .await?;
+                        let response = client.list_outbound_events(&email_id, limit).await?;
                         output::print_json(
                             &output::filter_events_of_type(response, "bounce"),
                             format,
                         )
                     }
                     OutboundCommand::Complaints { email_id, limit } => {
-                        let response = client
-                            .list_outbound_events(email_id.as_deref(), limit)
-                            .await?;
+                        let response = client.list_outbound_events(&email_id, limit).await?;
                         output::print_json(
                             &output::filter_events_of_type(response, "complaint"),
                             format,
@@ -381,21 +382,21 @@ async fn run(cli: Cli) -> Result<()> {
                 Command::EmailList { command } => match command {
                     EmailListCommand::List => {
                         let response = client.list_email_lists().await?;
-                        output::print_email_lists(&response.lists, format)
+                        output::print_email_lists(&response.data, format)
                     }
                     EmailListCommand::Create { name, description } => {
-                        let response = client
+                        let list = client
                             .create_email_list(&CreateEmailListRequest { name, description })
                             .await?;
-                        output::print_email_lists(&[response.list], format)
+                        output::print_email_lists(std::slice::from_ref(&list), format)
                     }
                     EmailListCommand::Get { list_id } => {
                         let response = client.get_email_list(&list_id).await?;
                         output::print_email_list_detail(&response, format)
                     }
                     EmailListCommand::Delete { list_id } => {
-                        let response = client.delete_email_list(&list_id).await?;
-                        output::print_delete_response(&response, "email list", format)
+                        client.delete_email_list(&list_id).await?;
+                        output::print_deleted("email list", format)
                     }
                     EmailListCommand::Add {
                         list_id,
@@ -414,8 +415,11 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                     EmailListCommand::ImportCsv { list_id, file } => {
                         let members = read_email_list_csv(&file)?;
+                        // The /members/import alias was removed in the redesign; the
+                        // canonical /members endpoint upserts and accepts the same
+                        // payload, so CSV import now posts there too.
                         let response = client
-                            .import_email_list_members(
+                            .add_email_list_members(
                                 &list_id,
                                 &EmailListMembersRequest { members },
                             )
@@ -533,6 +537,10 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                 },
                 Command::Budget { command } => match command {
+                    BudgetCommand::List => {
+                        let response = client.list_budgets().await?;
+                        output::print_json(&response, format)
+                    }
                     BudgetCommand::Get { scope } => {
                         let response = client.get_budget(&scope).await?;
                         output::print_json(&response, format)
@@ -556,6 +564,10 @@ async fn run(cli: Cli) -> Result<()> {
                         let response = client.set_budget(&body).await?;
                         output::print_json(&response, format)
                     }
+                    BudgetCommand::Delete { scope } => {
+                        client.delete_budget(&scope).await?;
+                        output::print_deleted("budget", format)
+                    }
                 },
                 Command::Compliance { command } => match command {
                     ComplianceCommand::Residency => {
@@ -563,6 +575,24 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_json(&response, format)
                     }
                     ComplianceCommand::ErasureJob { job_id } => {
+                        let response = client.get_erasure_job(&job_id).await?;
+                        output::print_json(&response, format)
+                    }
+                },
+                Command::ErasureJobs { command } => match command {
+                    ErasureJobCommand::List => {
+                        let response = client.list_erasure_jobs().await?;
+                        output::print_json(&response, format)
+                    }
+                    ErasureJobCommand::Create {
+                        subject_email,
+                        inbox_id,
+                    } => {
+                        let body = build_erasure_job_request(subject_email, inbox_id)?;
+                        let response = client.create_erasure_job(&body).await?;
+                        output::print_json(&response, format)
+                    }
+                    ErasureJobCommand::Get { job_id } => {
                         let response = client.get_erasure_job(&job_id).await?;
                         output::print_json(&response, format)
                     }
@@ -631,6 +661,72 @@ fn build_send_request(mut args: cli::SendArgs, require_to: bool) -> Result<SendE
         send_at: args.send_at.and_then(non_empty_trimmed),
         ignore_complaints: args.ignore_complaints,
     })
+}
+
+async fn run_inbox_schema(
+    client: &ApiClient,
+    command: InboxSchemaCommand,
+    format: OutputFormat,
+) -> Result<()> {
+    match command {
+        InboxSchemaCommand::Get { inbox } => {
+            let response = client.get_inbox_schema(&inbox).await?;
+            output::print_json(&response, format)
+        }
+        InboxSchemaCommand::Set {
+            inbox,
+            schema,
+            schema_file,
+            on_validation_error,
+            extraction_hint,
+        } => {
+            let body = build_inbox_schema_request(
+                schema,
+                schema_file,
+                on_validation_error,
+                extraction_hint,
+            )?;
+            let response = client.set_inbox_schema(&inbox, &body).await?;
+            output::print_json(&response, format)
+        }
+        InboxSchemaCommand::Delete { inbox } => {
+            client.delete_inbox_schema(&inbox).await?;
+            output::print_deleted("inbox schema", format)
+        }
+    }
+}
+
+async fn run_verification_waits(
+    client: &ApiClient,
+    command: VerificationWaitCommand,
+    format: OutputFormat,
+) -> Result<()> {
+    match command {
+        VerificationWaitCommand::Register {
+            inbox,
+            timeout_sec,
+            from_hint,
+            pattern,
+            idempotency_key,
+        } => {
+            let body =
+                build_verification_wait_request(timeout_sec, from_hint, pattern, idempotency_key);
+            let response = client.register_verification_wait(&inbox, &body).await?;
+            output::print_json(&response, format)
+        }
+        VerificationWaitCommand::List { inbox } => {
+            let response = client.list_verification_waits(&inbox).await?;
+            output::print_json(&response, format)
+        }
+        VerificationWaitCommand::Get { inbox, wait_id } => {
+            let response = client.get_verification_wait(&inbox, &wait_id).await?;
+            output::print_json(&response, format)
+        }
+        VerificationWaitCommand::Cancel { inbox, wait_id } => {
+            let response = client.cancel_verification_wait(&inbox, &wait_id).await?;
+            output::print_json(&response, format)
+        }
+    }
 }
 
 /// Dispatches the `templates` subcommands. Template bodies carry free-form
@@ -770,6 +866,65 @@ fn insert_opt_variables(body: &mut serde_json::Value, variables: Option<String>)
     Ok(())
 }
 
+fn build_inbox_schema_request(
+    schema: Option<String>,
+    schema_file: Option<PathBuf>,
+    on_validation_error: Option<InboxSchemaValidationMode>,
+    extraction_hint: Option<String>,
+) -> Result<serde_json::Value> {
+    let mut body = json!({});
+    if let Some(schema) = resolve_json_object_arg("--schema", schema, schema_file)? {
+        body["schema"] = schema;
+    }
+    if let Some(mode) = on_validation_error {
+        body["onValidationError"] = serde_json::Value::String(
+            match mode {
+                InboxSchemaValidationMode::Quarantine => "quarantine",
+                InboxSchemaValidationMode::Passthrough => "passthrough",
+            }
+            .to_string(),
+        );
+    }
+    insert_opt_str(&mut body, "extractionHint", extraction_hint);
+    Ok(body)
+}
+
+fn resolve_json_object_arg(
+    flag_name: &str,
+    inline: Option<String>,
+    file: Option<PathBuf>,
+) -> Result<Option<serde_json::Value>> {
+    let Some(raw) = inline
+        .map(Ok)
+        .or_else(|| {
+            file.map(|path| {
+                std::fs::read_to_string(&path)
+                    .with_context(|| format!("failed to read JSON object {}", path.display()))
+            })
+        })
+        .transpose()?
+    else {
+        return Ok(None);
+    };
+    let value: serde_json::Value =
+        serde_json::from_str(&raw).with_context(|| format!("{flag_name} must be valid JSON"))?;
+    anyhow::ensure!(value.is_object(), "{flag_name} must be a JSON object");
+    Ok(Some(value))
+}
+
+fn build_verification_wait_request(
+    timeout_sec: u32,
+    from_hint: Option<String>,
+    pattern: Option<String>,
+    idempotency_key: Option<String>,
+) -> serde_json::Value {
+    let mut body = json!({ "timeoutSec": timeout_sec });
+    insert_opt_str(&mut body, "fromHint", from_hint);
+    insert_opt_str(&mut body, "pattern", pattern);
+    insert_opt_str(&mut body, "idempotencyKey", idempotency_key);
+    body
+}
+
 /// Assembles the `POST /v1/events/replay` body. The backend requires exactly one
 /// lower bound; this only sets the fields the caller supplied (the server
 /// enforces the one-bound rule), matching the SDK request shape.
@@ -840,6 +995,28 @@ fn build_set_budget_request(
         body["enabled"] = serde_json::Value::Bool(false);
     }
     Ok(body)
+}
+
+/// Assembles the `POST /v1/erasure-jobs` body. The redesign merged the two
+/// `/compliance/erase` + `/compliance/purge-inbox` verbs into one typed job
+/// resource: provide exactly one of `subjectEmail` or `inboxId`. The CLI enforces
+/// the exactly-one rule client-side so a malformed request never goes out.
+fn build_erasure_job_request(
+    subject_email: Option<String>,
+    inbox_id: Option<String>,
+) -> Result<serde_json::Value> {
+    let subject_email = subject_email.and_then(non_empty_trimmed);
+    let inbox_id = inbox_id.and_then(non_empty_trimmed);
+    match (subject_email, inbox_id) {
+        (Some(subject_email), None) => Ok(json!({ "subjectEmail": subject_email })),
+        (None, Some(inbox_id)) => Ok(json!({ "inboxId": inbox_id })),
+        (Some(_), Some(_)) => {
+            anyhow::bail!("erasure-jobs create takes exactly one of --subject-email or --inbox-id")
+        }
+        (None, None) => {
+            anyhow::bail!("erasure-jobs create requires either --subject-email or --inbox-id")
+        }
+    }
 }
 
 /// Trims a string and returns `None` if it is empty, so blank flag values
@@ -1201,6 +1378,45 @@ mod tests {
         .expect_err("array props should be rejected");
 
         assert!(error.to_string().contains("JSON object"));
+    }
+
+    #[test]
+    fn builds_inbox_schema_request_with_camel_case_fields() {
+        let body = build_inbox_schema_request(
+            Some(r#"{"code":{"type":"string","required":true}}"#.to_string()),
+            None,
+            Some(InboxSchemaValidationMode::Passthrough),
+            Some("Find the OTP.".to_string()),
+        )
+        .unwrap();
+
+        assert_eq!(body["schema"]["code"]["type"], "string");
+        assert_eq!(body["schema"]["code"]["required"], true);
+        assert_eq!(body["onValidationError"], "passthrough");
+        assert_eq!(body["extractionHint"], "Find the OTP.");
+    }
+
+    #[test]
+    fn rejects_non_object_inbox_schema() {
+        let error = build_inbox_schema_request(Some(r#"["code"]"#.to_string()), None, None, None)
+            .expect_err("array schema should be rejected");
+
+        assert!(error.to_string().contains("--schema must be a JSON object"));
+    }
+
+    #[test]
+    fn builds_verification_wait_request_with_camel_case_fields() {
+        let body = build_verification_wait_request(
+            120,
+            Some("github.com".to_string()),
+            Some(r#"code: ([0-9]{6})"#.to_string()),
+            Some("wait-1".to_string()),
+        );
+
+        assert_eq!(body["timeoutSec"], 120);
+        assert_eq!(body["fromHint"], "github.com");
+        assert_eq!(body["pattern"], r#"code: ([0-9]{6})"#);
+        assert_eq!(body["idempotencyKey"], "wait-1");
     }
 
     #[test]
