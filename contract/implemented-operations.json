@@ -2,8 +2,46 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 64,
+  "operationCount": 66,
   "operations": [
+    {
+      "method": "GET",
+      "operationId": "listA2aMessages",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "limit"
+        },
+        {
+          "in": "query",
+          "name": "cursor"
+        },
+        {
+          "in": "query",
+          "name": "inboxId"
+        }
+      ],
+      "path": "/v1/a2a/messages",
+      "scopes": [
+        "mail:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getA2aMessage",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/a2a/messages/{messageId}",
+      "scopes": [
+        "mail:read"
+      ],
+      "contractSource": "openapi"
+    },
     {
       "method": "GET",
       "operationId": "getResidency",
@@ -159,7 +197,7 @@
       "scopes": [
         "mail:read"
       ],
-      "contractSource": "backend-source"
+      "contractSource": "openapi"
     },
     {
       "method": "GET",
@@ -696,7 +734,7 @@
       ],
       "path": "/v1/mcp/catalog",
       "scopes": [],
-      "contractSource": "backend-source"
+      "contractSource": "openapi"
     },
     {
       "method": "GET",

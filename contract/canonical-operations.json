@@ -1,8 +1,48 @@
 {
-  "name": "dairo-public-api-live-openapi-contract",
+  "name": "dairo-public-api-canonical-openapi-contract",
+  "description": "Derived from the canonical dairo.openapi.json. Regenerate via scripts/gen-canonical-operations.py; do not hand-edit.",
   "openapiVersion": "3.1.0",
-  "operationCount": 73,
+  "specVersion": "0.1.0",
+  "operationCount": 77,
   "operations": [
+    {
+      "method": "GET",
+      "operationId": "listA2aMessages",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "limit"
+        },
+        {
+          "in": "query",
+          "name": "cursor"
+        },
+        {
+          "in": "query",
+          "name": "inboxId"
+        }
+      ],
+      "path": "/v1/a2a/messages",
+      "scopes": [
+        "mail:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getA2aMessage",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/a2a/messages/{messageId}",
+      "scopes": [
+        "mail:read"
+      ],
+      "contractSource": "openapi"
+    },
     {
       "method": "GET",
       "operationId": "getResidency",
@@ -32,66 +72,6 @@
       "path": "/v1/agents",
       "scopes": [
         "agents:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getAgent",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        }
-      ],
-      "path": "/v1/agents/{id}",
-      "scopes": [
-        "agents:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "bindAgent",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        }
-      ],
-      "path": "/v1/agents/{id}/bindings",
-      "scopes": [
-        "agents:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "DELETE",
-      "operationId": "clearAgentReputation",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        }
-      ],
-      "path": "/v1/agents/{id}/reputation",
-      "scopes": [
-        "agents:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getAgentReputation",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        }
-      ],
-      "path": "/v1/agents/{id}/reputation",
-      "scopes": [
-        "agents:read"
       ],
       "contractSource": "openapi"
     },
@@ -152,6 +132,66 @@
       ],
       "path": "/v1/agents/verify",
       "scopes": [],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAgent",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}",
+      "scopes": [
+        "agents:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "bindAgent",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/bindings",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "clearAgentReputation",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/reputation",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAgentReputation",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/reputation",
+      "scopes": [
+        "agents:read"
+      ],
       "contractSource": "openapi"
     },
     {
@@ -231,6 +271,25 @@
         }
       ],
       "path": "/v1/attachments/{attachmentId}/download",
+      "scopes": [
+        "mail:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAttachmentBrandedLink",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "attachmentId"
+        },
+        {
+          "in": "query",
+          "name": "expiryHours"
+        }
+      ],
+      "path": "/v1/attachments/{attachmentId}/link",
       "scopes": [
         "mail:read"
       ],
@@ -811,6 +870,23 @@
       "scopes": [
         "lists:write"
       ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getMcpCatalog",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "for"
+        },
+        {
+          "in": "header",
+          "name": "If-None-Match"
+        }
+      ],
+      "path": "/v1/mcp/catalog",
+      "scopes": [],
       "contractSource": "openapi"
     },
     {
