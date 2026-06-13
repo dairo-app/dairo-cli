@@ -430,15 +430,7 @@ impl ApiClient {
         )?;
         let response = self.send_with_retry(request).await?;
         if !response.status().is_success() {
-            let status = response.status();
-            let message = match response.json::<ErrorResponse>().await {
-                Ok(error) => error.error.display_message(),
-                Err(_) => status
-                    .canonical_reason()
-                    .unwrap_or("unexpected API error")
-                    .to_string(),
-            };
-            return Err(ApiError::Api { status, message });
+            return Err(error_from_response(response).await);
         }
         response
             .bytes()
@@ -981,7 +973,7 @@ impl ApiClient {
             match self.http.execute(this_attempt).await {
                 Ok(response) => {
                     if let (true, Some(next)) = (is_retryable_status(response.status()), next) {
-                        backoff(attempt).await;
+                        backoff(attempt, RETRY_BASE_BACKOFF, RETRY_MAX_BACKOFF).await;
                         attempt += 1;
                         request = next;
                         continue;
@@ -990,7 +982,7 @@ impl ApiClient {
                 }
                 Err(error) => {
                     if let (Some(next), true) = (next, error.is_timeout() || error.is_connect()) {
-                        backoff(attempt).await;
+                        backoff(attempt, RETRY_BASE_BACKOFF, RETRY_MAX_BACKOFF).await;
                         attempt += 1;
                         request = next;
                         continue;
@@ -1003,21 +995,12 @@ impl ApiClient {
 
     async fn execute_json<T: for<'de> Deserialize<'de>>(&self, request: Request) -> Result<T> {
         let response = self.send_with_retry(request).await?;
-        let status = response.status();
 
-        if status.is_success() {
+        if response.status().is_success() {
             return response.json::<T>().await.map_err(ApiError::Transport);
         }
 
-        let message = match response.json::<ErrorResponse>().await {
-            Ok(error) => error.error.display_message(),
-            Err(_) => status
-                .canonical_reason()
-                .unwrap_or("unexpected API error")
-                .to_string(),
-        };
-
-        Err(ApiError::Api { status, message })
+        Err(error_from_response(response).await)
     }
 
     /// Executes a mutating request that returns no body on success. The redesign
@@ -1026,21 +1009,12 @@ impl ApiClient {
     /// still surfaces the structured error envelope on failure.
     async fn execute_no_content(&self, request: Request) -> Result<()> {
         let response = self.send_with_retry(request).await?;
-        let status = response.status();
 
-        if status.is_success() {
+        if response.status().is_success() {
             return Ok(());
         }
 
-        let message = match response.json::<ErrorResponse>().await {
-            Ok(error) => error.error.display_message(),
-            Err(_) => status
-                .canonical_reason()
-                .unwrap_or("unexpected API error")
-                .to_string(),
-        };
-
-        Err(ApiError::Api { status, message })
+        Err(error_from_response(response).await)
     }
 }
 
@@ -1071,11 +1045,29 @@ fn is_retryable_status(status: StatusCode) -> bool {
     status == StatusCode::TOO_MANY_REQUESTS || status == StatusCode::BAD_GATEWAY
 }
 
-async fn backoff(attempt: u32) {
+/// Builds an [`ApiError::Api`] from a failed response by decoding the canonical
+/// error envelope (`{ "error": { message, code, type, param } }`). If the body
+/// is missing or unparseable it falls back to the HTTP status reason phrase.
+/// The response is consumed because reading the body requires ownership.
+async fn error_from_response(response: reqwest::Response) -> ApiError {
+    let status = response.status();
+    let message = match response.json::<ErrorResponse>().await {
+        Ok(error) => error.error.display_message(),
+        Err(_) => status
+            .canonical_reason()
+            .unwrap_or("unexpected API error")
+            .to_string(),
+    };
+    ApiError::Api { status, message }
+}
+
+/// Sleeps for an exponentially increasing, capped backoff before the next
+/// retry attempt. `base` is doubled each attempt and clamped to `max`. Shared
+/// by the API retry loop and the `listen` event/forward loops so both use one
+/// backoff policy.
+pub(crate) async fn backoff(attempt: u32, base: Duration, max: Duration) {
     let factor = 1u32 << attempt.min(16);
-    let delay = RETRY_BASE_BACKOFF
-        .saturating_mul(factor)
-        .min(RETRY_MAX_BACKOFF);
+    let delay = base.saturating_mul(factor).min(max);
     tokio::time::sleep(delay).await;
 }
 

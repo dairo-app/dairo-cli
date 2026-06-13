@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use url::Url;
 
-use crate::api::{ApiClient, EventsQuery, Inbox, LedgerEvent};
+use crate::api::{backoff, ApiClient, EventsQuery, Inbox, LedgerEvent};
 use crate::cli::{ListenArgs, PrintMode};
 use crate::fsutil::{ensure_parent_private, write_atomic_0600};
 use crate::output;
@@ -392,7 +392,7 @@ async fn stream_loop(
                 // ledger is durable, so nothing between now and the retry is lost.
                 poll_failures += 1;
                 output::print_listen_poll_error(&error.to_string());
-                backoff(poll_failures).await;
+                backoff(poll_failures, FORWARD_BACKOFF_BASE, FORWARD_BACKOFF_MAX).await;
                 continue;
             }
         };
@@ -504,7 +504,7 @@ async fn forward_event(
             }
         }
         attempt += 1;
-        backoff(attempt).await;
+        backoff(attempt, FORWARD_BACKOFF_BASE, FORWARD_BACKOFF_MAX).await;
     }
 }
 
@@ -835,14 +835,6 @@ fn generate_signing_secret() -> String {
     let a = uuid::Uuid::new_v4().simple().to_string();
     let b = uuid::Uuid::new_v4().simple().to_string();
     format!("whsec_{a}{b}")
-}
-
-async fn backoff(attempt: u32) {
-    let factor = 1u32 << attempt.min(16);
-    let delay = FORWARD_BACKOFF_BASE
-        .saturating_mul(factor)
-        .min(FORWARD_BACKOFF_MAX);
-    tokio::time::sleep(delay).await;
 }
 
 async fn wait_for_interrupt() {
