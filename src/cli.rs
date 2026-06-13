@@ -152,7 +152,8 @@ pub enum Command {
     /// optionally, re-POST each one to a local endpoint — the Dairo equivalent of
     /// `stripe listen`. Pulls from the durable event ledger via long-poll, so no
     /// public webhook URL or tunnel is needed; a persisted cursor resumes exactly
-    /// where it left off. Requires the `mail:read` scope.
+    /// where it left off. Requires the `events:read` scope (plus `inboxes:read`
+    /// when filtering by an inbox address).
     Listen(ListenArgs),
     /// Scaffold a working Dairo starter into your project for a framework.
     ///
@@ -186,9 +187,9 @@ pub enum DedicatedIpCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum TemplateCommand {
-    /// List active templates (scope `mail:read`).
+    /// List active templates (scope `templates:read`).
     List,
-    /// Create a template and publish v1 (scope `mail:send`).
+    /// Create a template and publish v1 (scope `templates:write`).
     ///
     /// The source is read inline with `--source` or from a file with
     /// `--source-file` (exactly one is required). The source is dry-rendered at
@@ -226,7 +227,7 @@ pub enum TemplateCommand {
         #[arg(long)]
         version: Option<u32>,
     },
-    /// Update template metadata or re-point `currentVersion` (scope `mail:send`).
+    /// Update template metadata or re-point `currentVersion` (scope `templates:write`).
     ///
     /// The source is immutable — publish a new version to change it.
     Update {
@@ -241,13 +242,13 @@ pub enum TemplateCommand {
         #[arg(long = "current-version")]
         current_version: Option<u32>,
     },
-    /// Archive a template (scope `mail:send`).
+    /// Archive a template (scope `templates:write`).
     Delete { id_or_slug: String },
     /// List a template's versions, newest first (no source).
     Versions { id_or_slug: String },
     /// Read one version of a template, including its source.
     Version { id_or_slug: String, version: u32 },
-    /// Publish a new immutable version (scope `mail:send`).
+    /// Publish a new immutable version (scope `templates:write`).
     Publish {
         id_or_slug: String,
         /// React-email source for the new version (mutually exclusive with --source-file).
@@ -294,7 +295,7 @@ pub enum EventsCommand {
         #[arg(long)]
         tail: bool,
     },
-    /// Re-deliver a ledger slice to your webhooks (scope `webhooks:write`).
+    /// Re-deliver a ledger slice to your webhooks (scope `events:write`).
     ///
     /// Provide exactly one lower bound: `--since` (a cursor), `--since-seq`
     /// (with `--inbox-id`), or `--since-timestamp`.
@@ -328,7 +329,7 @@ pub enum EventsCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum AgentCommand {
-    /// List the caller's agent passports, newest first (scope `mail:read`).
+    /// List the caller's agent passports, newest first (scope `agents:read`).
     List,
     /// Get a passport by its uuid id or portable `agt_…` agentId.
     Get { id_or_agent: String },

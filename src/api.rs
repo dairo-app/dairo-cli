@@ -582,14 +582,14 @@ impl ApiClient {
     }
 
     /// Creates a template and publishes v1 (`POST /v1/templates`, scope
-    /// `mail:send`). The source is dry-rendered at publish.
+    /// `templates:write`). The source is dry-rendered at publish.
     pub async fn create_template(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(Method::POST, &["v1", "templates"], Some(body))?)
             .await
     }
 
     /// Gets a template plus a resolved version including its `source` (`GET
-    /// /v1/templates/{idOrSlug}`, scope `mail:read`). `version` pins a specific
+    /// /v1/templates/{idOrSlug}`, scope `templates:read`). `version` pins a specific
     /// version instead of the container's `currentVersion`.
     pub async fn get_template(
         &self,
@@ -608,7 +608,7 @@ impl ApiClient {
     }
 
     /// Updates template metadata or re-points `currentVersion` (`PATCH
-    /// /v1/templates/{idOrSlug}`, scope `mail:send`). The source is immutable.
+    /// /v1/templates/{idOrSlug}`, scope `templates:write`). The source is immutable.
     pub async fn update_template(
         &self,
         id_or_slug: &str,
@@ -622,7 +622,7 @@ impl ApiClient {
         .await
     }
 
-    /// Archives a template (`DELETE /v1/templates/{idOrSlug}`, scope `mail:send`).
+    /// Archives a template (`DELETE /v1/templates/{idOrSlug}`, scope `templates:write`).
     pub async fn delete_template(&self, id_or_slug: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::DELETE,
@@ -633,7 +633,7 @@ impl ApiClient {
     }
 
     /// Lists a template's versions, newest first, without `source` (`GET
-    /// /v1/templates/{idOrSlug}/versions`, scope `mail:read`).
+    /// /v1/templates/{idOrSlug}/versions`, scope `templates:read`).
     pub async fn list_template_versions(&self, id_or_slug: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::GET,
@@ -644,7 +644,7 @@ impl ApiClient {
     }
 
     /// Reads one version of a template including its `source` (`GET
-    /// /v1/templates/{idOrSlug}/versions/{version}`, scope `mail:read`).
+    /// /v1/templates/{idOrSlug}/versions/{version}`, scope `templates:read`).
     pub async fn get_template_version(
         &self,
         id_or_slug: &str,
@@ -665,7 +665,7 @@ impl ApiClient {
     }
 
     /// Publishes a new immutable version (`POST
-    /// /v1/templates/{idOrSlug}/versions`, scope `mail:send`). Defaults to
+    /// /v1/templates/{idOrSlug}/versions`, scope `templates:write`). Defaults to
     /// promoting it to `currentVersion`; `promote: false` publishes a draft.
     pub async fn publish_template_version(
         &self,
