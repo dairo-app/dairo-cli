@@ -364,6 +364,35 @@ impl ApiClient {
         .await
     }
 
+    /// Revokes the API key whose stored prefix matches `token` server-side, used
+    /// by `dairo logout`.
+    ///
+    /// The backend never returns key secrets after creation; a key is only
+    /// addressable for revocation by its `id`. The token the CLI holds is the raw
+    /// secret, so this resolves the secret to its `id` by matching the backend's
+    /// stored `key_prefix` (the first 18 chars of the secret followed by `...`,
+    /// per `mcp/oauth.rs`) against the listed active keys, then revokes that id.
+    ///
+    /// Returns `Ok(true)` if a matching active key was found and revoked,
+    /// `Ok(false)` if no active key matched (already revoked, or the key cannot be
+    /// resolved). Requires the `keys:read` + `keys:write` scopes, which the
+    /// default `admin` login bundle includes.
+    pub async fn revoke_token_by_prefix(&self, token: &str) -> Result<bool> {
+        let Some(prefix) = token_revocation_prefix(token) else {
+            return Ok(false);
+        };
+        let keys = self.list_api_keys().await?;
+        let Some(target) = keys
+            .data
+            .iter()
+            .find(|key| key.status.eq_ignore_ascii_case("active") && key.prefix == prefix)
+        else {
+            return Ok(false);
+        };
+        self.revoke_api_key(&target.id).await?;
+        Ok(true)
+    }
+
     /// Lists messages with keyset pagination (`GET /v1/messages`, scope
     /// `mail:read`). Returns the unified list envelope. Passing `channel=a2a`
     /// folds in the former `/v1/a2a/messages` agent-to-agent surface.
@@ -1082,6 +1111,20 @@ fn default_idempotency_key(method: &Method, path: &str) -> String {
     Uuid::new_v5(&namespace, seed.as_bytes()).to_string()
 }
 
+/// Reconstructs the backend's stored `key_prefix` for an API-key secret so
+/// `revoke_token_by_prefix` can resolve a held token to its key `id`.
+///
+/// The backend mints `key_prefix = format!("{}...", &raw_secret[..18])` (see
+/// `mcp/oauth.rs` and the api-keys creation path). Returns `None` for tokens too
+/// short to carry an 18-char prefix (so a malformed token never matches).
+fn token_revocation_prefix(token: &str) -> Option<String> {
+    let token = token.trim();
+    if token.len() < 18 || !token.is_char_boundary(18) {
+        return None;
+    }
+    Some(format!("{}...", &token[..18]))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1450,6 +1493,19 @@ mod tests {
 
         assert_eq!(response.data[0].allowed_ips, vec!["203.0.113.0/24"]);
         assert!(response.data[1].allowed_ips.is_empty());
+    }
+
+    #[test]
+    fn token_revocation_prefix_matches_backend_key_prefix() {
+        // The backend stores `format!("{}...", &raw_secret[..18])`. Reconstruct it.
+        let token = "dairo_live_0123456789abcdef0123456789abcdef";
+        assert_eq!(
+            token_revocation_prefix(token).as_deref(),
+            Some("dairo_live_0123456...")
+        );
+        // A short or empty token cannot be resolved and never matches a key.
+        assert_eq!(token_revocation_prefix("short"), None);
+        assert_eq!(token_revocation_prefix(""), None);
     }
 
     #[test]

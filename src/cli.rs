@@ -31,6 +31,16 @@ pub enum Command {
         #[command(subcommand)]
         command: AuthCommand,
     },
+    /// Sign in with your browser (OAuth) and store a scoped API token.
+    ///
+    /// Runs the same Authorization-Code + PKCE flow the Dairo MCP clients use: a
+    /// loopback callback listener is bound on `127.0.0.1`, your browser is opened
+    /// to the Dairo authorize page, and the returned code is exchanged for a
+    /// `dairo_live_*` API key saved to the local config. The manual key path
+    /// (`dairo auth token set`) keeps working unchanged.
+    Login(LoginArgs),
+    /// Revoke the stored OAuth token server-side and clear it from local config.
+    Logout,
     /// Show authenticated account, API key scopes, plan, and storage usage.
     Whoami,
     /// Manage account domains.
@@ -800,6 +810,20 @@ impl std::fmt::Display for AttachmentDelivery {
             Self::Auto => "auto",
         })
     }
+}
+
+#[derive(Debug, Args)]
+pub struct LoginArgs {
+    /// Scopes to request, space- or comma-separated. Defaults to the `admin`
+    /// bundle, which the backend expands to every scope so the CLI is fully
+    /// functional. Pass a narrower set (e.g. `--scope "mail:read mail:send"`) to
+    /// mint a least-privilege token.
+    #[arg(long = "scope", default_value = crate::auth::DEFAULT_LOGIN_SCOPE)]
+    pub scope: String,
+    /// Override the Dairo API base URL for the OAuth flow. Defaults to the global
+    /// `--api-url` / `DAIRO_API_URL` / configured base, then the public API.
+    #[arg(long = "api-url", value_name = "URL")]
+    pub api_url: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]

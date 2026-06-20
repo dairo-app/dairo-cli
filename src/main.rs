@@ -1,4 +1,5 @@
 mod api;
+mod auth;
 mod cli;
 mod config;
 mod fsutil;
@@ -22,9 +23,9 @@ use cli::{
     A2aCommand, AgentCommand, ApiKeyCommand, AttachmentCommand, AttachmentDelivery,
     AuditLogCommand, AuthCommand, BudgetCommand, Cli, Command, ComplianceCommand,
     DedicatedIpCommand, DomainCommand, EmailListCommand, ErasureJobCommand, EventsCommand,
-    InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode, McpCommand, MessageCommand,
-    OutboundCommand, ReputationCommand, TemplateCommand, ThreadCommand, VerificationWaitCommand,
-    WebhookCommand,
+    InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode, LoginArgs, McpCommand,
+    MessageCommand, OutboundCommand, ReputationCommand, TemplateCommand, ThreadCommand,
+    VerificationWaitCommand, WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -109,6 +110,15 @@ async fn run(cli: Cli) -> Result<()> {
         // So it is handled before the generic API-client construction that would
         // otherwise hard-require a key.
         Command::Init(args) => init::run(args, cli.json).await,
+        // Browser OAuth login does not need an existing API key (it mints one),
+        // so it is handled before the generic API-client construction that would
+        // otherwise hard-require a key.
+        Command::Login(args) => run_login(args, &cli.api_url, &config_path).await,
+        // Logout clears the local credential and best-effort revokes it
+        // server-side. It must succeed even when the stored token is invalid or
+        // the server is unreachable, so it builds its own client and degrades
+        // gracefully rather than going through the key-required generic arm.
+        Command::Logout => run_logout(&cli.api_url, &config_path).await,
         command => {
             let config = Config::load_from_path(&config_path)?;
             let api_key = config.resolve_api_key()?;
@@ -627,10 +637,114 @@ async fn run(cli: Cli) -> Result<()> {
                 Command::Init(_) => {
                     unreachable!("init is handled before API client construction")
                 }
+                Command::Login(_) => {
+                    unreachable!("login is handled before API client construction")
+                }
+                Command::Logout => {
+                    unreachable!("logout is handled before API client construction")
+                }
             }
             .context("failed to print command output")
         }
     }
+}
+
+/// Resolves the API base URL using the same precedence the generic command arm
+/// uses: an explicit override, then `DAIRO_API_URL`, then the configured base,
+/// then the public default.
+fn resolve_base_url(explicit: Option<&str>, config: &Config) -> String {
+    explicit
+        .map(str::to_string)
+        .or_else(|| std::env::var("DAIRO_API_URL").ok())
+        .or_else(|| config.api_url.clone())
+        .unwrap_or_else(|| api::DEFAULT_BASE_URL.to_string())
+}
+
+/// Handles `dairo login`: runs the browser OAuth (PKCE) flow and persists the
+/// resulting token. The `--api-url` on the subcommand takes precedence over the
+/// global `--api-url`/env/config base.
+async fn run_login(
+    args: LoginArgs,
+    global_api_url: &Option<String>,
+    config_path: &Path,
+) -> Result<()> {
+    let config = Config::load_from_path(config_path)?;
+    let base_url = resolve_base_url(
+        args.api_url.as_deref().or(global_api_url.as_deref()),
+        &config,
+    );
+    let outcome = auth::login(&base_url, &args.scope, config_path).await?;
+    // Never print the token; only the granted scopes and where it was stored.
+    println!(
+        "Signed in. Token saved to {}.",
+        outcome.config_path.display()
+    );
+    if outcome.scopes.is_empty() {
+        println!("Granted scopes: (none reported)");
+    } else {
+        println!("Granted scopes: {}", outcome.scopes.join(", "));
+    }
+    println!("Verify your session with `dairo whoami`.");
+    Ok(())
+}
+
+/// Handles `dairo logout`: best-effort server-side revocation of the stored
+/// token, then clears the credential from the local config. Always clears the
+/// local config even if revocation is not addressable, and tells the user when
+/// they should revoke in the dashboard.
+async fn run_logout(global_api_url: &Option<String>, config_path: &Path) -> Result<()> {
+    let mut config = Config::load_from_path(config_path)?;
+    let Some(token) = config
+        .api_key
+        .clone()
+        .filter(|token| !token.trim().is_empty())
+    else {
+        println!("No stored Dairo token to clear.");
+        return Ok(());
+    };
+    let base_url = resolve_base_url(global_api_url.as_deref(), &config);
+
+    // Best-effort server-side revocation. A failure here (invalid token, missing
+    // keys:* scope, network error, non-https/non-loopback base) must not block
+    // clearing the local credential.
+    let mut revoked_server_side = false;
+    let mut revoke_note: Option<String> = None;
+    match api::ApiClient::new(&base_url, &token) {
+        Ok(client) => match client.revoke_token_by_prefix(&token).await {
+            Ok(true) => revoked_server_side = true,
+            Ok(false) => {
+                revoke_note = Some(
+                    "could not match the stored token to an active key server-side".to_string(),
+                );
+            }
+            Err(error) => {
+                revoke_note = Some(format!("server-side revocation failed: {error}"));
+            }
+        },
+        Err(error) => {
+            revoke_note = Some(format!("server-side revocation was skipped: {error}"));
+        }
+    }
+
+    config.clear_credentials();
+    config.save_to_path(config_path)?;
+
+    if revoked_server_side {
+        println!(
+            "Logged out. Token revoked server-side and cleared from {}.",
+            config_path.display()
+        );
+    } else {
+        println!("Cleared the stored token from {}.", config_path.display());
+        if let Some(note) = revoke_note {
+            println!("Note: {note}.");
+        }
+        println!(
+            "If the token may still be active, revoke it in the Dairo dashboard \
+             (https://dairo.app/app) to be safe."
+        );
+    }
+    Ok(())
 }
 
 const MAX_INLINE_ATTACHMENT_BYTES: usize = 8 * 1024 * 1024;
