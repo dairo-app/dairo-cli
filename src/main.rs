@@ -354,7 +354,9 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                 },
                 Command::Send(args) => {
-                    let response = client.send_email(&build_send_request(args, true)?).await?;
+                    let response = client
+                        .send_email(&build_send_request(&client, args, true).await?)
+                        .await?;
                     output::print_send_result(&response, format)
                 }
                 Command::Outbound { command } => match command {
@@ -438,7 +440,7 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                     EmailListCommand::Send { list_id, send } => {
                         let response = client
-                            .send_email_list(&list_id, &build_send_request(send, false)?)
+                            .send_email_list(&list_id, &build_send_request(&client, send, false).await?)
                             .await?;
                         output::print_email_list_send(&response, format)
                     }
@@ -749,12 +751,27 @@ async fn run_logout(global_api_url: &Option<String>, config_path: &Path) -> Resu
 
 const MAX_INLINE_ATTACHMENT_BYTES: usize = 8 * 1024 * 1024;
 
-fn build_send_request(mut args: cli::SendArgs, require_to: bool) -> Result<SendEmailRequest> {
+async fn build_send_request(
+    client: &ApiClient,
+    mut args: cli::SendArgs,
+    require_to: bool,
+) -> Result<SendEmailRequest> {
+    // Resolve the sending inbox to its id: either the given --inbox-id, or the
+    // --from address looked up against the account's inboxes.
+    let inbox_id = resolve_inbox_id(client, &args).await?;
     if require_to {
         normalize_recipients(&mut args.to)?;
     } else {
         args.to.clear();
     }
+    let mut cc = std::mem::take(&mut args.cc);
+    normalize_optional_recipients(&mut cc);
+    let mut bcc = std::mem::take(&mut args.bcc);
+    normalize_optional_recipients(&mut bcc);
+    // Body: an inline value or a file (`-` = stdin); inline and file are mutually
+    // exclusive per channel, enforced in resolve_body_source.
+    let text = resolve_body_source(args.text, args.text_file, "text")?;
+    let html = resolve_body_source(args.html, args.html_file, "html")?;
     let attachments = read_send_attachments(
         &args.attachments,
         args.attachment_delivery,
@@ -762,19 +779,109 @@ fn build_send_request(mut args: cli::SendArgs, require_to: bool) -> Result<SendE
     )?;
     let react = build_react_request(args.react_source, args.react_props)?;
     Ok(SendEmailRequest {
-        inbox_id: args.inbox_id,
+        inbox_id,
         to: args.to,
-        cc: None,
-        bcc: None,
+        cc: (!cc.is_empty()).then_some(cc),
+        bcc: (!bcc.is_empty()).then_some(bcc),
         subject: args.subject,
-        text: args.text,
-        html: args.html,
+        text,
+        html,
         react,
         attachments,
         idempotency_key: None,
         send_at: args.send_at.and_then(non_empty_trimmed),
         ignore_complaints: args.ignore_complaints,
     })
+}
+
+/// Resolves the sending inbox id from `--inbox-id` (used directly) or `--from`
+/// (an address looked up against the account's inboxes). The clap `source` group
+/// guarantees exactly one is present.
+async fn resolve_inbox_id(client: &ApiClient, args: &cli::SendArgs) -> Result<String> {
+    if let Some(id) = args
+        .inbox_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        return Ok(id.to_string());
+    }
+    let from = args
+        .from
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .context("provide a sending inbox with --from <address> or --inbox-id <uuid>")?;
+    let address = extract_email_address(from);
+    let inboxes = client.list_inboxes().await.context(
+        "could not list inboxes to resolve --from (the token needs the inboxes:read scope, \
+         or pass --inbox-id <uuid> directly)",
+    )?;
+    let mut matches = inboxes
+        .data
+        .into_iter()
+        .filter(|inbox| inbox.address.eq_ignore_ascii_case(&address));
+    match (matches.next(), matches.next()) {
+        (Some(inbox), None) => Ok(inbox.id),
+        (Some(_), Some(_)) => anyhow::bail!(
+            "multiple inboxes match address '{address}'; use --inbox-id <uuid> to disambiguate"
+        ),
+        (None, _) => anyhow::bail!(
+            "no inbox found for address '{address}'. Create one with \
+             `dairo inbox create --domain <domain> <username>`, or list them with `dairo inbox list`."
+        ),
+    }
+}
+
+/// Extracts the bare email address from a `Display Name <addr>` form (else the
+/// trimmed input), lowercased for case-insensitive inbox matching.
+fn extract_email_address(input: &str) -> String {
+    let s = input.trim();
+    if let (Some(lt), Some(gt)) = (s.find('<'), s.rfind('>')) {
+        if lt < gt {
+            return s[lt + 1..gt].trim().to_ascii_lowercase();
+        }
+    }
+    s.to_ascii_lowercase()
+}
+
+/// Trims and drops empties from an optional recipient list (cc/bcc), without the
+/// "at least one" requirement [`normalize_recipients`] enforces for `--to`.
+fn normalize_optional_recipients(recipients: &mut Vec<String>) {
+    for recipient in recipients.iter_mut() {
+        *recipient = recipient.trim().to_string();
+    }
+    recipients.retain(|recipient| !recipient.is_empty());
+}
+
+/// Resolves a body channel from an inline value or a file path (`-` = stdin).
+/// Errors if both an inline value and a file are given for the same channel.
+fn resolve_body_source(
+    inline: Option<String>,
+    file: Option<PathBuf>,
+    label: &str,
+) -> Result<Option<String>> {
+    match (inline, file) {
+        (Some(_), Some(_)) => {
+            anyhow::bail!("provide either --{label} or --{label}-file, not both")
+        }
+        (Some(value), None) => Ok(Some(value)),
+        (None, Some(path)) => Ok(Some(read_body_file(&path, label)?)),
+        (None, None) => Ok(None),
+    }
+}
+
+/// Reads a body file, or stdin when the path is `-`.
+fn read_body_file(path: &std::path::Path, label: &str) -> Result<String> {
+    if path.as_os_str() == "-" {
+        let mut buf = String::new();
+        std::io::Read::read_to_string(&mut std::io::stdin(), &mut buf)
+            .with_context(|| format!("failed to read --{label}-file from stdin"))?;
+        Ok(buf)
+    } else {
+        std::fs::read_to_string(path)
+            .with_context(|| format!("failed to read --{label}-file: {}", path.display()))
+    }
 }
 
 async fn run_inbox_schema(
@@ -1466,6 +1573,55 @@ fn rejects_positional_token(args: &[OsString]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extract_email_address_handles_bare_and_display_name_forms() {
+        assert_eq!(extract_email_address("agent@dairo.app"), "agent@dairo.app");
+        assert_eq!(
+            extract_email_address("  Agent@Dairo.App "),
+            "agent@dairo.app"
+        );
+        assert_eq!(
+            extract_email_address("Support <support@dairo.app>"),
+            "support@dairo.app"
+        );
+        assert_eq!(
+            extract_email_address("Two Words < hi@dairo.app >"),
+            "hi@dairo.app"
+        );
+        // Malformed angle brackets fall back to the trimmed, lowercased input.
+        assert_eq!(extract_email_address(">weird<"), ">weird<");
+    }
+
+    #[test]
+    fn normalize_optional_recipients_trims_and_drops_blanks() {
+        let mut cc = vec![
+            " a@x.com ".to_string(),
+            "".to_string(),
+            "b@x.com".to_string(),
+        ];
+        normalize_optional_recipients(&mut cc);
+        assert_eq!(cc, vec!["a@x.com", "b@x.com"]);
+        let mut empty: Vec<String> = vec!["  ".to_string()];
+        normalize_optional_recipients(&mut empty);
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn resolve_body_source_rejects_both_inline_and_file() {
+        let err = resolve_body_source(
+            Some("hi".to_string()),
+            Some(PathBuf::from("body.txt")),
+            "text",
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("--text or --text-file"));
+        assert_eq!(
+            resolve_body_source(Some("hi".to_string()), None, "text").unwrap(),
+            Some("hi".to_string())
+        );
+        assert_eq!(resolve_body_source(None, None, "html").unwrap(), None);
+    }
 
     #[test]
     fn builds_react_request_with_object_props() {

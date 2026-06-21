@@ -513,22 +513,47 @@ pub enum OutboundCommand {
 
 #[derive(Debug, Args)]
 #[command(group(
+    // The sending inbox: exactly one of a UUID (--inbox-id) or an address (--from).
+    ArgGroup::new("source")
+        .required(true)
+        .multiple(false)
+        .args(["inbox_id", "from"])
+))]
+#[command(group(
     ArgGroup::new("body")
         .required(true)
         .multiple(true)
-        .args(["text", "html", "react_source"])
+        .args(["text", "text_file", "html", "html_file", "react_source"])
 ))]
 pub struct SendArgs {
-    #[arg(long = "inbox-id")]
-    pub inbox_id: String,
+    /// Sending inbox by UUID. For readability, prefer `--from <address>`.
+    #[arg(long = "inbox-id", value_name = "UUID")]
+    pub inbox_id: Option<String>,
+    /// Sending inbox by ADDRESS, e.g. `agent@dairo.app` (or `Name <agent@dairo.app>`).
+    /// Resolved to the inbox id via your inboxes (needs the `inboxes:read` scope).
+    /// Alias: `--inbox`.
+    #[arg(long = "from", visible_alias = "inbox", value_name = "ADDRESS")]
+    pub from: Option<String>,
     #[arg(long, required = true, action = clap::ArgAction::Append)]
     pub to: Vec<String>,
+    /// CC recipient(s). Repeatable.
+    #[arg(long = "cc", value_name = "ADDRESS", action = clap::ArgAction::Append)]
+    pub cc: Vec<String>,
+    /// BCC recipient(s). Repeatable.
+    #[arg(long = "bcc", value_name = "ADDRESS", action = clap::ArgAction::Append)]
+    pub bcc: Vec<String>,
     #[arg(long, default_value = "")]
     pub subject: String,
     #[arg(long)]
     pub text: Option<String>,
+    /// Read the plain-text body from a file (`-` for stdin).
+    #[arg(long = "text-file", value_name = "PATH")]
+    pub text_file: Option<PathBuf>,
     #[arg(long)]
     pub html: Option<String>,
+    /// Read the HTML body from a file (`-` for stdin).
+    #[arg(long = "html-file", value_name = "PATH")]
+    pub html_file: Option<PathBuf>,
     /// Hosted React component source rendered by Dairo before sending.
     #[arg(long = "react-source", value_name = "SOURCE")]
     pub react_source: Option<String>,
@@ -712,6 +737,10 @@ impl std::fmt::Display for Framework {
     }
 }
 
+// SendArgs is `#[command(flatten)]`-ed into the `Send` variant, which clap
+// requires to be the concrete Args type (it cannot be boxed), so the size
+// difference between variants is inherent and benign.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 pub enum EmailListCommand {
     /// List email lists.
@@ -1144,10 +1173,15 @@ mod tests {
         match cli.command {
             Command::Send(SendArgs {
                 inbox_id,
+                from,
                 to,
+                cc,
+                bcc,
                 subject,
                 text,
+                text_file,
                 html,
+                html_file,
                 react_source,
                 react_props,
                 attachments,
@@ -1156,7 +1190,12 @@ mod tests {
                 ignore_complaints,
                 send_at,
             }) => {
-                assert_eq!(inbox_id, "inbox_123");
+                assert_eq!(inbox_id.as_deref(), Some("inbox_123"));
+                assert_eq!(from, None);
+                assert!(cc.is_empty());
+                assert!(bcc.is_empty());
+                assert_eq!(text_file, None);
+                assert_eq!(html_file, None);
                 assert_eq!(to, vec!["max@example.com"]);
                 assert_eq!(subject, "Hello");
                 assert_eq!(text.as_deref(), Some("Body"));
@@ -1466,8 +1505,9 @@ mod tests {
                 attachment_link_expiry_hours,
                 ignore_complaints,
                 send_at,
+                ..
             }) => {
-                assert_eq!(inbox_id, "inbox_123");
+                assert_eq!(inbox_id.as_deref(), Some("inbox_123"));
                 assert_eq!(to, vec!["max@example.com"]);
                 assert_eq!(subject, "Hello");
                 assert_eq!(text, None);

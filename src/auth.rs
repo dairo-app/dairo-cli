@@ -32,6 +32,12 @@ use url::Url;
 
 use crate::config::Config;
 
+/// The human-friendly identity this client presents on the consent screen.
+/// The backend prefers an explicit `client_name` over the (DCR-issued, generic
+/// `dairo-mcp-*`) client_id, so the consent page reads "Dairo CLI" rather than
+/// "Dairo MCP" when you sign in from the CLI.
+const CLIENT_NAME: &str = "Dairo CLI";
+
 /// Default scope set for `dairo login`. The backend accepts the `admin`
 /// convenience bundle (see `api_key_scopes.rs::expand_bundle`), which expands to
 /// the full enforced scope matrix — so the resulting key can drive every CLI
@@ -271,6 +277,7 @@ fn build_authorize_url(
     url.query_pairs_mut()
         .append_pair("response_type", "code")
         .append_pair("client_id", client_id)
+        .append_pair("client_name", CLIENT_NAME)
         .append_pair("redirect_uri", redirect_uri)
         .append_pair("code_challenge", code_challenge)
         .append_pair("code_challenge_method", "S256")
@@ -699,6 +706,10 @@ mod tests {
         assert_eq!(
             pairs.get("client_id").map(String::as_str),
             Some("dairo-mcp-abc")
+        );
+        assert_eq!(
+            pairs.get("client_name").map(String::as_str),
+            Some("Dairo CLI")
         );
         assert_eq!(
             pairs.get("redirect_uri").map(String::as_str),
