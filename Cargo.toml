@@ -24,7 +24,9 @@ clap_complete = "4.5"
 dirs = "6.0"
 hmac = "0.12"
 interim = { version = "0.1", features = ["chrono"] }
-keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+# Pure-Rust backends only (no system C deps): macOS Keychain, Windows Credential
+# Manager, and the Linux kernel keyutils — so CI/Linux builds need no libdbus.
+keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
 rand = "0.9"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
