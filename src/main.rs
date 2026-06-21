@@ -2,12 +2,14 @@ mod api;
 mod auth;
 mod cli;
 mod config;
+mod doctor;
 mod fsutil;
 mod init;
 mod listen;
 mod mcp_catalog;
 mod mcp_install;
 mod output;
+mod update;
 mod webhook;
 
 use anyhow::{Context, Result};
@@ -18,6 +20,7 @@ use api::{
     SendEmailRequest, ThreadListQuery, VerifyAgentQuery,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
+use clap::CommandFactory;
 use clap::Parser;
 use cli::{
     A2aCommand, AgentCommand, ApiKeyCommand, AttachmentCommand, AttachmentDelivery,
@@ -27,7 +30,7 @@ use cli::{
     MessageCommand, OutboundCommand, ReputationCommand, TemplateCommand, ThreadCommand,
     VerificationWaitCommand, WebhookCommand,
 };
-use config::Config;
+use config::{Config, StorageMode};
 use output::OutputFormat;
 use serde_json::json;
 use std::{
@@ -80,6 +83,15 @@ async fn main() -> ExitCode {
 async fn run(cli: Cli) -> Result<()> {
     let config_path = Config::path()?;
 
+    // Select the credential-storage policy for the rest of the process: the OS
+    // keychain by default, or the legacy `0600` file when `--insecure-storage`
+    // is set. This must happen before any config load/save.
+    config::set_storage_mode(if cli.insecure_storage {
+        StorageMode::FileOnly
+    } else {
+        StorageMode::Auto
+    });
+
     match cli.command {
         Command::Auth { command } => match command {
             AuthCommand::Token(command) => {
@@ -110,6 +122,40 @@ async fn run(cli: Cli) -> Result<()> {
         // So it is handled before the generic API-client construction that would
         // otherwise hard-require a key.
         Command::Init(args) => init::run(args, cli.json).await,
+        // Completion-script generation is a pure client-only operation: no API
+        // key or network is involved, so it is handled before the key-required
+        // generic arm.
+        Command::Completion { shell } => {
+            let mut command = Cli::command();
+            let bin_name = command.get_name().to_string();
+            clap_complete::generate(
+                clap_complete::Shell::from(shell),
+                &mut command,
+                bin_name,
+                &mut std::io::stdout(),
+            );
+            Ok(())
+        }
+        // `update` only talks to the public GitHub releases API (or degrades
+        // gracefully offline); it never needs a Dairo token.
+        Command::Update => update::run(OutputFormat::from_json_flag(cli.json)).await,
+        // `doctor` must run even when no token is configured (that is one of the
+        // things it diagnoses), so it resolves config itself and degrades
+        // gracefully rather than going through the key-required generic arm.
+        Command::Doctor => {
+            let config = Config::load_from_path(&config_path)?;
+            let base_url = resolve_base_url(cli.api_url.as_deref(), &config);
+            // An absent/blank token is reported by `doctor`, never an error here.
+            let api_key = config.resolve_api_key().unwrap_or_default();
+            doctor::run(
+                &config,
+                &base_url,
+                &api_key,
+                &config_path,
+                OutputFormat::from_json_flag(cli.json),
+            )
+            .await
+        }
         // Browser OAuth login does not need an existing API key (it mints one),
         // so it is handled before the generic API-client construction that would
         // otherwise hard-require a key.
@@ -354,10 +400,14 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                 },
                 Command::Send(args) => {
-                    let response = client
-                        .send_email(&build_send_request(&client, args, true).await?)
-                        .await?;
-                    output::print_send_result(&response, format)
+                    let dry_run = args.dry_run;
+                    let request = build_send_request(&client, args, true).await?;
+                    if dry_run {
+                        print_dry_run_request(&request)
+                    } else {
+                        let response = client.send_email(&request).await?;
+                        output::print_send_result(&response, format)
+                    }
                 }
                 Command::Outbound { command } => match command {
                     OutboundCommand::List { limit } => {
@@ -439,10 +489,15 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_email_list_import(&response, format)
                     }
                     EmailListCommand::Send { list_id, send } => {
-                        let response = client
-                            .send_email_list(&list_id, &build_send_request(&client, send, false).await?)
-                            .await?;
-                        output::print_email_list_send(&response, format)
+                        let dry_run = send.dry_run;
+                        let request = build_send_request(&client, send, false).await?;
+                        if dry_run {
+                            print_dry_run_request(&request)
+                        } else {
+                            let response =
+                                client.send_email_list(&list_id, &request).await?;
+                            output::print_email_list_send(&response, format)
+                        }
                     }
                 },
                 Command::AuditLog { command } => match command {
@@ -645,6 +700,15 @@ async fn run(cli: Cli) -> Result<()> {
                 Command::Logout => {
                     unreachable!("logout is handled before API client construction")
                 }
+                Command::Completion { .. } => {
+                    unreachable!("completion is handled before API client construction")
+                }
+                Command::Doctor => {
+                    unreachable!("doctor is handled before API client construction")
+                }
+                Command::Update => {
+                    unreachable!("update is handled before API client construction")
+                }
             }
             .context("failed to print command output")
         }
@@ -778,6 +842,15 @@ async fn build_send_request(
         args.attachment_link_expiry_hours,
     )?;
     let react = build_react_request(args.react_source, args.react_props)?;
+    let reply_to = args.reply_to.and_then(non_empty_trimmed);
+    let headers = parse_key_value_pairs(&args.headers, "--headers")?;
+    let tags = parse_key_value_pairs(&args.tags, "--tags")?;
+    // `--send-at` accepts RFC3339 (passed through) or natural language, resolved
+    // to an RFC3339 string with offset relative to now.
+    let send_at = match args.send_at.and_then(non_empty_trimmed) {
+        Some(raw) => Some(resolve_send_at(&raw)?),
+        None => None,
+    };
     Ok(SendEmailRequest {
         inbox_id,
         to: args.to,
@@ -789,9 +862,107 @@ async fn build_send_request(
         react,
         attachments,
         idempotency_key: None,
-        send_at: args.send_at.and_then(non_empty_trimmed),
+        send_at,
         ignore_complaints: args.ignore_complaints,
+        reply_to,
+        headers,
+        tags,
     })
+}
+
+/// Parses repeated `KEY=VALUE` flag values into a sorted map, rejecting any
+/// malformed pair (missing `=`, or an empty key). Returns `None` when no pairs
+/// were given so the field is omitted from the wire request entirely.
+fn parse_key_value_pairs(
+    raw: &[String],
+    flag: &str,
+) -> Result<Option<std::collections::BTreeMap<String, String>>> {
+    if raw.is_empty() {
+        return Ok(None);
+    }
+    let mut map = std::collections::BTreeMap::new();
+    for entry in raw {
+        let (key, value) = entry
+            .split_once('=')
+            .with_context(|| format!("{flag} expects KEY=VALUE, got '{entry}'"))?;
+        let key = key.trim();
+        anyhow::ensure!(!key.is_empty(), "{flag} entry '{entry}' has an empty key");
+        map.insert(key.to_string(), value.trim().to_string());
+    }
+    Ok(Some(map))
+}
+
+/// Resolves a `--send-at` value to an RFC3339 string with an explicit offset.
+///
+/// RFC3339 input is passed through unchanged (re-serialized to canonical form);
+/// otherwise the value is parsed as natural language relative to the current
+/// local time (e.g. "in 1 hour", "tomorrow at 9am", "next monday") and converted
+/// to RFC3339.
+fn resolve_send_at(raw: &str) -> Result<String> {
+    // RFC3339 with an explicit offset: pass through (canonicalized).
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(raw) {
+        return Ok(dt.to_rfc3339());
+    }
+    // Natural language relative to now, in the local timezone.
+    let now = chrono::Local::now();
+    let normalized = normalize_natural_time(raw);
+    let parsed =
+        interim::parse_date_string(&normalized, now, interim::Dialect::Us).with_context(|| {
+            format!(
+                "could not parse --send-at '{raw}' as RFC3339 or a natural-language time \
+             (try e.g. \"in 1 hour\", \"tomorrow at 9am\", or \"2026-06-11T09:00:00Z\")"
+            )
+        })?;
+    Ok(parsed.to_rfc3339())
+}
+
+/// Light normalization so common English phrasings the `interim` grammar does
+/// not accept verbatim still work: a leading "in " ("in 1 hour" -> "1 hour")
+/// and an " at " connector ("tomorrow at 9am" -> "tomorrow 9am").
+fn normalize_natural_time(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let without_in = trimmed
+        .strip_prefix("in ")
+        .or_else(|| trimmed.strip_prefix("IN "))
+        .or_else(|| trimmed.strip_prefix("In "))
+        .unwrap_or(trimmed);
+    without_in.replace(" at ", " ")
+}
+
+/// Renders a built [`SendEmailRequest`] as pretty JSON for `--dry-run`, without
+/// ever emitting attachment bytes: each attachment's `contentBase64` is replaced
+/// by a `byteLength` (the decoded size) so the operator sees what would be sent
+/// without dumping base64 to the terminal. Nothing is sent to the API.
+fn print_dry_run_request(request: &SendEmailRequest) -> Result<()> {
+    let mut value = serde_json::to_value(request).context("failed to serialize send request")?;
+    if let Some(attachments) = value.get_mut("attachments").and_then(|v| v.as_array_mut()) {
+        for attachment in attachments {
+            if let Some(obj) = attachment.as_object_mut() {
+                let byte_length = obj
+                    .remove("contentBase64")
+                    .and_then(|v| v.as_str().map(decoded_base64_len))
+                    .unwrap_or(0);
+                obj.insert(
+                    "byteLength".to_string(),
+                    serde_json::Value::from(byte_length),
+                );
+            }
+        }
+    }
+    println!("{}", serde_json::to_string_pretty(&value)?);
+    Ok(())
+}
+
+/// Decoded byte length of a standard base64 string, computed from its length and
+/// padding so we never have to allocate/echo the decoded bytes.
+fn decoded_base64_len(b64: &str) -> usize {
+    let trimmed = b64.trim();
+    let len = trimmed.len();
+    if len == 0 {
+        return 0;
+    }
+    let padding = trimmed.bytes().rev().take_while(|&b| b == b'=').count();
+    (len / 4) * 3 - padding
 }
 
 /// Resolves the sending inbox id from `--inbox-id` (used directly) or `--from`
@@ -1702,6 +1873,116 @@ mod tests {
         assert_eq!(attachments.len(), 1);
         assert_eq!(attachments[0].filename, "invoice.txt");
         assert_eq!(attachments[0].delivery, None);
+    }
+
+    #[test]
+    fn parse_key_value_pairs_builds_a_map_and_rejects_malformed() {
+        let map = parse_key_value_pairs(
+            &["X-Campaign=spring".to_string(), "env = prod".to_string()],
+            "--headers",
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(map.get("X-Campaign").map(String::as_str), Some("spring"));
+        // Keys/values are trimmed.
+        assert_eq!(map.get("env").map(String::as_str), Some("prod"));
+
+        // No pairs -> omitted entirely.
+        assert!(parse_key_value_pairs(&[], "--tags").unwrap().is_none());
+
+        // Missing `=` is rejected.
+        let err = parse_key_value_pairs(&["nope".to_string()], "--headers").unwrap_err();
+        assert!(err.to_string().contains("KEY=VALUE"));
+
+        // Empty key is rejected.
+        let err = parse_key_value_pairs(&["=value".to_string()], "--tags").unwrap_err();
+        assert!(err.to_string().contains("empty key"));
+    }
+
+    #[test]
+    fn resolve_send_at_passes_through_rfc3339() {
+        // RFC3339 with an offset is canonicalized but preserved.
+        let out = resolve_send_at("2026-06-11T09:00:00Z").unwrap();
+        let parsed = chrono::DateTime::parse_from_rfc3339(&out).unwrap();
+        assert_eq!(
+            parsed.with_timezone(&chrono::Utc),
+            chrono::DateTime::parse_from_rfc3339("2026-06-11T09:00:00Z")
+                .unwrap()
+                .with_timezone(&chrono::Utc)
+        );
+    }
+
+    #[test]
+    fn resolve_send_at_parses_natural_language() {
+        // "in 1 hour" should resolve to ~1h from now and be valid RFC3339.
+        let out = resolve_send_at("in 1 hour").unwrap();
+        let parsed = chrono::DateTime::parse_from_rfc3339(&out)
+            .expect("natural language must resolve to RFC3339");
+        let delta = parsed.with_timezone(&chrono::Utc) - chrono::Utc::now();
+        assert!(
+            delta.num_minutes() >= 55 && delta.num_minutes() <= 65,
+            "expected ~1h ahead, got {} minutes",
+            delta.num_minutes()
+        );
+
+        // Garbage is rejected with a helpful message.
+        let err = resolve_send_at("definitely not a time").unwrap_err();
+        assert!(err.to_string().contains("--send-at"));
+    }
+
+    #[test]
+    fn decoded_base64_len_matches_actual_decoded_size() {
+        // "JVBERi0xLjQ=" decodes to 8 bytes ("%PDF-1.4").
+        assert_eq!(decoded_base64_len("JVBERi0xLjQ="), 8);
+        assert_eq!(decoded_base64_len(""), 0);
+        // No padding.
+        assert_eq!(decoded_base64_len("aGVsbG8h"), 6); // "hello!"
+    }
+
+    #[test]
+    fn dry_run_redacts_attachment_bytes() {
+        let request = SendEmailRequest {
+            inbox_id: "inbox_1".to_string(),
+            to: vec!["max@example.com".to_string()],
+            cc: None,
+            bcc: None,
+            subject: "Hi".to_string(),
+            text: Some("Body".to_string()),
+            html: None,
+            react: None,
+            attachments: Some(vec![SendEmailAttachment {
+                filename: "invoice.pdf".to_string(),
+                content_type: "application/pdf".to_string(),
+                content_base64: "JVBERi0xLjQ=".to_string(),
+                delivery: None,
+            }]),
+            idempotency_key: None,
+            send_at: None,
+            ignore_complaints: false,
+            reply_to: Some("support@dairo.app".to_string()),
+            headers: None,
+            tags: None,
+        };
+        let mut value = serde_json::to_value(&request).unwrap();
+        // Mirror the redaction the dry-run printer performs.
+        if let Some(attachments) = value.get_mut("attachments").and_then(|v| v.as_array_mut()) {
+            for attachment in attachments {
+                if let Some(obj) = attachment.as_object_mut() {
+                    let byte_length = obj
+                        .remove("contentBase64")
+                        .and_then(|v| v.as_str().map(decoded_base64_len))
+                        .unwrap_or(0);
+                    obj.insert(
+                        "byteLength".to_string(),
+                        serde_json::Value::from(byte_length),
+                    );
+                }
+            }
+        }
+        assert!(value["attachments"][0].get("contentBase64").is_none());
+        assert_eq!(value["attachments"][0]["byteLength"], 8);
+        assert_eq!(value["attachments"][0]["filename"], "invoice.pdf");
+        assert_eq!(value["replyTo"], "support@dairo.app");
     }
 
     #[test]

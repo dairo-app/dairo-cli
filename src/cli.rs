@@ -20,6 +20,11 @@ pub struct Cli {
     #[arg(long, global = true, hide = true, env = "DAIRO_API_URL")]
     pub api_url: Option<String>,
 
+    /// Store the API token in the plaintext `0600` config file instead of the OS
+    /// keychain. Use on headless/CI hosts where no keychain is available.
+    #[arg(long = "insecure-storage", global = true)]
+    pub insecure_storage: bool,
+
     #[command(subcommand)]
     pub command: Command,
 }
@@ -174,6 +179,51 @@ pub enum Command {
     /// offline; the only optional network touch is a friendly `GET /v1/whoami`
     /// connectivity check after scaffolding (skip with `--no-verify`).
     Init(InitArgs),
+    /// Run a local health check of the CLI's configuration and connectivity.
+    ///
+    /// Prints a ✓/✗ checklist: whether a token is configured, whether `whoami`
+    /// succeeds (showing the user and granted scopes), the resolved base URL, the
+    /// config/credential location, and per-domain verification status. Degrades
+    /// gracefully when not authenticated (the network checks are skipped).
+    Doctor,
+    /// Generate a shell-completion script to stdout.
+    ///
+    /// Pipe or redirect the output into the location your shell loads completions
+    /// from (e.g. `dairo completion zsh > ~/.zsh/completions/_dairo`).
+    Completion {
+        /// Target shell.
+        shell: CompletionShell,
+    },
+    /// Check whether a newer Dairo CLI release is available.
+    ///
+    /// Best-effort: queries the GitHub releases `latest` API and prints the
+    /// current vs latest version plus upgrade instructions. It never replaces the
+    /// running binary, and degrades gracefully when offline.
+    Update,
+}
+
+/// Shells `dairo completion` can emit a script for, mirroring
+/// [`clap_complete::Shell`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum CompletionShell {
+    Bash,
+    Zsh,
+    Fish,
+    #[value(name = "powershell")]
+    PowerShell,
+    Elvish,
+}
+
+impl From<CompletionShell> for clap_complete::Shell {
+    fn from(shell: CompletionShell) -> Self {
+        match shell {
+            CompletionShell::Bash => clap_complete::Shell::Bash,
+            CompletionShell::Zsh => clap_complete::Shell::Zsh,
+            CompletionShell::Fish => clap_complete::Shell::Fish,
+            CompletionShell::PowerShell => clap_complete::Shell::PowerShell,
+            CompletionShell::Elvish => clap_complete::Shell::Elvish,
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -575,10 +625,27 @@ pub struct SendArgs {
     #[arg(long = "ignore-complaints")]
     pub ignore_complaints: bool,
     /// Schedule the send for a future time instead of sending immediately.
-    /// RFC3339 with an explicit timezone offset, e.g. `2026-06-11T09:00:00Z` or
-    /// `2026-06-11T11:00:00+02:00`. The response status is `scheduled`.
-    #[arg(long = "send-at", value_name = "RFC3339")]
+    /// Accepts RFC3339 with an explicit timezone offset (e.g. `2026-06-11T09:00:00Z`
+    /// or `2026-06-11T11:00:00+02:00`) OR natural language relative to now
+    /// (e.g. `"in 1 hour"`, `"tomorrow at 9am"`, `"next monday"`), which is
+    /// resolved to an RFC3339 string with offset before sending. The response
+    /// status is `scheduled`.
+    #[arg(long = "send-at", value_name = "RFC3339|NATURAL")]
     pub send_at: Option<String>,
+    /// Single reply-to address set on the outgoing message.
+    #[arg(long = "reply-to", value_name = "ADDRESS")]
+    pub reply_to: Option<String>,
+    /// Custom MIME header as `KEY=VALUE` (allowlisted server-side). Repeatable.
+    #[arg(long = "headers", value_name = "KEY=VALUE", action = clap::ArgAction::Append)]
+    pub headers: Vec<String>,
+    /// SES message tag as `KEY=VALUE`. Repeatable.
+    #[arg(long = "tags", value_name = "KEY=VALUE", action = clap::ArgAction::Append)]
+    pub tags: Vec<String>,
+    /// Build the exact send request, print it as pretty JSON, and exit without
+    /// calling the API. Attachment bytes are never printed (only filename + byte
+    /// length are shown).
+    #[arg(long = "dry-run")]
+    pub dry_run: bool,
 }
 
 #[derive(Debug, Args)]
@@ -1189,6 +1256,10 @@ mod tests {
                 attachment_link_expiry_hours,
                 ignore_complaints,
                 send_at,
+                reply_to,
+                headers,
+                tags,
+                dry_run,
             }) => {
                 assert_eq!(inbox_id.as_deref(), Some("inbox_123"));
                 assert_eq!(from, None);
@@ -1207,6 +1278,10 @@ mod tests {
                 assert_eq!(attachment_link_expiry_hours, None);
                 assert!(!ignore_complaints);
                 assert_eq!(send_at, None);
+                assert_eq!(reply_to, None);
+                assert!(headers.is_empty());
+                assert!(tags.is_empty());
+                assert!(!dry_run);
             }
             _ => panic!("expected send command"),
         }
@@ -1264,6 +1339,46 @@ mod tests {
         match cli.command {
             Command::Send(SendArgs { send_at, .. }) => {
                 assert_eq!(send_at.as_deref(), Some("2026-06-11T09:00:00Z"));
+            }
+            _ => panic!("expected send command"),
+        }
+    }
+
+    #[test]
+    fn parses_reply_to_headers_tags_and_dry_run() {
+        let cli = Cli::try_parse_from([
+            "dairo",
+            "send",
+            "--inbox-id",
+            "inbox_123",
+            "--to",
+            "max@example.com",
+            "--text",
+            "Body",
+            "--reply-to",
+            "support@dairo.app",
+            "--headers",
+            "X-Campaign=spring",
+            "--headers",
+            "X-Team=growth",
+            "--tags",
+            "env=prod",
+            "--dry-run",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Send(SendArgs {
+                reply_to,
+                headers,
+                tags,
+                dry_run,
+                ..
+            }) => {
+                assert_eq!(reply_to.as_deref(), Some("support@dairo.app"));
+                assert_eq!(headers, vec!["X-Campaign=spring", "X-Team=growth"]);
+                assert_eq!(tags, vec!["env=prod"]);
+                assert!(dry_run);
             }
             _ => panic!("expected send command"),
         }
@@ -1892,6 +2007,38 @@ mod tests {
             }
             _ => panic!("expected init command"),
         }
+    }
+
+    #[test]
+    fn parses_doctor_completion_and_update_commands() {
+        assert!(matches!(
+            Cli::parse_from(["dairo", "doctor"]).command,
+            Command::Doctor
+        ));
+        assert!(matches!(
+            Cli::parse_from(["dairo", "update"]).command,
+            Command::Update
+        ));
+        match Cli::parse_from(["dairo", "completion", "zsh"]).command {
+            Command::Completion { shell } => assert_eq!(shell, CompletionShell::Zsh),
+            _ => panic!("expected completion command"),
+        }
+        // Every advertised shell parses.
+        for shell in ["bash", "zsh", "fish", "powershell", "elvish"] {
+            assert!(
+                Cli::try_parse_from(["dairo", "completion", shell]).is_ok(),
+                "shell {shell} should parse"
+            );
+        }
+        assert!(Cli::try_parse_from(["dairo", "completion", "tcsh"]).is_err());
+    }
+
+    #[test]
+    fn parses_global_insecure_storage_flag() {
+        let cli = Cli::parse_from(["dairo", "--insecure-storage", "whoami"]);
+        assert!(cli.insecure_storage);
+        let cli = Cli::parse_from(["dairo", "whoami"]);
+        assert!(!cli.insecure_storage);
     }
 
     #[test]

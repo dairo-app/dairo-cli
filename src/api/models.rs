@@ -152,6 +152,17 @@ pub struct SendEmailRequest {
         skip_serializing_if = "std::ops::Not::not"
     )]
     pub ignore_complaints: bool,
+    /// Optional single reply-to address. Omitted entirely when unset.
+    #[serde(rename = "replyTo", skip_serializing_if = "Option::is_none")]
+    pub reply_to: Option<String>,
+    /// Optional custom MIME headers (`{ name: value }`), allowlisted server-side.
+    /// Omitted entirely when empty/unset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<std::collections::BTreeMap<String, String>>,
+    /// Optional SES message tags (`{ name: value }`). Omitted entirely when
+    /// empty/unset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

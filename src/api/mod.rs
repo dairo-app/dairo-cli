@@ -1316,6 +1316,9 @@ mod tests {
             idempotency_key: None,
             send_at: None,
             ignore_complaints: false,
+            reply_to: None,
+            headers: None,
+            tags: None,
         };
 
         let value = serde_json::to_value(body).unwrap();
@@ -1353,6 +1356,9 @@ mod tests {
             idempotency_key: None,
             send_at: None,
             ignore_complaints: false,
+            reply_to: None,
+            headers: None,
+            tags: None,
         };
 
         let value = serde_json::to_value(body).unwrap();
@@ -1381,6 +1387,9 @@ mod tests {
             idempotency_key: None,
             send_at: Some("2026-06-11T09:00:00Z".to_string()),
             ignore_complaints: false,
+            reply_to: None,
+            headers: None,
+            tags: None,
         };
 
         let value = serde_json::to_value(body).unwrap();
@@ -1403,11 +1412,49 @@ mod tests {
             idempotency_key: None,
             send_at: None,
             ignore_complaints: false,
+            reply_to: None,
+            headers: None,
+            tags: None,
         };
 
         let value = serde_json::to_value(body).unwrap();
 
         assert!(value.get("sendAt").is_none());
+        // The new reply-to/headers/tags fields are omitted entirely when unset.
+        assert!(value.get("replyTo").is_none());
+        assert!(value.get("headers").is_none());
+        assert!(value.get("tags").is_none());
+    }
+
+    #[test]
+    fn serializes_reply_to_headers_and_tags_with_wire_names() {
+        let mut headers = std::collections::BTreeMap::new();
+        headers.insert("X-Campaign".to_string(), "spring".to_string());
+        let mut tags = std::collections::BTreeMap::new();
+        tags.insert("env".to_string(), "prod".to_string());
+        let body = SendEmailRequest {
+            inbox_id: "018f".to_string(),
+            to: vec!["max@example.com".to_string()],
+            cc: None,
+            bcc: None,
+            subject: "Hello".to_string(),
+            text: Some("Body".to_string()),
+            html: None,
+            react: None,
+            attachments: None,
+            idempotency_key: None,
+            send_at: None,
+            ignore_complaints: false,
+            reply_to: Some("support@dairo.app".to_string()),
+            headers: Some(headers),
+            tags: Some(tags),
+        };
+
+        let value = serde_json::to_value(body).unwrap();
+
+        assert_eq!(value["replyTo"], "support@dairo.app");
+        assert_eq!(value["headers"]["X-Campaign"], "spring");
+        assert_eq!(value["tags"]["env"], "prod");
     }
 
     #[test]
