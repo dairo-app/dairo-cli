@@ -960,7 +960,19 @@ impl ApiClient {
         ) {
             let key = match idempotency_key {
                 Some(key) if !key.trim().is_empty() => key.to_string(),
-                _ => default_idempotency_key(&method, url.path()),
+                _ => {
+                    // Fold the serialized body into the default key so two *different*
+                    // requests to the same endpoint (e.g. two distinct `dairo send`
+                    // emails) get distinct keys. With method+path alone, every POST to
+                    // a path collides on one key and the server's idempotency dedup
+                    // returns the FIRST request's row for all the rest — so only one
+                    // email per endpoint could ever be sent.
+                    let body_repr = body
+                        .as_ref()
+                        .and_then(|body| serde_json::to_string(body).ok())
+                        .unwrap_or_default();
+                    default_idempotency_key(&method, url.path(), &body_repr)
+                }
             };
             builder = builder.header("Idempotency-Key", key);
         }
@@ -1103,11 +1115,13 @@ pub(crate) async fn backoff(attempt: u32, base: Duration, max: Duration) {
     tokio::time::sleep(delay).await;
 }
 
-/// Deterministic idempotency key for a mutating request that the caller did not
-/// supply one for. Stable across retries of the *same* logical request.
-fn default_idempotency_key(method: &Method, path: &str) -> String {
+/// Deterministic idempotency key for a mutating request the caller did not supply
+/// one for. Seeded from method + path + serialized body, so the *same* logical
+/// request (identical content) is stable across retries and de-duplicates safely,
+/// while two *different* requests to the same endpoint get distinct keys.
+fn default_idempotency_key(method: &Method, path: &str, body: &str) -> String {
     let namespace = Uuid::NAMESPACE_URL;
-    let seed = format!("{method} {path}");
+    let seed = format!("{method} {path} {body}");
     Uuid::new_v5(&namespace, seed.as_bytes()).to_string()
 }
 
@@ -1204,26 +1218,50 @@ mod tests {
         assert!(rendered.contains("[REDACTED]"));
     }
 
+    fn idempotency_key_of(req: &Request) -> String {
+        req.headers()
+            .get("Idempotency-Key")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string()
+    }
+
     #[test]
     fn idempotency_key_is_stable_across_retries_of_same_request() {
         // A per-invocation random key would defeat retry de-dup. Re-building the
-        // same logical request must yield the same default key.
+        // same logical request (same method + path + body) must yield the same key.
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let body = serde_json::json!({ "to": ["a@example.test"], "subject": "hi" });
         let first = client
-            .build_request(Method::POST, &["v1", "emails"], None::<&()>)
+            .build_request(Method::POST, &["v1", "emails"], Some(&body))
             .unwrap();
         let second = client
-            .build_request(Method::POST, &["v1", "emails"], None::<&()>)
+            .build_request(Method::POST, &["v1", "emails"], Some(&body))
             .unwrap();
-        let key_of = |req: &Request| {
-            req.headers()
-                .get("Idempotency-Key")
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string()
-        };
-        assert_eq!(key_of(&first), key_of(&second));
+        assert_eq!(idempotency_key_of(&first), idempotency_key_of(&second));
+    }
+
+    #[test]
+    fn idempotency_key_differs_for_different_bodies_on_same_endpoint() {
+        // Regression: two distinct `dairo send` emails must NOT collide on one key,
+        // or the server de-dupes the second to the first and only one email sends.
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let one = client
+            .build_request(
+                Method::POST,
+                &["v1", "emails"],
+                Some(&serde_json::json!({ "to": ["a@example.test"], "subject": "one" })),
+            )
+            .unwrap();
+        let two = client
+            .build_request(
+                Method::POST,
+                &["v1", "emails"],
+                Some(&serde_json::json!({ "to": ["a@example.test"], "subject": "two" })),
+            )
+            .unwrap();
+        assert_ne!(idempotency_key_of(&one), idempotency_key_of(&two));
     }
 
     #[test]
