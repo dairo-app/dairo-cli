@@ -281,11 +281,26 @@ dairo letter send \
   --color --simplex --delivery registered \
   --confirm
 
-# Overlay a payment slip (qr | sepaDe | sepaAt) and opt in to tracking
+# Bring-your-own slip: your PDF already carries a slip; --payment-slip just
+# tells the provider which paper to use (qr | sepaDe | sepaAt)
 dairo letter send \
   --pdf invoice.pdf \
   --to-street "Hauptstrasse" --to-house-number 12 --to-zip 8001 --to-country CH \
   --payment-slip sepaDe --notifications true \
+  --confirm
+
+# Dairo-generated slip: render the letter from a template and let Dairo generate
+# and composite the slip (Swiss QR-bill in CHF here) full-width at the bottom.
+# The debtor defaults to the recipient (--to-*) unless --payment-debtor-* is set.
+dairo letter send \
+  --template-id tmpl_invoice \
+  --to-name "Jane Doe" --to-street "Hauptstrasse" --to-house-number 12 \
+  --to-zip 8001 --to-city "Zürich" --to-country CH \
+  --payment-type qr --payment-amount 49.90 \
+  --payment-creditor-name "Acme AG" \
+  --payment-creditor-iban CH9300762011623852957 --payment-creditor-country CH \
+  --payment-reference 210000000003139471430009017 \
+  --payment-message "Invoice inv_123" \
   --confirm
 
 dairo letter list --status in_transit --country CH   # filter the letter list
@@ -302,6 +317,20 @@ Print options are `--color`/`--grayscale`, `--simplex`/`--duplex`, and
 `--to-*` flags (`--to-country` is required, plus either `--to-street` or
 `--to-po-box`); an optional sender block uses the matching `--from-*` flags.
 Add `--json` for machine-readable output, as with the rest of the CLI.
+
+A letter comes from exactly one source: an inline `--pdf`, an existing
+`--attachment-id`, or a Dairo `--template-id` (rendered server-side). Payment
+slips have two shapes. The bare `--payment-slip qr|sepaDe|sepaAt` flag is for a
+**bring-your-own** slip — your PDF already carries it and the flag only selects
+the paper. The structured `--payment-*` flags make Dairo **generate** the slip
+(Swiss QR-bill in CHF for `qr`, SEPA Zahlschein + GiroCode in EUR for
+`sepaDe`/`sepaAt`) and composite it full-width at the bottom of the rendered
+letter; this is honored only on the `--template-id` path (a `--pdf` letter plus a
+generated slip is rejected with "payment slips require a template"). When you use
+`--payment-type`, the creditor block (`--payment-creditor-name`/`-iban`/
+`-country`) and `--payment-amount` (> 0, at most two decimals) are required, the
+currency defaults from the type, and the debtor defaults to the recipient unless
+you pass `--payment-debtor-*`.
 
 Delete a webhook by ID or URL:
 

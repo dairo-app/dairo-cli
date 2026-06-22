@@ -322,14 +322,32 @@ pub struct CreateLetterRequest {
     pub to: PostalAddress,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from: Option<PostalAddress>,
+    /// Optional Dairo letter template to render server-side (the "Dairo-render"
+    /// path). When set, the PDF is generated from the template rather than
+    /// supplied inline; it is also the only path on which a structured `payment`
+    /// slip is honored (a `pdfBase64` letter plus `payment` is rejected
+    /// client-side). Omitted from the wire request when unset.
+    #[serde(rename = "templateId", skip_serializing_if = "Option::is_none")]
+    pub template_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub print: Option<LetterPrintOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delivery: Option<String>,
     /// Optional payment-slip overlay token (`qr`/`sepaDe`/`sepaAt`). Omitted from
-    /// the wire request when unset (a normal letter with no slip).
+    /// the wire request when unset (a normal letter with no slip). This bare
+    /// string flag is the bring-your-own-slip path: the supplied PDF already
+    /// carries a slip and this only tells the provider which paper to use. For a
+    /// Dairo-generated slip, send the structured `payment` object instead (which
+    /// also sets this flag from `payment.type`).
     #[serde(rename = "paymentSlip", skip_serializing_if = "Option::is_none")]
     pub payment_slip: Option<String>,
+    /// Optional structured payment slip that Dairo *generates* and composites
+    /// full-width at the bottom of the rendered letter. Honored only on the
+    /// Dairo-render path (`template_id`); when present the CLI also sets
+    /// `payment_slip` from `payment.type`. Omitted from the wire request when
+    /// unset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payment: Option<LetterPayment>,
     /// Opt-in to delivery-tracking notifications. `Some(false)` is sent
     /// explicitly; `None` omits the field so the backend applies its default.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -350,6 +368,73 @@ pub struct LetterFileRef {
     pub attachment_id: String,
     #[serde(rename = "messageId", skip_serializing_if = "Option::is_none")]
     pub message_id: Option<String>,
+}
+
+/// Structured payment slip that Dairo generates and composites at the bottom of
+/// a template-rendered letter. The slip kind drives the format: `qr` is a Swiss
+/// QR-bill (CHF), `sepaDe`/`sepaAt` are German/Austrian SEPA Zahlschein + GiroCode
+/// (EUR). Field names are the unified envelope's camelCase. Optional fields are
+/// omitted from the wire request when unset, exactly like `PostalAddress`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LetterPayment {
+    /// Slip kind / public token: `qr` (Swiss QR-bill), `sepaDe` (German SEPA),
+    /// or `sepaAt` (Austrian SEPA).
+    #[serde(rename = "type")]
+    pub payment_type: String,
+    /// The party being paid (the slip's beneficiary).
+    pub creditor: LetterCreditor,
+    /// Amount due. Must be > 0 with at most two decimal places (enforced
+    /// client-side before the request goes out).
+    pub amount: f64,
+    /// `CHF` for `qr`, `EUR` for `sepaDe`/`sepaAt` (the CLI enforces the pairing).
+    pub currency: String,
+    /// Optional structured reference (e.g. a QR / creditor reference).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference: Option<String>,
+    /// Optional unstructured remittance information (Verwendungszweck).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// Optional payer. Omitted from the wire request when unset; the CLI defaults
+    /// it to the letter's `to` address.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debtor: Option<LetterDebtor>,
+}
+
+/// The beneficiary of a payment slip. `name`, `iban`, and `country` are required
+/// by the contract; every other field is omitted from the wire request when
+/// unset.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LetterCreditor {
+    pub name: String,
+    pub iban: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bic: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub street: Option<String>,
+    #[serde(rename = "houseNumber", skip_serializing_if = "Option::is_none")]
+    pub house_number: Option<String>,
+    #[serde(rename = "postalCode", skip_serializing_if = "Option::is_none")]
+    pub postal_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub city: Option<String>,
+    pub country: String,
+}
+
+/// The payer of a payment slip. Only `name` and `country` are required; every
+/// other field is omitted from the wire request when unset. Defaults to the
+/// letter's `to` address when not supplied explicitly.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LetterDebtor {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub street: Option<String>,
+    #[serde(rename = "houseNumber", skip_serializing_if = "Option::is_none")]
+    pub house_number: Option<String>,
+    #[serde(rename = "postalCode", skip_serializing_if = "Option::is_none")]
+    pub postal_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub city: Option<String>,
+    pub country: String,
 }
 
 /// A postal address (`to`/`from`). Only `country` is required by the contract;

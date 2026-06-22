@@ -108,6 +108,21 @@ All notable Dairo CLI private-preview changes are tracked here.
 - Added `dairo inbox schema get|set|delete` for
   `/v1/inboxes/{inbox}/schema` and `dairo inbox verification-waits
   register|list|get|cancel` for `/v1/inboxes/{inbox}/verification-waits`.
+- Letters — generated payment slips: `dairo letter send` gains a structured
+  payment object that Dairo *generates* and composites full-width at the bottom
+  of a template-rendered letter. New `--payment-type qr|sepaDe|sepaAt`
+  (Swiss QR-bill in CHF, German/Austrian SEPA Zahlschein + GiroCode in EUR) with
+  `--payment-amount` (> 0, ≤ 2 decimals), an optional `--payment-currency`
+  (defaulted from the type), `--payment-reference`/`--payment-message`, a required
+  creditor block (`--payment-creditor-name`/`-iban`/`-country`, plus optional
+  `-bic`/`-street`/`-house-number`/`-postal-code`/`-city`), and an optional debtor
+  block (`--payment-debtor-*`) that defaults to the letter's recipient.
+  `CreateLetterRequest` gains a `payment` object and a `templateId`; the generated
+  slip is honored only on the new `--template-id` (Dairo-render) path — a
+  `--pdf`/`--attachment-id` letter plus `payment` is rejected with "payment slips
+  require a template". When `payment` is present the request's `paymentSlip` flag
+  is set from `payment.type`. The bare `--payment-slip` string flag stays for
+  bring-your-own-slip PDFs (and is mutually exclusive with `--payment-type`).
 
 ## 0.1.0 - Private preview
 

@@ -29,6 +29,12 @@ pub struct Cli {
     pub command: Command,
 }
 
+// `Command::Letter` carries the `LetterCommand` subcommand inline, whose
+// `Send(LetterSendArgs)` variant is large (the flattened recipient/sender/print/
+// payment flag blocks). clap requires the concrete subcommand type here, so the
+// size difference is inherent and benign — the same trade-off already documented
+// on `LetterCommand`.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Manage local authentication.
@@ -693,6 +699,59 @@ impl LetterPaymentSlip {
     }
 }
 
+/// Kind of a Dairo-generated payment slip (`--payment-type`). `qr` is a Swiss
+/// QR-bill (CHF); `sepaDe`/`sepaAt` are German/Austrian SEPA Zahlschein + GiroCode
+/// (EUR). Shares the public tokens with `LetterPaymentSlip` but drives the richer
+/// structured `payment` object rather than the bare bring-your-own-slip flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum LetterPaymentType {
+    Qr,
+    #[value(name = "sepaDe")]
+    SepaDe,
+    #[value(name = "sepaAt")]
+    SepaAt,
+}
+
+impl LetterPaymentType {
+    /// The camelCase public API token sent on the wire (`qr`/`sepaDe`/`sepaAt`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Qr => "qr",
+            Self::SepaDe => "sepaDe",
+            Self::SepaAt => "sepaAt",
+        }
+    }
+
+    /// The currency a slip kind requires: CHF for the Swiss QR-bill, EUR for the
+    /// SEPA slips.
+    pub fn required_currency(self) -> PaymentCurrency {
+        match self {
+            Self::Qr => PaymentCurrency::Chf,
+            Self::SepaDe | Self::SepaAt => PaymentCurrency::Eur,
+        }
+    }
+}
+
+/// Currency for a payment slip (`--payment-currency`). `qr` requires `CHF`,
+/// `sepaDe`/`sepaAt` require `EUR` (the CLI enforces the pairing).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum PaymentCurrency {
+    #[value(name = "CHF")]
+    Chf,
+    #[value(name = "EUR")]
+    Eur,
+}
+
+impl PaymentCurrency {
+    /// The uppercase ISO 4217 token sent on the wire (`CHF`/`EUR`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Chf => "CHF",
+            Self::Eur => "EUR",
+        }
+    }
+}
+
 /// Recipient/sender postal-address flags, flattened into `send` and (for the
 /// recipient) shared by `price`. `country` is the only required field per the
 /// contract; the prefix (`to`/`from`) distinguishes the recipient block from the
@@ -808,6 +867,166 @@ impl LetterPrintArgs {
     }
 }
 
+/// Structured-payment-slip flags for `letter send`, flattened into
+/// [`LetterSendArgs`]. `--payment-type` is the trigger: when set, Dairo generates
+/// a slip and composites it at the bottom of the rendered letter, and every other
+/// `--payment-*` flag is gated on it (clap `requires`). The creditor block
+/// (`--payment-creditor-*`) names the beneficiary; the debtor block
+/// (`--payment-debtor-*`) is optional and defaults to the letter's `to` address.
+/// A generated slip is honored only on the `--template-id` (Dairo-render) path.
+#[derive(Debug, Args)]
+pub struct LetterPaymentArgs {
+    /// Generate and attach a payment slip: a Swiss QR-bill (`qr`, CHF), a German
+    /// SEPA slip (`sepaDe`, EUR), or an Austrian SEPA slip (`sepaAt`, EUR).
+    /// Requires `--template-id`. Mutually exclusive with `--payment-slip`.
+    #[arg(long = "payment-type", value_name = "TYPE")]
+    pub payment_type: Option<LetterPaymentType>,
+    /// Amount due. Must be > 0 with at most two decimal places.
+    #[arg(
+        long = "payment-amount",
+        value_name = "AMOUNT",
+        requires = "payment_type"
+    )]
+    pub payment_amount: Option<f64>,
+    /// Slip currency. Defaults to the type's required currency (`qr`=>CHF,
+    /// `sepaDe`/`sepaAt`=>EUR); pass to set it explicitly.
+    #[arg(
+        long = "payment-currency",
+        value_name = "CURRENCY",
+        requires = "payment_type"
+    )]
+    pub payment_currency: Option<PaymentCurrency>,
+    /// Optional structured reference (e.g. a QR / creditor reference).
+    #[arg(
+        long = "payment-reference",
+        value_name = "REFERENCE",
+        requires = "payment_type"
+    )]
+    pub payment_reference: Option<String>,
+    /// Optional unstructured remittance information (Verwendungszweck).
+    #[arg(
+        long = "payment-message",
+        value_name = "MESSAGE",
+        requires = "payment_type"
+    )]
+    pub payment_message: Option<String>,
+    /// Creditor (beneficiary) name. Required when `--payment-type` is set.
+    #[arg(
+        long = "payment-creditor-name",
+        value_name = "NAME",
+        requires = "payment_type"
+    )]
+    pub creditor_name: Option<String>,
+    /// Creditor IBAN. Required when `--payment-type` is set.
+    #[arg(
+        long = "payment-creditor-iban",
+        value_name = "IBAN",
+        requires = "payment_type"
+    )]
+    pub creditor_iban: Option<String>,
+    /// Creditor BIC.
+    #[arg(
+        long = "payment-creditor-bic",
+        value_name = "BIC",
+        requires = "payment_type"
+    )]
+    pub creditor_bic: Option<String>,
+    /// Creditor street.
+    #[arg(
+        long = "payment-creditor-street",
+        value_name = "STREET",
+        requires = "payment_type"
+    )]
+    pub creditor_street: Option<String>,
+    /// Creditor house / building number.
+    #[arg(
+        long = "payment-creditor-house-number",
+        value_name = "NUMBER",
+        requires = "payment_type"
+    )]
+    pub creditor_house_number: Option<String>,
+    /// Creditor postal / ZIP code.
+    #[arg(
+        long = "payment-creditor-postal-code",
+        visible_alias = "payment-creditor-zip",
+        value_name = "CODE",
+        requires = "payment_type"
+    )]
+    pub creditor_postal_code: Option<String>,
+    /// Creditor city.
+    #[arg(
+        long = "payment-creditor-city",
+        value_name = "CITY",
+        requires = "payment_type"
+    )]
+    pub creditor_city: Option<String>,
+    /// Creditor ISO 3166-1 alpha-2 country code. Required when `--payment-type`
+    /// is set.
+    #[arg(
+        long = "payment-creditor-country",
+        value_name = "ISO2",
+        requires = "payment_type"
+    )]
+    pub creditor_country: Option<String>,
+    /// Debtor (payer) name. Sets an explicit debtor; otherwise the slip's debtor
+    /// defaults to the letter's `to` address.
+    #[arg(
+        long = "payment-debtor-name",
+        value_name = "NAME",
+        requires = "payment_type"
+    )]
+    pub debtor_name: Option<String>,
+    /// Debtor street.
+    #[arg(
+        long = "payment-debtor-street",
+        value_name = "STREET",
+        requires = "payment_type"
+    )]
+    pub debtor_street: Option<String>,
+    /// Debtor house / building number.
+    #[arg(
+        long = "payment-debtor-house-number",
+        value_name = "NUMBER",
+        requires = "payment_type"
+    )]
+    pub debtor_house_number: Option<String>,
+    /// Debtor postal / ZIP code.
+    #[arg(
+        long = "payment-debtor-postal-code",
+        visible_alias = "payment-debtor-zip",
+        value_name = "CODE",
+        requires = "payment_type"
+    )]
+    pub debtor_postal_code: Option<String>,
+    /// Debtor city.
+    #[arg(
+        long = "payment-debtor-city",
+        value_name = "CITY",
+        requires = "payment_type"
+    )]
+    pub debtor_city: Option<String>,
+    /// Debtor ISO 3166-1 alpha-2 country code.
+    #[arg(
+        long = "payment-debtor-country",
+        value_name = "ISO2",
+        requires = "payment_type"
+    )]
+    pub debtor_country: Option<String>,
+}
+
+impl LetterPaymentArgs {
+    /// `true` when any debtor field was supplied, so the slip carries an explicit
+    /// debtor rather than defaulting to the letter's `to` address.
+    pub fn has_explicit_debtor(&self) -> bool {
+        self.debtor_name.is_some()
+            || self.debtor_street.is_some()
+            || self.debtor_house_number.is_some()
+            || self.debtor_postal_code.is_some()
+            || self.debtor_city.is_some()
+            || self.debtor_country.is_some()
+    }
+}
+
 // LetterSendArgs is `#[command(flatten)]`-ed into the `Send` variant, which clap
 // requires to be the concrete Args type, so the variant-size difference is
 // inherent and benign — matching the `EmailListCommand::Send` precedent.
@@ -894,12 +1113,13 @@ impl LetterStatus {
 
 #[derive(Debug, Args)]
 #[command(group(
-    // The PDF source: exactly one of an inline file (--pdf) or an attachment
-    // reference (--attachment-id).
-    ArgGroup::new("pdf_source")
+    // The letter source: exactly one of an inline PDF (--pdf), an attachment
+    // reference (--attachment-id), or a Dairo template to render (--template-id).
+    // A generated payment slip is honored only on the --template-id path.
+    ArgGroup::new("letter_source")
         .required(true)
         .multiple(false)
-        .args(["pdf", "attachment_id"])
+        .args(["pdf", "attachment_id", "template_id"])
 ))]
 pub struct LetterSendArgs {
     /// PDF file to print and post. Read and base64-encoded locally.
@@ -929,10 +1149,23 @@ pub struct LetterSendArgs {
     /// Delivery class (default: the backend's `economy`).
     #[arg(long)]
     pub delivery: Option<LetterDelivery>,
-    /// Overlay a payment slip on the letter: a Swiss QR-bill (`qr`), a German
-    /// SEPA slip (`sepaDe`), or an Austrian SEPA slip (`sepaAt`). Omit for none.
-    #[arg(long = "payment-slip", value_name = "SLIP")]
+    /// Render the letter from a hosted Dairo letter template instead of a PDF
+    /// (the "Dairo-render" path). Required to attach a generated `--payment-*`
+    /// slip; mutually exclusive with `--pdf` / `--attachment-id`.
+    #[arg(long = "template-id", value_name = "TEMPLATE_ID")]
+    pub template_id: Option<String>,
+    /// Overlay a bring-your-own payment slip on the supplied PDF: a Swiss QR-bill
+    /// (`qr`), a German SEPA slip (`sepaDe`), or an Austrian SEPA slip (`sepaAt`).
+    /// This only selects the paper for a slip your PDF already carries; to have
+    /// Dairo *generate* a slip, use the `--payment-*` flags instead. Omit for none.
+    #[arg(
+        long = "payment-slip",
+        value_name = "SLIP",
+        conflicts_with = "payment_type"
+    )]
     pub payment_slip: Option<LetterPaymentSlip>,
+    #[command(flatten)]
+    pub payment: LetterPaymentArgs,
     /// Opt the letter in to delivery-tracking notifications. Use
     /// `--notifications=false` to opt out explicitly; omit to take the server
     /// default.
@@ -3244,6 +3477,107 @@ mod tests {
     }
 
     #[test]
+    fn parses_letter_send_template_with_structured_payment() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--template-id",
+            "tmpl_invoice",
+            "--to-name",
+            "Jane Doe",
+            "--to-street",
+            "Hauptstrasse",
+            "--to-country",
+            "CH",
+            "--payment-type",
+            "qr",
+            "--payment-amount",
+            "49.90",
+            "--payment-creditor-name",
+            "Acme AG",
+            "--payment-creditor-iban",
+            "CH9300762011623852957",
+            "--payment-creditor-country",
+            "CH",
+        ]);
+        match cli.command {
+            Command::Letter {
+                command: LetterCommand::Send(args),
+            } => {
+                assert_eq!(args.template_id.as_deref(), Some("tmpl_invoice"));
+                // No PDF source on the Dairo-render path.
+                assert_eq!(args.pdf, None);
+                assert_eq!(args.attachment_id, None);
+                assert_eq!(args.payment.payment_type, Some(LetterPaymentType::Qr));
+                assert_eq!(args.payment.payment_amount, Some(49.90));
+                assert_eq!(args.payment.creditor_name.as_deref(), Some("Acme AG"));
+                assert_eq!(
+                    args.payment.creditor_iban.as_deref(),
+                    Some("CH9300762011623852957")
+                );
+                assert_eq!(args.payment.creditor_country.as_deref(), Some("CH"));
+                // No explicit debtor flags: the slip defaults to the recipient.
+                assert!(!args.payment.has_explicit_debtor());
+                // The bare bring-your-own-slip flag stays unset.
+                assert_eq!(args.payment_slip, None);
+            }
+            _ => panic!("expected letter send command"),
+        }
+    }
+
+    #[test]
+    fn letter_send_payment_type_requires_template_and_conflicts_with_bare_slip() {
+        // --payment-slip and --payment-type are mutually exclusive.
+        let error = Cli::try_parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--template-id",
+            "t",
+            "--to-name",
+            "Jane",
+            "--to-street",
+            "S",
+            "--to-country",
+            "CH",
+            "--payment-slip",
+            "qr",
+            "--payment-type",
+            "qr",
+            "--payment-amount",
+            "1.00",
+            "--payment-creditor-name",
+            "A",
+            "--payment-creditor-iban",
+            "CH",
+            "--payment-creditor-country",
+            "CH",
+        ])
+        .expect_err("--payment-slip + --payment-type should conflict");
+        let message = error.to_string();
+        assert!(message.contains("--payment-slip"));
+        assert!(message.contains("--payment-type"));
+
+        // The --payment-* sub-flags require --payment-type.
+        let error = Cli::try_parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--template-id",
+            "t",
+            "--to-street",
+            "S",
+            "--to-country",
+            "CH",
+            "--payment-amount",
+            "1.00",
+        ])
+        .expect_err("--payment-amount without --payment-type should fail clap validation");
+        assert!(error.to_string().contains("--payment-type"));
+    }
+
+    #[test]
     fn letter_send_defaults_to_draft_without_confirm() {
         // The safety default: no --confirm means the letter is a draft (auto-send
         // off). The flag must be absent so the request builder omits autoSend.
@@ -3272,8 +3606,9 @@ mod tests {
     }
 
     #[test]
-    fn letter_send_requires_a_pdf_source() {
-        // The pdf_source group requires exactly one of --pdf / --attachment-id.
+    fn letter_send_requires_a_letter_source() {
+        // The letter_source group requires exactly one of
+        // --pdf / --attachment-id / --template-id.
         let error = Cli::try_parse_from([
             "dairo",
             "letter",
@@ -3283,10 +3618,31 @@ mod tests {
             "--to-country",
             "US",
         ])
-        .expect_err("letter send without a PDF source should fail clap validation");
+        .expect_err("letter send without a letter source should fail clap validation");
         let message = error.to_string();
         assert!(message.contains("--pdf"));
         assert!(message.contains("--attachment-id"));
+        assert!(message.contains("--template-id"));
+    }
+
+    #[test]
+    fn letter_send_rejects_pdf_with_template_source() {
+        // --pdf and --template-id are mutually exclusive members of letter_source.
+        let error = Cli::try_parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--pdf",
+            "invoice.pdf",
+            "--template-id",
+            "tmpl_x",
+            "--to-street",
+            "Main St",
+            "--to-country",
+            "US",
+        ])
+        .expect_err("--pdf + --template-id should conflict");
+        assert!(error.to_string().contains("--template-id"));
     }
 
     #[test]

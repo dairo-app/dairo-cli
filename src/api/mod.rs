@@ -2219,6 +2219,7 @@ mod tests {
                 ..Default::default()
             },
             from: None,
+            template_id: None,
             print: Some(LetterPrintOptions {
                 mode: Some("grayscale".to_string()),
                 sides: Some("duplex".to_string()),
@@ -2226,6 +2227,7 @@ mod tests {
             }),
             delivery: Some("priority".to_string()),
             payment_slip: Some("sepaDe".to_string()),
+            payment: None,
             notifications: Some(true),
             auto_send: Some(false),
             metadata: Some(serde_json::json!({ "invoiceId": "inv_123" })),
@@ -2254,6 +2256,84 @@ mod tests {
         // Unset optionals are omitted entirely.
         assert!(value.get("file").is_none());
         assert!(value.get("from").is_none());
+        assert!(value.get("templateId").is_none());
+        assert!(value.get("payment").is_none());
+    }
+
+    #[test]
+    fn serializes_create_letter_payment_object_with_openapi_names() {
+        let body = CreateLetterRequest {
+            pdf_base64: None,
+            file: None,
+            file_name: "invoice.pdf".to_string(),
+            to: PostalAddress {
+                name: Some("Jane Doe".to_string()),
+                street: Some("Hauptstrasse".to_string()),
+                house_number: Some("12".to_string()),
+                postal_code: Some("8001".to_string()),
+                city: Some("Zürich".to_string()),
+                country: "CH".to_string(),
+                ..Default::default()
+            },
+            from: None,
+            template_id: Some("tmpl_invoice".to_string()),
+            print: None,
+            delivery: None,
+            // The structured payment object also sets the bare flag from its type.
+            payment_slip: Some("qr".to_string()),
+            payment: Some(LetterPayment {
+                payment_type: "qr".to_string(),
+                creditor: LetterCreditor {
+                    name: "Acme AG".to_string(),
+                    iban: "CH9300762011623852957".to_string(),
+                    bic: None,
+                    street: Some("Bahnhofstrasse".to_string()),
+                    house_number: Some("1".to_string()),
+                    postal_code: Some("8001".to_string()),
+                    city: Some("Zürich".to_string()),
+                    country: "CH".to_string(),
+                },
+                amount: 49.90,
+                currency: "CHF".to_string(),
+                reference: Some("210000000003139471430009017".to_string()),
+                message: Some("Invoice inv_123".to_string()),
+                debtor: Some(LetterDebtor {
+                    name: "Jane Doe".to_string(),
+                    street: Some("Hauptstrasse".to_string()),
+                    house_number: Some("12".to_string()),
+                    postal_code: Some("8001".to_string()),
+                    city: Some("Zürich".to_string()),
+                    country: "CH".to_string(),
+                }),
+            }),
+            notifications: None,
+            auto_send: Some(false),
+            metadata: None,
+        };
+
+        let value = serde_json::to_value(body).unwrap();
+
+        assert_eq!(value["templateId"], "tmpl_invoice");
+        // The structured slip kind is sent under `type`; the bare flag mirrors it.
+        assert_eq!(value["payment"]["type"], "qr");
+        assert_eq!(value["paymentSlip"], "qr");
+        assert_eq!(value["payment"]["creditor"]["name"], "Acme AG");
+        assert_eq!(
+            value["payment"]["creditor"]["iban"],
+            "CH9300762011623852957"
+        );
+        assert_eq!(value["payment"]["creditor"]["houseNumber"], "1");
+        assert_eq!(value["payment"]["creditor"]["postalCode"], "8001");
+        assert_eq!(value["payment"]["creditor"]["country"], "CH");
+        assert_eq!(value["payment"]["amount"], 49.90);
+        assert_eq!(value["payment"]["currency"], "CHF");
+        assert_eq!(value["payment"]["message"], "Invoice inv_123");
+        assert_eq!(value["payment"]["debtor"]["name"], "Jane Doe");
+        assert_eq!(value["payment"]["debtor"]["postalCode"], "8001");
+        // Unset creditor BIC is omitted entirely (camelCase omit-when-None).
+        assert!(value["payment"]["creditor"].get("bic").is_none());
+        // No inline PDF on the Dairo-render path.
+        assert!(value.get("pdfBase64").is_none());
     }
 
     #[test]
@@ -2271,9 +2351,11 @@ mod tests {
                 ..Default::default()
             },
             from: None,
+            template_id: None,
             print: None,
             delivery: None,
             payment_slip: None,
+            payment: None,
             notifications: None,
             // A confirmed send omits autoSend so the server applies its `true`
             // default; only the draft path sends `false`.
@@ -2287,8 +2369,10 @@ mod tests {
         assert!(value.get("pdfBase64").is_none());
         assert!(value.get("print").is_none());
         assert!(value.get("delivery").is_none());
-        // Unset payment-slip / notifications are omitted entirely.
+        // Unset payment-slip / payment / notifications are omitted entirely.
         assert!(value.get("paymentSlip").is_none());
+        assert!(value.get("payment").is_none());
+        assert!(value.get("templateId").is_none());
         assert!(value.get("notifications").is_none());
         assert_eq!(value["file"]["attachmentId"], "att_9f2c");
         assert_eq!(value["file"]["messageId"], "msg_abc");
@@ -2336,9 +2420,11 @@ mod tests {
                 ..Default::default()
             },
             from: None,
+            template_id: None,
             print: None,
             delivery: None,
             payment_slip: None,
+            payment: None,
             notifications: None,
             auto_send: Some(false),
             metadata: None,
