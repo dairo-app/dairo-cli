@@ -2,7 +2,7 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 66,
+  "operationCount": 72,
   "operations": [
     {
       "method": "GET",
@@ -64,21 +64,6 @@
     },
     {
       "method": "GET",
-      "operationId": "getAgent",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        }
-      ],
-      "path": "/v1/agents/{id}",
-      "scopes": [
-        "agents:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
       "operationId": "listAgentReputation",
       "parameters": [],
       "path": "/v1/agents/reputation",
@@ -126,6 +111,21 @@
       ],
       "path": "/v1/agents/verify",
       "scopes": [],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAgent",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}",
+      "scopes": [
+        "agents:read"
+      ],
       "contractSource": "openapi"
     },
     {
@@ -638,6 +638,96 @@
       "path": "/v1/inboxes/{inbox}/verification-waits/{waitId}",
       "scopes": [
         "inboxes:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listLetters",
+      "parameters": [
+        {},
+        {},
+        {
+          "in": "query",
+          "name": "status"
+        },
+        {
+          "in": "query",
+          "name": "country"
+        }
+      ],
+      "path": "/v1/letters",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createLetter",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/letters",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "priceLetter",
+      "parameters": [],
+      "path": "/v1/letters/price",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getLetter",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/{id}",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "cancelLetter",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/{id}/cancel",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listLetterEvents",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        },
+        {},
+        {}
+      ],
+      "path": "/v1/letters/{id}/events",
+      "scopes": [
+        "letters:read"
       ],
       "contractSource": "openapi"
     },

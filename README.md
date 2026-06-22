@@ -256,6 +256,45 @@ Event rows carry metadata-only join keys such as `emailId`, `recipient`,
 details, and `occurredAt`. Output is JSON; use `--json` for the same machine
 form in scripts.
 
+### Send physical mail (`dairo letter`)
+
+Send and track physical-mail letters (Fairo) from a PDF, backed by
+`/v1/letters`. Physical mail is irreversible, so `letter send` defaults to a
+**draft** (`autoSend=false`): pass `--confirm` to submit it for printing and
+posting. The PDF is read locally and base64-encoded (`--pdf`), or referenced by
+an existing Dairo attachment (`--attachment-id`). Reads need `letters:read`;
+`send`/`cancel` need `letters:send`.
+
+```sh
+# Create a draft (does NOT post yet) and inspect the exact request first
+dairo letter send \
+  --pdf invoice.pdf \
+  --to-name "Jane Doe" --to-street "Hauptstrasse" --to-house-number 12 \
+  --to-postal-code 8001 --to-city "Zürich" --to-country CH \
+  --grayscale --duplex --delivery economy \
+  --dry-run
+
+# Actually submit it for print + post (color, single-sided, registered)
+dairo letter send \
+  --pdf invoice.pdf \
+  --to-street "Hauptstrasse" --to-house-number 12 --to-zip 8001 --to-country CH \
+  --color --simplex --delivery registered \
+  --confirm
+
+dairo letter list --status in_transit --country CH   # filter the letter list
+dairo letter get <letterId>                          # one letter + its timeline
+dairo letter cancel <letterId>                        # cancel before dispatch
+dairo letter events <letterId>                        # delivery events
+dairo letter price --country CH --page-count 3 --grayscale --duplex  # project cost
+```
+
+Print options are `--color`/`--grayscale`, `--simplex`/`--duplex`, and
+`--address-placement left|right`; delivery is one of
+`economy|priority|registered|bulk|premium`. The recipient address uses
+`--to-*` flags (`--to-country` is required, plus either `--to-street` or
+`--to-po-box`); an optional sender block uses the matching `--from-*` flags.
+Add `--json` for machine-readable output, as with the rest of the CLI.
+
 Delete a webhook by ID or URL:
 
 ```sh

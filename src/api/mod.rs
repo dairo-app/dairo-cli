@@ -896,6 +896,87 @@ impl ApiClient {
             .await
     }
 
+    // --- Letters (Fairo physical-mail surface) ----------------------------
+    // The `/v1/letters` resource. Reads use `letters:read`; create/cancel use
+    // `letters:send`. Responses pass through as `serde_json::Value` (the unified
+    // envelope, rendered verbatim by `print_json`) matching the
+    // outbound/templates convention for the newer resource families. The two
+    // POST mutations (create, cancel) ride the shared body-inclusive default
+    // idempotency-key path automatically.
+
+    /// Creates (and queues) a physical-mail letter (`POST /v1/letters`, scope
+    /// `letters:send`). Returns the single `letter` object envelope. No provider
+    /// is contacted on the request path; the worker fleet does the slow work.
+    pub async fn create_letter(&self, body: &CreateLetterRequest) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "letters"], Some(body))?)
+            .await
+    }
+
+    /// Lists letters, most-recent-first, with keyset pagination
+    /// (`GET /v1/letters`, scope `letters:read`). Optional `status`/`country`
+    /// filters narrow the page.
+    pub async fn list_letters(&self, query: &LetterListQuery) -> Result<serde_json::Value> {
+        let mut request = self.build_request(Method::GET, &["v1", "letters"], None::<&()>)?;
+        apply_letter_query(request.url_mut(), query);
+        self.execute_json(request).await
+    }
+
+    /// Gets one letter plus its inlined delivery-event timeline
+    /// (`GET /v1/letters/{id}`, scope `letters:read`).
+    pub async fn get_letter(&self, id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "letters", id], None::<&()>)?)
+            .await
+    }
+
+    /// Cancels a letter that has not yet been dispatched
+    /// (`POST /v1/letters/{id}/cancel`, scope `letters:send`). Returns the
+    /// canceled `letter` object, or surfaces the backend's `409 Conflict`
+    /// (`letter_not_cancelable`) when it can no longer be canceled.
+    pub async fn cancel_letter(&self, id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "letters", id, "cancel"],
+            // An empty JSON object body is accepted; sending it also gives the
+            // default idempotency key a stable body to fold in.
+            Some(&serde_json::json!({})),
+        )?)
+        .await
+    }
+
+    /// Lists a letter's delivery events in the unified list envelope
+    /// (`GET /v1/letters/{id}/events`, scope `letters:read`).
+    pub async fn list_letter_events(
+        &self,
+        id: &str,
+        limit: Option<u32>,
+        cursor: Option<&str>,
+    ) -> Result<serde_json::Value> {
+        let mut request =
+            self.build_request(Method::GET, &["v1", "letters", id, "events"], None::<&()>)?;
+        {
+            let mut pairs = request.url_mut().query_pairs_mut();
+            if let Some(limit) = limit {
+                pairs.append_pair("limit", &limit.to_string());
+            }
+            if let Some(cursor) = cursor {
+                pairs.append_pair("cursor", cursor);
+            }
+        }
+        self.execute_json(request).await
+    }
+
+    /// Computes the price for a hypothetical or real letter without creating one
+    /// (`POST /v1/letters/price`, scope `letters:read`). Returns the
+    /// `letter_price` object.
+    pub async fn price_letter(&self, body: &LetterPriceRequest) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "letters", "price"],
+            Some(body),
+        )?)
+        .await
+    }
+
     /// Fetches the public MCP tool catalog (`GET /v1/mcp/catalog`), the single
     /// source of truth for the hosted MCP surface served at `api.dairo.app/mcp`.
     ///
@@ -2118,5 +2199,217 @@ mod tests {
             secret: "dairo_real_secret".to_string(),
         };
         assert!(!format!("{api_key:?}").contains("dairo_real_secret"));
+    }
+
+    // --- Letters (Fairo physical-mail surface) ----------------------------
+
+    #[test]
+    fn serializes_create_letter_body_with_openapi_names() {
+        let body = CreateLetterRequest {
+            pdf_base64: Some("JVBERi0xLjQ=".to_string()),
+            file: None,
+            file_name: "invoice.pdf".to_string(),
+            to: PostalAddress {
+                name: Some("Jane Doe".to_string()),
+                street: Some("Hauptstrasse".to_string()),
+                house_number: Some("12".to_string()),
+                postal_code: Some("8001".to_string()),
+                city: Some("Zürich".to_string()),
+                country: "CH".to_string(),
+                ..Default::default()
+            },
+            from: None,
+            print: Some(LetterPrintOptions {
+                mode: Some("grayscale".to_string()),
+                sides: Some("duplex".to_string()),
+                address_placement: Some("left".to_string()),
+            }),
+            delivery: Some("priority".to_string()),
+            auto_send: Some(false),
+            metadata: Some(serde_json::json!({ "invoiceId": "inv_123" })),
+        };
+
+        let value = serde_json::to_value(body).unwrap();
+
+        // Wire field names match the canonical OpenAPI (camelCase).
+        assert_eq!(value["pdfBase64"], "JVBERi0xLjQ=");
+        assert_eq!(value["fileName"], "invoice.pdf");
+        assert_eq!(value["to"]["name"], "Jane Doe");
+        assert_eq!(value["to"]["houseNumber"], "12");
+        assert_eq!(value["to"]["postalCode"], "8001");
+        assert_eq!(value["to"]["country"], "CH");
+        assert_eq!(value["print"]["mode"], "grayscale");
+        assert_eq!(value["print"]["sides"], "duplex");
+        assert_eq!(value["print"]["addressPlacement"], "left");
+        assert_eq!(value["delivery"], "priority");
+        // A draft must send autoSend=false explicitly.
+        assert_eq!(value["autoSend"], false);
+        assert_eq!(value["metadata"]["invoiceId"], "inv_123");
+        // Unset optionals are omitted entirely.
+        assert!(value.get("file").is_none());
+        assert!(value.get("from").is_none());
+    }
+
+    #[test]
+    fn create_letter_omits_autosend_when_confirmed_and_serializes_file_ref() {
+        let body = CreateLetterRequest {
+            pdf_base64: None,
+            file: Some(LetterFileRef {
+                attachment_id: "att_9f2c".to_string(),
+                message_id: Some("msg_abc".to_string()),
+            }),
+            file_name: "statement.pdf".to_string(),
+            to: PostalAddress {
+                street: Some("Main St".to_string()),
+                country: "US".to_string(),
+                ..Default::default()
+            },
+            from: None,
+            print: None,
+            delivery: None,
+            // A confirmed send omits autoSend so the server applies its `true`
+            // default; only the draft path sends `false`.
+            auto_send: None,
+            metadata: None,
+        };
+
+        let value = serde_json::to_value(body).unwrap();
+
+        assert!(value.get("autoSend").is_none());
+        assert!(value.get("pdfBase64").is_none());
+        assert!(value.get("print").is_none());
+        assert!(value.get("delivery").is_none());
+        assert_eq!(value["file"]["attachmentId"], "att_9f2c");
+        assert_eq!(value["file"]["messageId"], "msg_abc");
+        assert_eq!(value["fileName"], "statement.pdf");
+    }
+
+    #[test]
+    fn serializes_letter_price_body_with_openapi_names() {
+        let body = LetterPriceRequest {
+            country: "CH".to_string(),
+            page_count: Some(3),
+            pdf_base64: None,
+            print: Some(LetterPrintOptions {
+                mode: Some("grayscale".to_string()),
+                sides: Some("duplex".to_string()),
+                address_placement: None,
+            }),
+            delivery: Some("economy".to_string()),
+            paper_types: Some(vec!["standard".to_string(), "qr".to_string()]),
+        };
+
+        let value = serde_json::to_value(body).unwrap();
+
+        assert_eq!(value["country"], "CH");
+        assert_eq!(value["pageCount"], 3);
+        assert_eq!(value["print"]["mode"], "grayscale");
+        assert_eq!(value["delivery"], "economy");
+        assert_eq!(value["paperTypes"][0], "standard");
+        assert_eq!(value["paperTypes"][1], "qr");
+        assert!(value.get("pdfBase64").is_none());
+        // An empty paper-types vec would still serialize; the CLI sends None so
+        // the field is absent. Verify the omitted-when-None contract holds here.
+    }
+
+    #[test]
+    fn create_letter_targets_letters_collection_with_idempotency_key() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let body = CreateLetterRequest {
+            pdf_base64: Some("JVBERi0xLjQ=".to_string()),
+            file: None,
+            file_name: "invoice.pdf".to_string(),
+            to: PostalAddress {
+                street: Some("Main St".to_string()),
+                country: "US".to_string(),
+                ..Default::default()
+            },
+            from: None,
+            print: None,
+            delivery: None,
+            auto_send: Some(false),
+            metadata: None,
+        };
+        let request = client
+            .build_request(Method::POST, &["v1", "letters"], Some(&body))
+            .unwrap();
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/letters"
+        );
+        // Mutating verbs carry a default Idempotency-Key (body-inclusive).
+        assert!(request.headers().get("Idempotency-Key").is_some());
+    }
+
+    #[test]
+    fn cancel_letter_targets_cancel_subresource() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::POST,
+                &["v1", "letters", "let_123", "cancel"],
+                Some(&serde_json::json!({})),
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/letters/let_123/cancel"
+        );
+    }
+
+    #[test]
+    fn letter_events_targets_events_subresource() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::GET,
+                &["v1", "letters", "let_123", "events"],
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/letters/let_123/events"
+        );
+    }
+
+    #[test]
+    fn price_letter_targets_price_subresource() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::POST,
+                &["v1", "letters", "price"],
+                Some(&serde_json::json!({ "country": "CH" })),
+            )
+            .unwrap();
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/letters/price"
+        );
+    }
+
+    #[test]
+    fn applies_letter_list_query_filters() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let mut request = client
+            .build_request(Method::GET, &["v1", "letters"], None::<&()>)
+            .unwrap();
+        apply_letter_query(
+            request.url_mut(),
+            &LetterListQuery {
+                limit: Some(20),
+                cursor: Some("cur_1".to_string()),
+                status: Some("in_transit".to_string()),
+                country: Some("CH".to_string()),
+            },
+        );
+        let query = request.url().query().unwrap();
+        assert!(query.contains("limit=20"));
+        assert!(query.contains("cursor=cur_1"));
+        assert!(query.contains("status=in_transit"));
+        assert!(query.contains("country=CH"));
     }
 }

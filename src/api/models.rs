@@ -299,6 +299,121 @@ pub struct SendEmailWarning {
     pub last_event_at: Option<String>,
 }
 
+// ---------------------------------------------------------------------------
+// Letters (Fairo physical-mail surface)
+// ---------------------------------------------------------------------------
+// Wire types for the `/v1/letters` resource. The PII-bearing address blocks
+// (`to`/`from`) and the print options carry the unified envelope's camelCase
+// field names. Optional fields are `skip_serializing_if = "Option::is_none"` so
+// an unset flag is omitted from the wire request entirely, exactly like
+// `SendEmailRequest`.
+
+/// `POST /v1/letters` request body. Exactly one of `pdf_base64` / `file`
+/// carries the PDF; the CLI enforces the exactly-one rule before the request
+/// goes out.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreateLetterRequest {
+    #[serde(rename = "pdfBase64", skip_serializing_if = "Option::is_none")]
+    pub pdf_base64: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file: Option<LetterFileRef>,
+    #[serde(rename = "fileName")]
+    pub file_name: String,
+    pub to: PostalAddress,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<PostalAddress>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub print: Option<LetterPrintOptions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<String>,
+    /// `false` creates the letter as a draft (not auto-submitted). The wire
+    /// default is `true`, so the field is omitted when auto-send is requested.
+    #[serde(rename = "autoSend", skip_serializing_if = "Option::is_none")]
+    pub auto_send: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// A reference to an existing Dairo attachment used as the letter's PDF, an
+/// alternative to inline `pdfBase64`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LetterFileRef {
+    #[serde(rename = "attachmentId")]
+    pub attachment_id: String,
+    #[serde(rename = "messageId", skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
+}
+
+/// A postal address (`to`/`from`). Only `country` is required by the contract;
+/// every other field is omitted from the wire request when unset.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct PostalAddress {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub street: Option<String>,
+    #[serde(rename = "houseNumber", skip_serializing_if = "Option::is_none")]
+    pub house_number: Option<String>,
+    #[serde(rename = "poBox", skip_serializing_if = "Option::is_none")]
+    pub po_box: Option<String>,
+    #[serde(rename = "addressLine2", skip_serializing_if = "Option::is_none")]
+    pub address_line2: Option<String>,
+    #[serde(rename = "postalCode", skip_serializing_if = "Option::is_none")]
+    pub postal_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub city: Option<String>,
+    pub country: String,
+}
+
+/// Print options (`{ mode, sides, addressPlacement }`). Each value is omitted
+/// from the wire request when unset so the backend applies its own defaults.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct LetterPrintOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sides: Option<String>,
+    #[serde(rename = "addressPlacement", skip_serializing_if = "Option::is_none")]
+    pub address_placement: Option<String>,
+}
+
+impl LetterPrintOptions {
+    /// `true` when no print option was set, so the field can be omitted entirely
+    /// from the request rather than sending an empty object.
+    pub fn is_empty(&self) -> bool {
+        self.mode.is_none() && self.sides.is_none() && self.address_placement.is_none()
+    }
+}
+
+/// `POST /v1/letters/price` request body. Either `page_count` (cheap preview)
+/// or `pdf_base64` (exact page count) drives the price; `country` is required.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LetterPriceRequest {
+    pub country: String,
+    #[serde(rename = "pageCount", skip_serializing_if = "Option::is_none")]
+    pub page_count: Option<u32>,
+    #[serde(rename = "pdfBase64", skip_serializing_if = "Option::is_none")]
+    pub pdf_base64: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub print: Option<LetterPrintOptions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<String>,
+    #[serde(rename = "paperTypes", skip_serializing_if = "Option::is_none")]
+    pub paper_types: Option<Vec<String>>,
+}
+
+/// Query for `GET /v1/letters`: keyset pagination plus optional `status` /
+/// `country` filters. Empty filters are not appended to the URL.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct LetterListQuery {
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+    pub status: Option<String>,
+    pub country: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateWebhookRequest {
     pub url: String,
@@ -668,6 +783,22 @@ pub(crate) fn apply_events_query(url: &mut Url, query: &EventsQuery) {
     }
     if query.tail {
         pairs.append_pair("tail", "true");
+    }
+}
+
+pub(crate) fn apply_letter_query(url: &mut Url, query: &LetterListQuery) {
+    let mut pairs = url.query_pairs_mut();
+    if let Some(value) = query.limit {
+        pairs.append_pair("limit", &value.to_string());
+    }
+    if let Some(value) = &query.cursor {
+        pairs.append_pair("cursor", value);
+    }
+    if let Some(value) = &query.status {
+        pairs.append_pair("status", value);
+    }
+    if let Some(value) = &query.country {
+        pairs.append_pair("country", value);
     }
 }
 

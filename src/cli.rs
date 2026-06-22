@@ -94,6 +94,12 @@ pub enum Command {
     },
     /// Send an email from a Dairo inbox.
     Send(SendArgs),
+    /// Send and track physical-mail letters (Fairo).
+    #[command(name = "letter", alias = "letters")]
+    Letter {
+        #[command(subcommand)]
+        command: LetterCommand,
+    },
     /// Inspect outbound email history and delivery events.
     Outbound {
         #[command(subcommand)]
@@ -559,6 +565,391 @@ pub enum OutboundCommand {
         #[arg(long)]
         limit: Option<u32>,
     },
+}
+
+/// Print color mode for a letter (`--color` / `--grayscale`). Maps to the
+/// contract's `LetterPrintMode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum LetterPrintMode {
+    Color,
+    Grayscale,
+}
+
+impl LetterPrintMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Color => "color",
+            Self::Grayscale => "grayscale",
+        }
+    }
+}
+
+/// Sided-ness for a letter (`--simplex` / `--duplex`). Maps to the contract's
+/// `LetterSides`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum LetterSides {
+    Simplex,
+    Duplex,
+}
+
+impl LetterSides {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Simplex => "simplex",
+            Self::Duplex => "duplex",
+        }
+    }
+}
+
+/// Address-block placement on the printed page. Maps to the contract's
+/// `LetterAddressPlacement`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum LetterAddressPlacement {
+    Left,
+    Right,
+}
+
+impl LetterAddressPlacement {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Left => "left",
+            Self::Right => "right",
+        }
+    }
+}
+
+/// Delivery class for a letter. Maps to the contract's `LetterDelivery`
+/// (Dairo-native names only).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum LetterDelivery {
+    Economy,
+    Priority,
+    Registered,
+    Bulk,
+    Premium,
+}
+
+impl LetterDelivery {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Economy => "economy",
+            Self::Priority => "priority",
+            Self::Registered => "registered",
+            Self::Bulk => "bulk",
+            Self::Premium => "premium",
+        }
+    }
+}
+
+impl std::fmt::Display for LetterDelivery {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Paper type for letter pricing. Maps to the contract's `LetterPaperType`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum LetterPaperType {
+    Standard,
+    Qr,
+    #[value(name = "sepa_at")]
+    SepaAt,
+    #[value(name = "sepa_de")]
+    SepaDe,
+}
+
+impl LetterPaperType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Standard => "standard",
+            Self::Qr => "qr",
+            Self::SepaAt => "sepa_at",
+            Self::SepaDe => "sepa_de",
+        }
+    }
+}
+
+/// Recipient/sender postal-address flags, flattened into `send` and (for the
+/// recipient) shared by `price`. `country` is the only required field per the
+/// contract; the prefix (`to`/`from`) distinguishes the recipient block from the
+/// sender block on the `send` command line.
+#[derive(Debug, Args)]
+pub struct RecipientArgs {
+    /// Recipient full name.
+    #[arg(long = "to-name", value_name = "NAME")]
+    pub to_name: Option<String>,
+    /// Recipient company / organization.
+    #[arg(long = "to-company", value_name = "COMPANY")]
+    pub to_company: Option<String>,
+    /// Recipient street (required unless `--to-po-box` is given).
+    #[arg(long = "to-street", value_name = "STREET")]
+    pub to_street: Option<String>,
+    /// Recipient house / building number.
+    #[arg(long = "to-house-number", value_name = "NUMBER")]
+    pub to_house_number: Option<String>,
+    /// Recipient PO box (alternative to `--to-street`).
+    #[arg(long = "to-po-box", value_name = "PO_BOX")]
+    pub to_po_box: Option<String>,
+    /// Recipient second address line.
+    #[arg(long = "to-address-line2", value_name = "LINE")]
+    pub to_address_line2: Option<String>,
+    /// Recipient postal / ZIP code.
+    #[arg(long = "to-postal-code", visible_alias = "to-zip", value_name = "CODE")]
+    pub to_postal_code: Option<String>,
+    /// Recipient city.
+    #[arg(long = "to-city", value_name = "CITY")]
+    pub to_city: Option<String>,
+    /// Recipient ISO 3166-1 alpha-2 country code (e.g. `CH`). Required.
+    #[arg(long = "to-country", value_name = "ISO2")]
+    pub to_country: String,
+}
+
+/// Optional sender (`from`) postal-address flags for `letter send`. All
+/// optional; when none are set the request omits the `from` block entirely.
+#[derive(Debug, Args)]
+pub struct SenderArgs {
+    /// Sender full name.
+    #[arg(long = "from-name", value_name = "NAME")]
+    pub from_name: Option<String>,
+    /// Sender company / organization.
+    #[arg(long = "from-company", value_name = "COMPANY")]
+    pub from_company: Option<String>,
+    /// Sender street.
+    #[arg(long = "from-street", value_name = "STREET")]
+    pub from_street: Option<String>,
+    /// Sender house / building number.
+    #[arg(long = "from-house-number", value_name = "NUMBER")]
+    pub from_house_number: Option<String>,
+    /// Sender PO box.
+    #[arg(long = "from-po-box", value_name = "PO_BOX")]
+    pub from_po_box: Option<String>,
+    /// Sender second address line.
+    #[arg(long = "from-address-line2", value_name = "LINE")]
+    pub from_address_line2: Option<String>,
+    /// Sender postal / ZIP code.
+    #[arg(
+        long = "from-postal-code",
+        visible_alias = "from-zip",
+        value_name = "CODE"
+    )]
+    pub from_postal_code: Option<String>,
+    /// Sender city.
+    #[arg(long = "from-city", value_name = "CITY")]
+    pub from_city: Option<String>,
+    /// Sender ISO 3166-1 alpha-2 country code.
+    #[arg(long = "from-country", value_name = "ISO2")]
+    pub from_country: Option<String>,
+}
+
+/// Shared print-option flags. `--color`/`--grayscale` and `--simplex`/`--duplex`
+/// are mutually exclusive within each pair (clap `conflicts_with`).
+#[derive(Debug, Args)]
+pub struct LetterPrintArgs {
+    /// Print in color (mutually exclusive with `--grayscale`).
+    #[arg(long, conflicts_with = "grayscale")]
+    pub color: bool,
+    /// Print in grayscale (mutually exclusive with `--color`).
+    #[arg(long)]
+    pub grayscale: bool,
+    /// Print double-sided (mutually exclusive with `--simplex`).
+    #[arg(long, conflicts_with = "simplex")]
+    pub duplex: bool,
+    /// Print single-sided (mutually exclusive with `--duplex`).
+    #[arg(long)]
+    pub simplex: bool,
+    /// Address-block placement on the page.
+    #[arg(long = "address-placement", value_name = "SIDE")]
+    pub address_placement: Option<LetterAddressPlacement>,
+}
+
+impl LetterPrintArgs {
+    /// Resolves the `--color`/`--grayscale` pair to the contract enum, or `None`
+    /// when neither flag is set (the backend applies its default).
+    pub fn mode(&self) -> Option<LetterPrintMode> {
+        match (self.color, self.grayscale) {
+            (true, _) => Some(LetterPrintMode::Color),
+            (_, true) => Some(LetterPrintMode::Grayscale),
+            _ => None,
+        }
+    }
+
+    /// Resolves the `--duplex`/`--simplex` pair to the contract enum, or `None`
+    /// when neither flag is set.
+    pub fn sides(&self) -> Option<LetterSides> {
+        match (self.duplex, self.simplex) {
+            (true, _) => Some(LetterSides::Duplex),
+            (_, true) => Some(LetterSides::Simplex),
+            _ => None,
+        }
+    }
+}
+
+// LetterSendArgs is `#[command(flatten)]`-ed into the `Send` variant, which clap
+// requires to be the concrete Args type, so the variant-size difference is
+// inherent and benign — matching the `EmailListCommand::Send` precedent.
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Subcommand)]
+pub enum LetterCommand {
+    /// Create (and queue) a physical-mail letter from a PDF.
+    ///
+    /// The PDF is supplied inline with `--pdf <PATH>` (read and base64-encoded
+    /// locally) or by reference to an existing Dairo attachment with
+    /// `--attachment-id`. Letters are physical and irreversible, so the default
+    /// is a **draft** (`autoSend=false`): pass `--confirm` to submit for
+    /// printing and posting immediately.
+    Send(LetterSendArgs),
+    /// List letters, most recent first (scope `letters:read`).
+    List {
+        /// Max rows to return (1..=100; server default 25).
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: Option<u32>,
+        /// Opaque keyset cursor from a prior page's `pagination.nextCursor`.
+        #[arg(long)]
+        cursor: Option<String>,
+        /// Filter to a single letter status (e.g. `in_transit`).
+        #[arg(long)]
+        status: Option<LetterStatus>,
+        /// Filter to a recipient ISO 3166-1 alpha-2 country code.
+        #[arg(long)]
+        country: Option<String>,
+    },
+    /// Get one letter plus its delivery timeline (scope `letters:read`).
+    Get { id: String },
+    /// Cancel a letter that has not yet been dispatched (scope `letters:send`).
+    Cancel { id: String },
+    /// List a letter's delivery events (scope `letters:read`).
+    Events {
+        id: String,
+        /// Max rows to return (1..=100; server default 25).
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: Option<u32>,
+        /// Opaque keyset cursor from a prior page's `pagination.nextCursor`.
+        #[arg(long)]
+        cursor: Option<String>,
+    },
+    /// Project the cost of a letter without creating one (scope `letters:read`).
+    ///
+    /// Provide either `--page-count` (cheap preview) or `--pdf <PATH>` (exact,
+    /// since page count drives the price).
+    Price(LetterPriceArgs),
+}
+
+/// Letter status filter values for `letter list --status`. Mirrors the
+/// contract's `LetterStatus` enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum LetterStatus {
+    Draft,
+    Queued,
+    Processing,
+    Printable,
+    Submitted,
+    #[value(name = "in_transit")]
+    InTransit,
+    Delivered,
+    Undeliverable,
+    Canceled,
+    Failed,
+}
+
+impl LetterStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Queued => "queued",
+            Self::Processing => "processing",
+            Self::Printable => "printable",
+            Self::Submitted => "submitted",
+            Self::InTransit => "in_transit",
+            Self::Delivered => "delivered",
+            Self::Undeliverable => "undeliverable",
+            Self::Canceled => "canceled",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+#[command(group(
+    // The PDF source: exactly one of an inline file (--pdf) or an attachment
+    // reference (--attachment-id).
+    ArgGroup::new("pdf_source")
+        .required(true)
+        .multiple(false)
+        .args(["pdf", "attachment_id"])
+))]
+pub struct LetterSendArgs {
+    /// PDF file to print and post. Read and base64-encoded locally.
+    #[arg(long = "pdf", value_name = "PATH")]
+    pub pdf: Option<PathBuf>,
+    /// Use an existing Dairo attachment as the letter PDF (alternative to
+    /// `--pdf`). Pair with `--message-id` to disambiguate when needed.
+    #[arg(long = "attachment-id", value_name = "ATTACHMENT_ID")]
+    pub attachment_id: Option<String>,
+    /// Optional message id that scopes `--attachment-id`.
+    #[arg(
+        long = "message-id",
+        value_name = "MESSAGE_ID",
+        requires = "attachment_id"
+    )]
+    pub message_id: Option<String>,
+    /// File name recorded on the letter. Defaults to the `--pdf` file name when
+    /// sending an inline PDF; required when using `--attachment-id`.
+    #[arg(long = "file-name", value_name = "NAME")]
+    pub file_name: Option<String>,
+    #[command(flatten)]
+    pub recipient: RecipientArgs,
+    #[command(flatten)]
+    pub sender: SenderArgs,
+    #[command(flatten)]
+    pub print: LetterPrintArgs,
+    /// Delivery class (default: the backend's `economy`).
+    #[arg(long)]
+    pub delivery: Option<LetterDelivery>,
+    /// Opaque metadata stored and echoed back. A JSON object.
+    #[arg(long, value_name = "JSON")]
+    pub metadata: Option<String>,
+    /// Submit the letter for printing and posting immediately. Without it the
+    /// letter is created as a draft (physical mail is irreversible, so the safe
+    /// default never auto-sends).
+    #[arg(long)]
+    pub confirm: bool,
+    /// Build the exact create request, print it as pretty JSON, and exit without
+    /// calling the API. The PDF bytes are never printed (only the file name and
+    /// decoded byte length are shown).
+    #[arg(long = "dry-run")]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+#[command(group(
+    // Page source for pricing: at most one of an explicit page count or a PDF
+    // whose pages are counted exactly. Neither is allowed (cheap country-only
+    // preview), but not both.
+    ArgGroup::new("price_pages")
+        .required(false)
+        .multiple(false)
+        .args(["page_count", "pdf"])
+))]
+pub struct LetterPriceArgs {
+    /// Recipient ISO 3166-1 alpha-2 country code (e.g. `CH`). Required — price
+    /// depends on destination.
+    #[arg(long, value_name = "ISO2")]
+    pub country: String,
+    /// Page count for a cheap preview (alternative to `--pdf`).
+    #[arg(long = "page-count", value_parser = clap::value_parser!(u32).range(1..))]
+    pub page_count: Option<u32>,
+    /// Price a real PDF exactly (its pages are counted). Read and base64-encoded
+    /// locally.
+    #[arg(long = "pdf", value_name = "PATH")]
+    pub pdf: Option<PathBuf>,
+    #[command(flatten)]
+    pub print: LetterPrintArgs,
+    /// Delivery class (default: the backend's `economy`).
+    #[arg(long)]
+    pub delivery: Option<LetterDelivery>,
+    /// Paper type. Repeat for several.
+    #[arg(long = "paper-type", value_name = "TYPE", action = clap::ArgAction::Append)]
+    pub paper_types: Vec<LetterPaperType>,
 }
 
 #[derive(Debug, Args)]
@@ -2709,5 +3100,339 @@ mod tests {
             } => assert_eq!(email_id, "email_123"),
             _ => panic!("expected outbound events command"),
         }
+    }
+
+    #[test]
+    fn parses_letter_send_with_pdf_and_address_and_print_options() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--pdf",
+            "invoice.pdf",
+            "--to-name",
+            "Jane Doe",
+            "--to-street",
+            "Hauptstrasse",
+            "--to-house-number",
+            "12",
+            "--to-postal-code",
+            "8001",
+            "--to-city",
+            "Zürich",
+            "--to-country",
+            "CH",
+            "--color",
+            "--duplex",
+            "--address-placement",
+            "left",
+            "--delivery",
+            "priority",
+            "--confirm",
+        ]);
+        match cli.command {
+            Command::Letter {
+                command: LetterCommand::Send(args),
+            } => {
+                assert_eq!(args.pdf, Some(PathBuf::from("invoice.pdf")));
+                assert_eq!(args.attachment_id, None);
+                assert_eq!(args.recipient.to_name.as_deref(), Some("Jane Doe"));
+                assert_eq!(args.recipient.to_street.as_deref(), Some("Hauptstrasse"));
+                assert_eq!(args.recipient.to_house_number.as_deref(), Some("12"));
+                assert_eq!(args.recipient.to_postal_code.as_deref(), Some("8001"));
+                assert_eq!(args.recipient.to_city.as_deref(), Some("Zürich"));
+                assert_eq!(args.recipient.to_country, "CH");
+                // The print pair resolves to the contract enum values.
+                assert_eq!(args.print.mode(), Some(LetterPrintMode::Color));
+                assert_eq!(args.print.sides(), Some(LetterSides::Duplex));
+                assert_eq!(
+                    args.print.address_placement,
+                    Some(LetterAddressPlacement::Left)
+                );
+                assert_eq!(args.delivery, Some(LetterDelivery::Priority));
+                // --confirm flips off the safe draft default.
+                assert!(args.confirm);
+                assert!(!args.dry_run);
+            }
+            _ => panic!("expected letter send command"),
+        }
+    }
+
+    #[test]
+    fn letter_send_defaults_to_draft_without_confirm() {
+        // The safety default: no --confirm means the letter is a draft (auto-send
+        // off). The flag must be absent so the request builder omits autoSend.
+        let cli = Cli::parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--pdf",
+            "invoice.pdf",
+            "--to-street",
+            "Main St",
+            "--to-country",
+            "US",
+        ]);
+        match cli.command {
+            Command::Letter {
+                command: LetterCommand::Send(args),
+            } => {
+                assert!(!args.confirm);
+                // No print flags set: both pairs resolve to None (backend default).
+                assert_eq!(args.print.mode(), None);
+                assert_eq!(args.print.sides(), None);
+            }
+            _ => panic!("expected letter send command"),
+        }
+    }
+
+    #[test]
+    fn letter_send_requires_a_pdf_source() {
+        // The pdf_source group requires exactly one of --pdf / --attachment-id.
+        let error = Cli::try_parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--to-street",
+            "Main St",
+            "--to-country",
+            "US",
+        ])
+        .expect_err("letter send without a PDF source should fail clap validation");
+        let message = error.to_string();
+        assert!(message.contains("--pdf"));
+        assert!(message.contains("--attachment-id"));
+    }
+
+    #[test]
+    fn letter_send_rejects_both_pdf_sources_and_conflicting_print_flags() {
+        // --pdf and --attachment-id are mutually exclusive.
+        let error = Cli::try_parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--pdf",
+            "invoice.pdf",
+            "--attachment-id",
+            "att_123",
+            "--to-street",
+            "Main St",
+            "--to-country",
+            "US",
+        ])
+        .expect_err("--pdf + --attachment-id should conflict");
+        assert!(error.to_string().contains("--attachment-id"));
+
+        // --color and --grayscale are mutually exclusive.
+        let error = Cli::try_parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--pdf",
+            "invoice.pdf",
+            "--to-street",
+            "Main St",
+            "--to-country",
+            "US",
+            "--color",
+            "--grayscale",
+        ])
+        .expect_err("--color + --grayscale should conflict");
+        assert!(error.to_string().contains("--grayscale"));
+    }
+
+    #[test]
+    fn letter_send_attachment_id_resolves_and_requires_to_country() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--attachment-id",
+            "att_9f2c",
+            "--message-id",
+            "msg_abc",
+            "--file-name",
+            "statement.pdf",
+            "--to-street",
+            "Main St",
+            "--to-country",
+            "DE",
+        ]);
+        match cli.command {
+            Command::Letter {
+                command: LetterCommand::Send(args),
+            } => {
+                assert_eq!(args.attachment_id.as_deref(), Some("att_9f2c"));
+                assert_eq!(args.message_id.as_deref(), Some("msg_abc"));
+                assert_eq!(args.file_name.as_deref(), Some("statement.pdf"));
+                assert_eq!(args.recipient.to_country, "DE");
+            }
+            _ => panic!("expected letter send command"),
+        }
+
+        // --to-country is required by the recipient block.
+        let error = Cli::try_parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--pdf",
+            "invoice.pdf",
+            "--to-street",
+            "Main St",
+        ])
+        .expect_err("letter send without --to-country should fail clap validation");
+        assert!(error.to_string().contains("--to-country"));
+    }
+
+    #[test]
+    fn parses_letter_list_with_filters() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "letter",
+            "list",
+            "--limit",
+            "50",
+            "--cursor",
+            "cur_1",
+            "--status",
+            "in_transit",
+            "--country",
+            "CH",
+        ]);
+        match cli.command {
+            Command::Letter {
+                command:
+                    LetterCommand::List {
+                        limit,
+                        cursor,
+                        status,
+                        country,
+                    },
+            } => {
+                assert_eq!(limit, Some(50));
+                assert_eq!(cursor.as_deref(), Some("cur_1"));
+                assert_eq!(status, Some(LetterStatus::InTransit));
+                assert_eq!(country.as_deref(), Some("CH"));
+            }
+            _ => panic!("expected letter list command"),
+        }
+    }
+
+    #[test]
+    fn letter_list_rejects_out_of_range_limit_and_unknown_status() {
+        let error = Cli::try_parse_from(["dairo", "letter", "list", "--limit", "101"])
+            .expect_err("letter list limit above 100 should fail clap validation");
+        assert!(error.to_string().contains("101"));
+
+        let error = Cli::try_parse_from(["dairo", "letter", "list", "--status", "posted"])
+            .expect_err("unknown letter status should fail clap validation");
+        let message = error.to_string();
+        assert!(message.contains("posted"));
+        assert!(message.contains("in_transit"));
+    }
+
+    #[test]
+    fn parses_letter_get_cancel_and_events() {
+        let cli = Cli::parse_from(["dairo", "letter", "get", "let_123"]);
+        match cli.command {
+            Command::Letter {
+                command: LetterCommand::Get { id },
+            } => assert_eq!(id, "let_123"),
+            _ => panic!("expected letter get command"),
+        }
+
+        let cli = Cli::parse_from(["dairo", "letter", "cancel", "let_123"]);
+        match cli.command {
+            Command::Letter {
+                command: LetterCommand::Cancel { id },
+            } => assert_eq!(id, "let_123"),
+            _ => panic!("expected letter cancel command"),
+        }
+
+        let cli = Cli::parse_from([
+            "dairo", "letter", "events", "let_123", "--limit", "10", "--cursor", "cur_2",
+        ]);
+        match cli.command {
+            Command::Letter {
+                command: LetterCommand::Events { id, limit, cursor },
+            } => {
+                assert_eq!(id, "let_123");
+                assert_eq!(limit, Some(10));
+                assert_eq!(cursor.as_deref(), Some("cur_2"));
+            }
+            _ => panic!("expected letter events command"),
+        }
+    }
+
+    #[test]
+    fn parses_letter_price_with_page_count_and_paper_types() {
+        let cli = Cli::parse_from([
+            "dairo",
+            "letter",
+            "price",
+            "--country",
+            "CH",
+            "--page-count",
+            "3",
+            "--grayscale",
+            "--simplex",
+            "--delivery",
+            "economy",
+            "--paper-type",
+            "standard",
+            "--paper-type",
+            "qr",
+        ]);
+        match cli.command {
+            Command::Letter {
+                command: LetterCommand::Price(args),
+            } => {
+                assert_eq!(args.country, "CH");
+                assert_eq!(args.page_count, Some(3));
+                assert_eq!(args.pdf, None);
+                assert_eq!(args.print.mode(), Some(LetterPrintMode::Grayscale));
+                assert_eq!(args.print.sides(), Some(LetterSides::Simplex));
+                assert_eq!(args.delivery, Some(LetterDelivery::Economy));
+                assert_eq!(
+                    args.paper_types,
+                    vec![LetterPaperType::Standard, LetterPaperType::Qr]
+                );
+            }
+            _ => panic!("expected letter price command"),
+        }
+    }
+
+    #[test]
+    fn letter_price_rejects_both_page_count_and_pdf() {
+        // The price_pages group allows at most one of --page-count / --pdf.
+        let error = Cli::try_parse_from([
+            "dairo",
+            "letter",
+            "price",
+            "--country",
+            "CH",
+            "--page-count",
+            "3",
+            "--pdf",
+            "invoice.pdf",
+        ])
+        .expect_err("--page-count + --pdf should conflict");
+        assert!(error.to_string().contains("--pdf"));
+
+        // --country is required.
+        let error = Cli::try_parse_from(["dairo", "letter", "price", "--page-count", "3"])
+            .expect_err("letter price without --country should fail clap validation");
+        assert!(error.to_string().contains("--country"));
+    }
+
+    #[test]
+    fn letters_alias_resolves_to_letter_command() {
+        let cli = Cli::parse_from(["dairo", "letters", "get", "let_123"]);
+        assert!(matches!(
+            cli.command,
+            Command::Letter {
+                command: LetterCommand::Get { .. }
+            }
+        ));
     }
 }

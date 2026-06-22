@@ -15,9 +15,10 @@ mod webhook;
 use anyhow::{Context, Result};
 use api::{
     A2aMessageQuery, ApiClient, AuditLogQuery, CreateApiKeyRequest, CreateDomainRequest,
-    CreateEmailListRequest, CreateInboxRequest, CreateWebhookRequest, EmailListMemberInput,
-    EmailListMembersRequest, EventsQuery, MessageListQuery, SendEmailAttachment, SendEmailReact,
-    SendEmailRequest, ThreadListQuery, VerifyAgentQuery,
+    CreateEmailListRequest, CreateInboxRequest, CreateLetterRequest, CreateWebhookRequest,
+    EmailListMemberInput, EmailListMembersRequest, EventsQuery, LetterFileRef, LetterListQuery,
+    LetterPriceRequest, LetterPrintOptions, MessageListQuery, PostalAddress, SendEmailAttachment,
+    SendEmailReact, SendEmailRequest, ThreadListQuery, VerifyAgentQuery,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::CommandFactory;
@@ -26,8 +27,9 @@ use cli::{
     A2aCommand, AgentCommand, ApiKeyCommand, AttachmentCommand, AttachmentDelivery,
     AuditLogCommand, AuthCommand, BudgetCommand, Cli, Command, ComplianceCommand,
     DedicatedIpCommand, DomainCommand, EmailListCommand, ErasureJobCommand, EventsCommand,
-    InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode, LoginArgs, McpCommand,
-    MessageCommand, OutboundCommand, ReputationCommand, TemplateCommand, ThreadCommand,
+    InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode, LetterCommand, LetterPriceArgs,
+    LetterPrintArgs, LetterSendArgs, LoginArgs, McpCommand, MessageCommand, OutboundCommand,
+    RecipientArgs, ReputationCommand, SenderArgs, TemplateCommand, ThreadCommand,
     VerificationWaitCommand, WebhookCommand,
 };
 use config::{Config, StorageMode};
@@ -409,6 +411,7 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_send_result(&response, format)
                     }
                 }
+                Command::Letter { command } => run_letter(&client, command, format).await,
                 Command::Outbound { command } => match command {
                     OutboundCommand::List { limit } => {
                         let response = client.list_outbound_emails(limit).await?;
@@ -810,6 +813,308 @@ async fn run_logout(global_api_url: &Option<String>, config_path: &Path) -> Resu
              (https://dairo.app/app) to be safe."
         );
     }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Letters (Fairo physical-mail surface)
+// ---------------------------------------------------------------------------
+
+/// Max decoded PDF size the CLI will base64-encode and send inline, mirroring
+/// the backend's `DAIRO_LETTER_MAX_PDF_BYTES` (default 25 MB). A larger file is
+/// rejected client-side so the request never trips the backend's `413`.
+const MAX_LETTER_PDF_BYTES: usize = 25 * 1024 * 1024;
+
+/// Dispatches the `letter` subcommands. Like the outbound/templates families,
+/// responses pass through `print_json` verbatim (the unified envelope). The two
+/// POST mutations (send, cancel) ride the shared body-inclusive default
+/// idempotency-key path in the API client automatically.
+async fn run_letter(
+    client: &ApiClient,
+    command: LetterCommand,
+    format: OutputFormat,
+) -> Result<()> {
+    match command {
+        LetterCommand::Send(args) => {
+            let dry_run = args.dry_run;
+            let request = build_create_letter_request(&args)?;
+            if dry_run {
+                print_letter_dry_run_request(&request)
+            } else {
+                let response = client.create_letter(&request).await?;
+                output::print_json(&response, format)
+            }
+        }
+        LetterCommand::List {
+            limit,
+            cursor,
+            status,
+            country,
+        } => {
+            let query = LetterListQuery {
+                limit,
+                cursor: cursor.and_then(non_empty_trimmed),
+                status: status.map(|s| s.as_str().to_string()),
+                country: country.and_then(non_empty_trimmed),
+            };
+            let response = client.list_letters(&query).await?;
+            output::print_json(&response, format)
+        }
+        LetterCommand::Get { id } => {
+            let response = client.get_letter(id.trim()).await?;
+            output::print_json(&response, format)
+        }
+        LetterCommand::Cancel { id } => {
+            let response = client.cancel_letter(id.trim()).await?;
+            output::print_json(&response, format)
+        }
+        LetterCommand::Events { id, limit, cursor } => {
+            let cursor = cursor.and_then(non_empty_trimmed);
+            let response = client
+                .list_letter_events(id.trim(), limit, cursor.as_deref())
+                .await?;
+            output::print_json(&response, format)
+        }
+        LetterCommand::Price(args) => {
+            let request = build_letter_price_request(&args)?;
+            let response = client.price_letter(&request).await?;
+            output::print_json(&response, format)
+        }
+    }
+}
+
+/// Assembles the `POST /v1/letters` body from the parsed `send` args. Exactly
+/// one PDF source is guaranteed present by the clap `pdf_source` group; this
+/// reads/encodes the inline PDF (or builds the attachment reference), resolves
+/// the file name, validates the recipient address, and folds in the optional
+/// sender, print options, delivery, and metadata. `confirm` toggles `autoSend`:
+/// omitted (draft) unless the operator confirmed.
+fn build_create_letter_request(args: &LetterSendArgs) -> Result<CreateLetterRequest> {
+    let (pdf_base64, file, default_name) = match (&args.pdf, &args.attachment_id) {
+        (Some(path), _) => {
+            let bytes = read_letter_pdf(path)?;
+            let default_name = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .filter(|value| !value.trim().is_empty())
+                .map(str::to_string);
+            (Some(BASE64_STANDARD.encode(bytes)), None, default_name)
+        }
+        (None, Some(attachment_id)) => {
+            let file = LetterFileRef {
+                attachment_id: attachment_id.trim().to_string(),
+                message_id: args.message_id.clone().and_then(non_empty_trimmed),
+            };
+            (None, Some(file), None)
+        }
+        // The clap `pdf_source` group guarantees exactly one of the two is set.
+        (None, None) => anyhow::bail!("provide a PDF with --pdf <PATH> or --attachment-id"),
+    };
+
+    let file_name = args
+        .file_name
+        .clone()
+        .and_then(non_empty_trimmed)
+        .or(default_name)
+        .context(
+            "a file name is required; pass --file-name when using --attachment-id \
+             (it is derived from the --pdf path otherwise)",
+        )?;
+
+    let to = build_recipient_address(&args.recipient)?;
+    let from = build_sender_address(&args.sender)?;
+    let print = build_letter_print_options(&args.print, args.print.address_placement.is_some());
+    let delivery = args.delivery.map(|d| d.as_str().to_string());
+    let metadata = match args.metadata.as_deref().map(str::trim) {
+        Some(raw) if !raw.is_empty() => {
+            let value: serde_json::Value =
+                serde_json::from_str(raw).context("--metadata must be valid JSON")?;
+            anyhow::ensure!(value.is_object(), "--metadata must be a JSON object");
+            Some(value)
+        }
+        _ => None,
+    };
+
+    Ok(CreateLetterRequest {
+        pdf_base64,
+        file,
+        file_name,
+        to,
+        from,
+        print,
+        delivery,
+        // Physical mail is irreversible: only auto-send when the operator
+        // confirmed. `autoSend` defaults to true server-side, so a draft must
+        // send `false` explicitly; a confirmed send omits the field.
+        auto_send: if args.confirm { None } else { Some(false) },
+        metadata,
+    })
+}
+
+/// Assembles the `POST /v1/letters/price` body from the parsed `price` args.
+/// Reads/encodes the inline PDF when `--pdf` is given (exact page count); the
+/// clap `price_pages` group already guarantees `--page-count`/`--pdf` are not
+/// both set.
+fn build_letter_price_request(args: &LetterPriceArgs) -> Result<LetterPriceRequest> {
+    let country = args.country.trim();
+    anyhow::ensure!(!country.is_empty(), "price requires --country");
+    let pdf_base64 = match &args.pdf {
+        Some(path) => Some(BASE64_STANDARD.encode(read_letter_pdf(path)?)),
+        None => None,
+    };
+    let print = build_letter_print_options(&args.print, args.print.address_placement.is_some());
+    let paper_types = if args.paper_types.is_empty() {
+        None
+    } else {
+        Some(
+            args.paper_types
+                .iter()
+                .map(|paper| paper.as_str().to_string())
+                .collect(),
+        )
+    };
+    Ok(LetterPriceRequest {
+        country: country.to_string(),
+        page_count: args.page_count,
+        pdf_base64,
+        print,
+        delivery: args.delivery.map(|d| d.as_str().to_string()),
+        paper_types,
+    })
+}
+
+/// Builds the recipient [`PostalAddress`] from the `--to-*` flags, enforcing the
+/// contract's "either street or PO box is required" rule client-side so a
+/// malformed request never goes out. `country` is guaranteed present by clap.
+fn build_recipient_address(args: &RecipientArgs) -> Result<PostalAddress> {
+    let street = args.to_street.clone().and_then(non_empty_trimmed);
+    let po_box = args.to_po_box.clone().and_then(non_empty_trimmed);
+    anyhow::ensure!(
+        street.is_some() || po_box.is_some(),
+        "recipient address requires --to-street or --to-po-box"
+    );
+    let country = args.to_country.trim();
+    anyhow::ensure!(
+        !country.is_empty(),
+        "recipient address requires --to-country"
+    );
+    Ok(PostalAddress {
+        name: args.to_name.clone().and_then(non_empty_trimmed),
+        company: args.to_company.clone().and_then(non_empty_trimmed),
+        street,
+        house_number: args.to_house_number.clone().and_then(non_empty_trimmed),
+        po_box,
+        address_line2: args.to_address_line2.clone().and_then(non_empty_trimmed),
+        postal_code: args.to_postal_code.clone().and_then(non_empty_trimmed),
+        city: args.to_city.clone().and_then(non_empty_trimmed),
+        country: country.to_string(),
+    })
+}
+
+/// Builds the optional sender [`PostalAddress`] from the `--from-*` flags.
+/// Returns `None` when no sender field was set, so the `from` block is omitted
+/// from the request entirely. When any field is set, `--from-country` is
+/// required (the contract makes `country` mandatory on a `PostalAddress`).
+fn build_sender_address(args: &SenderArgs) -> Result<Option<PostalAddress>> {
+    let name = args.from_name.clone().and_then(non_empty_trimmed);
+    let company = args.from_company.clone().and_then(non_empty_trimmed);
+    let street = args.from_street.clone().and_then(non_empty_trimmed);
+    let house_number = args.from_house_number.clone().and_then(non_empty_trimmed);
+    let po_box = args.from_po_box.clone().and_then(non_empty_trimmed);
+    let address_line2 = args.from_address_line2.clone().and_then(non_empty_trimmed);
+    let postal_code = args.from_postal_code.clone().and_then(non_empty_trimmed);
+    let city = args.from_city.clone().and_then(non_empty_trimmed);
+    let country = args.from_country.clone().and_then(non_empty_trimmed);
+
+    let any_set = name.is_some()
+        || company.is_some()
+        || street.is_some()
+        || house_number.is_some()
+        || po_box.is_some()
+        || address_line2.is_some()
+        || postal_code.is_some()
+        || city.is_some()
+        || country.is_some();
+    if !any_set {
+        return Ok(None);
+    }
+    let country = country.context(
+        "a sender address was provided, so --from-country (ISO 3166-1 alpha-2) is required",
+    )?;
+    Ok(Some(PostalAddress {
+        name,
+        company,
+        street,
+        house_number,
+        po_box,
+        address_line2,
+        postal_code,
+        city,
+        country,
+    }))
+}
+
+/// Builds the optional [`LetterPrintOptions`] from the resolved print flags.
+/// Returns `None` when no print option was set so the field is omitted entirely
+/// and the backend applies its defaults. `has_placement` is the caller's check
+/// for `--address-placement` so the helper does not re-read the args.
+fn build_letter_print_options(
+    args: &LetterPrintArgs,
+    has_placement: bool,
+) -> Option<LetterPrintOptions> {
+    let options = LetterPrintOptions {
+        mode: args.mode().map(|m| m.as_str().to_string()),
+        sides: args.sides().map(|s| s.as_str().to_string()),
+        address_placement: has_placement
+            .then(|| args.address_placement.map(|p| p.as_str().to_string()))
+            .flatten(),
+    };
+    if options.is_empty() {
+        None
+    } else {
+        Some(options)
+    }
+}
+
+/// Reads a letter PDF off disk, enforcing the size cap and a `%PDF-` magic-byte
+/// check client-side so an obviously-wrong file fails fast before any encode.
+fn read_letter_pdf(path: &Path) -> Result<Vec<u8>> {
+    let bytes =
+        std::fs::read(path).with_context(|| format!("failed to read PDF {}", path.display()))?;
+    anyhow::ensure!(!bytes.is_empty(), "PDF {} is empty", path.display());
+    anyhow::ensure!(
+        bytes.len() <= MAX_LETTER_PDF_BYTES,
+        "PDF {} is {} bytes, over the {}-byte limit for inline letter delivery",
+        path.display(),
+        bytes.len(),
+        MAX_LETTER_PDF_BYTES
+    );
+    anyhow::ensure!(
+        bytes.starts_with(b"%PDF-"),
+        "{} does not look like a PDF (missing %PDF- header)",
+        path.display()
+    );
+    Ok(bytes)
+}
+
+/// Renders a built [`CreateLetterRequest`] as pretty JSON for `--dry-run`,
+/// without ever emitting the PDF bytes: the `pdfBase64` field is replaced by its
+/// decoded `byteLength` so the operator sees the request shape without dumping
+/// base64 to the terminal. Nothing is sent to the API.
+fn print_letter_dry_run_request(request: &CreateLetterRequest) -> Result<()> {
+    let mut value = serde_json::to_value(request).context("failed to serialize letter request")?;
+    if let Some(obj) = value.as_object_mut() {
+        if let Some(byte_length) = obj
+            .remove("pdfBase64")
+            .and_then(|v| v.as_str().map(decoded_base64_len))
+        {
+            obj.insert(
+                "pdfByteLength".to_string(),
+                serde_json::Value::from(byte_length),
+            );
+        }
+    }
+    println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
 }
 

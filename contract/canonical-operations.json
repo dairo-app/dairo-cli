@@ -3,7 +3,7 @@
   "description": "Derived from the canonical dairo.openapi.json. Regenerate via scripts/gen-canonical-operations.py; do not hand-edit.",
   "openapiVersion": "3.1.0",
   "specVersion": "0.1.0",
-  "operationCount": 77,
+  "operationCount": 83,
   "operations": [
     {
       "method": "GET",
@@ -787,6 +787,96 @@
       "path": "/v1/inboxes/{inbox}/verification-waits/{waitId}",
       "scopes": [
         "inboxes:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listLetters",
+      "parameters": [
+        {},
+        {},
+        {
+          "in": "query",
+          "name": "status"
+        },
+        {
+          "in": "query",
+          "name": "country"
+        }
+      ],
+      "path": "/v1/letters",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createLetter",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/letters",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "priceLetter",
+      "parameters": [],
+      "path": "/v1/letters/price",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getLetter",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/{id}",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "cancelLetter",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/{id}/cancel",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listLetterEvents",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        },
+        {},
+        {}
+      ],
+      "path": "/v1/letters/{id}/events",
+      "scopes": [
+        "letters:read"
       ],
       "contractSource": "openapi"
     },
