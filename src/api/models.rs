@@ -326,6 +326,14 @@ pub struct CreateLetterRequest {
     pub print: Option<LetterPrintOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delivery: Option<String>,
+    /// Optional payment-slip overlay token (`qr`/`sepaDe`/`sepaAt`). Omitted from
+    /// the wire request when unset (a normal letter with no slip).
+    #[serde(rename = "paymentSlip", skip_serializing_if = "Option::is_none")]
+    pub payment_slip: Option<String>,
+    /// Opt-in to delivery-tracking notifications. `Some(false)` is sent
+    /// explicitly; `None` omits the field so the backend applies its default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notifications: Option<bool>,
     /// `false` creates the letter as a draft (not auto-submitted). The wire
     /// default is `true`, so the field is omitted when auto-send is requested.
     #[serde(rename = "autoSend", skip_serializing_if = "Option::is_none")]

@@ -943,6 +943,8 @@ fn build_create_letter_request(args: &LetterSendArgs) -> Result<CreateLetterRequ
         from,
         print,
         delivery,
+        payment_slip: args.payment_slip.map(|slip| slip.as_str().to_string()),
+        notifications: args.notifications,
         // Physical mail is irreversible: only auto-send when the operator
         // confirmed. `autoSend` defaults to true server-side, so a draft must
         // send `false` explicitly; a confirmed send omits the field.

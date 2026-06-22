@@ -669,6 +669,30 @@ impl LetterPaperType {
     }
 }
 
+/// Optional payment-slip overlay printed onto a letter (`--payment-slip`). Maps
+/// to the contract's `LetterPaymentSlip` public token: a Swiss QR-bill (`qr`), a
+/// German SEPA transfer slip (`sepaDe`), or an Austrian SEPA transfer slip
+/// (`sepaAt`). Omit for a normal letter with no slip.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum LetterPaymentSlip {
+    Qr,
+    #[value(name = "sepaDe")]
+    SepaDe,
+    #[value(name = "sepaAt")]
+    SepaAt,
+}
+
+impl LetterPaymentSlip {
+    /// The camelCase public API token sent on the wire (`qr`/`sepaDe`/`sepaAt`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Qr => "qr",
+            Self::SepaDe => "sepaDe",
+            Self::SepaAt => "sepaAt",
+        }
+    }
+}
+
 /// Recipient/sender postal-address flags, flattened into `send` and (for the
 /// recipient) shared by `price`. `country` is the only required field per the
 /// contract; the prefix (`to`/`from`) distinguishes the recipient block from the
@@ -905,6 +929,15 @@ pub struct LetterSendArgs {
     /// Delivery class (default: the backend's `economy`).
     #[arg(long)]
     pub delivery: Option<LetterDelivery>,
+    /// Overlay a payment slip on the letter: a Swiss QR-bill (`qr`), a German
+    /// SEPA slip (`sepaDe`), or an Austrian SEPA slip (`sepaAt`). Omit for none.
+    #[arg(long = "payment-slip", value_name = "SLIP")]
+    pub payment_slip: Option<LetterPaymentSlip>,
+    /// Opt the letter in to delivery-tracking notifications. Use
+    /// `--notifications=false` to opt out explicitly; omit to take the server
+    /// default.
+    #[arg(long)]
+    pub notifications: Option<bool>,
     /// Opaque metadata stored and echoed back. A JSON object.
     #[arg(long, value_name = "JSON")]
     pub metadata: Option<String>,
@@ -3128,6 +3161,10 @@ mod tests {
             "left",
             "--delivery",
             "priority",
+            "--payment-slip",
+            "sepaDe",
+            "--notifications",
+            "true",
             "--confirm",
         ]);
         match cli.command {
@@ -3150,9 +3187,57 @@ mod tests {
                     Some(LetterAddressPlacement::Left)
                 );
                 assert_eq!(args.delivery, Some(LetterDelivery::Priority));
+                // The payment-slip and notifications opt-ins parse to their
+                // contract values.
+                assert_eq!(args.payment_slip, Some(LetterPaymentSlip::SepaDe));
+                assert_eq!(args.notifications, Some(true));
                 // --confirm flips off the safe draft default.
                 assert!(args.confirm);
                 assert!(!args.dry_run);
+            }
+            _ => panic!("expected letter send command"),
+        }
+    }
+
+    #[test]
+    fn letter_send_payment_slip_rejects_unknown_token_and_defaults_to_none() {
+        // The accepted tokens mirror the contract's `LetterPaymentSlip`
+        // (`qr`/`sepaDe`/`sepaAt`); an unknown one fails clap validation.
+        let error = Cli::try_parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--pdf",
+            "invoice.pdf",
+            "--to-street",
+            "Hauptstrasse",
+            "--to-country",
+            "CH",
+            "--payment-slip",
+            "sepa_de",
+        ])
+        .expect_err("an unknown payment-slip token should fail clap validation");
+        assert!(error.to_string().contains("payment-slip"));
+
+        // Omitting both new flags leaves them unset (the server applies its
+        // defaults) and never auto-sends without --confirm.
+        let cli = Cli::parse_from([
+            "dairo",
+            "letter",
+            "send",
+            "--pdf",
+            "invoice.pdf",
+            "--to-street",
+            "Hauptstrasse",
+            "--to-country",
+            "CH",
+        ]);
+        match cli.command {
+            Command::Letter {
+                command: LetterCommand::Send(args),
+            } => {
+                assert_eq!(args.payment_slip, None);
+                assert_eq!(args.notifications, None);
             }
             _ => panic!("expected letter send command"),
         }

@@ -281,10 +281,18 @@ dairo letter send \
   --color --simplex --delivery registered \
   --confirm
 
+# Overlay a payment slip (qr | sepaDe | sepaAt) and opt in to tracking
+dairo letter send \
+  --pdf invoice.pdf \
+  --to-street "Hauptstrasse" --to-house-number 12 --to-zip 8001 --to-country CH \
+  --payment-slip sepaDe --notifications true \
+  --confirm
+
 dairo letter list --status in_transit --country CH   # filter the letter list
 dairo letter get <letterId>                          # one letter + its timeline
 dairo letter cancel <letterId>                        # cancel before dispatch
-dairo letter events <letterId>                        # delivery events
+dairo letter events <letterId>                        # delivery events (undeliverable
+                                                     # events carry a brand-scrubbed reason)
 dairo letter price --country CH --page-count 3 --grayscale --duplex  # project cost
 ```
 

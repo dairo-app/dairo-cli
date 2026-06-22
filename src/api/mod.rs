@@ -2225,6 +2225,8 @@ mod tests {
                 address_placement: Some("left".to_string()),
             }),
             delivery: Some("priority".to_string()),
+            payment_slip: Some("sepaDe".to_string()),
+            notifications: Some(true),
             auto_send: Some(false),
             metadata: Some(serde_json::json!({ "invoiceId": "inv_123" })),
         };
@@ -2242,6 +2244,10 @@ mod tests {
         assert_eq!(value["print"]["sides"], "duplex");
         assert_eq!(value["print"]["addressPlacement"], "left");
         assert_eq!(value["delivery"], "priority");
+        // The payment slip is the camelCase public token; notifications opt-in
+        // is sent as a bool.
+        assert_eq!(value["paymentSlip"], "sepaDe");
+        assert_eq!(value["notifications"], true);
         // A draft must send autoSend=false explicitly.
         assert_eq!(value["autoSend"], false);
         assert_eq!(value["metadata"]["invoiceId"], "inv_123");
@@ -2267,6 +2273,8 @@ mod tests {
             from: None,
             print: None,
             delivery: None,
+            payment_slip: None,
+            notifications: None,
             // A confirmed send omits autoSend so the server applies its `true`
             // default; only the draft path sends `false`.
             auto_send: None,
@@ -2279,6 +2287,9 @@ mod tests {
         assert!(value.get("pdfBase64").is_none());
         assert!(value.get("print").is_none());
         assert!(value.get("delivery").is_none());
+        // Unset payment-slip / notifications are omitted entirely.
+        assert!(value.get("paymentSlip").is_none());
+        assert!(value.get("notifications").is_none());
         assert_eq!(value["file"]["attachmentId"], "att_9f2c");
         assert_eq!(value["file"]["messageId"], "msg_abc");
         assert_eq!(value["fileName"], "statement.pdf");
@@ -2327,6 +2338,8 @@ mod tests {
             from: None,
             print: None,
             delivery: None,
+            payment_slip: None,
+            notifications: None,
             auto_send: Some(false),
             metadata: None,
         };
