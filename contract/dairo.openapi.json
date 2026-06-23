@@ -84,7 +84,7 @@
     },
     {
       "name": "Letters",
-      "description": "Physical-mail letters."
+      "description": "Physical-mail letters (Fairo)."
     },
     {
       "name": "Buckets",
@@ -3512,15 +3512,6 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/Limit"
-          },
-          {
-            "name": "emailId",
-            "in": "query",
-            "required": false,
-            "description": "Filter events to a single outbound email.",
-            "schema": {
-              "type": "string"
-            }
           },
           {
             "name": "emailId",
