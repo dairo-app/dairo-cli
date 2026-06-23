@@ -14,19 +14,19 @@ mod webhook;
 
 use anyhow::{Context, Result};
 use api::{
-    A2aMessageQuery, ApiClient, AuditLogQuery, CreateApiKeyRequest, CreateDomainRequest,
-    CreateEmailListRequest, CreateInboxRequest, CreateLetterRequest, CreateWebhookRequest,
-    EmailListMemberInput, EmailListMembersRequest, EventsQuery, LetterCreditor, LetterDebtor,
-    LetterFileRef, LetterListQuery, LetterPayment, LetterPriceRequest, LetterPrintOptions,
-    MessageListQuery, PostalAddress, SendEmailAttachment, SendEmailReact, SendEmailRequest,
-    ThreadListQuery, VerifyAgentQuery,
+    A2aMessageQuery, ApiClient, AuditLogQuery, BucketObjectListQuery, CreateApiKeyRequest,
+    CreateBucketRequest, CreateDomainRequest, CreateEmailListRequest, CreateInboxRequest,
+    CreateLetterRequest, CreateWebhookRequest, EmailListMemberInput, EmailListMembersRequest,
+    EventsQuery, LetterCreditor, LetterDebtor, LetterFileRef, LetterListQuery, LetterPayment,
+    LetterPriceRequest, LetterPrintOptions, MessageListQuery, PostalAddress, SendEmailAttachment,
+    SendEmailReact, SendEmailRequest, ThreadListQuery, VerifyAgentQuery,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::CommandFactory;
 use clap::Parser;
 use cli::{
     A2aCommand, AgentCommand, ApiKeyCommand, AttachmentCommand, AttachmentDelivery,
-    AuditLogCommand, AuthCommand, BudgetCommand, Cli, Command, ComplianceCommand,
+    AuditLogCommand, AuthCommand, BucketCommand, BudgetCommand, Cli, Command, ComplianceCommand,
     DedicatedIpCommand, DomainCommand, EmailListCommand, ErasureJobCommand, EventsCommand,
     InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode, LetterCommand, LetterPaymentArgs,
     LetterPriceArgs, LetterPrintArgs, LetterSendArgs, LoginArgs, McpCommand, MessageCommand,
@@ -413,6 +413,7 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                 }
                 Command::Letter { command } => run_letter(&client, command, format).await,
+                Command::Bucket { command } => run_bucket(&client, command, format).await,
                 Command::Outbound { command } => match command {
                     OutboundCommand::List { limit } => {
                         let response = client.list_outbound_emails(limit).await?;
@@ -882,6 +883,145 @@ async fn run_letter(
             output::print_json(&response, format)
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Storage buckets (/v1/buckets)
+// ---------------------------------------------------------------------------
+
+/// Dispatches the `bucket` subcommands. Bucket/object CRUD responses pass
+/// through `print_json` verbatim (the unified envelope); upload and download
+/// drive the three-step presigned flow and the local-file IO in the API client.
+async fn run_bucket(
+    client: &ApiClient,
+    command: BucketCommand,
+    format: OutputFormat,
+) -> Result<()> {
+    match command {
+        BucketCommand::Create {
+            name,
+            display_name,
+            description,
+        } => {
+            let name = name.trim().to_string();
+            anyhow::ensure!(!name.is_empty(), "bucket name must not be empty");
+            let response = client
+                .create_bucket(&CreateBucketRequest {
+                    name,
+                    display_name: display_name.and_then(non_empty_trimmed),
+                    description: description.and_then(non_empty_trimmed),
+                })
+                .await?;
+            output::print_json(&response, format)
+        }
+        BucketCommand::List => {
+            let response = client.list_buckets().await?;
+            output::print_json(&response, format)
+        }
+        BucketCommand::Get { bucket_id } => {
+            let response = client.get_bucket(bucket_id.trim()).await?;
+            output::print_json(&response, format)
+        }
+        BucketCommand::Delete { bucket_id } => {
+            let response = client.delete_bucket(bucket_id.trim()).await?;
+            output::print_json(&response, format)
+        }
+        BucketCommand::Ls {
+            bucket_id,
+            limit,
+            cursor,
+        } => {
+            let response = client
+                .list_bucket_objects(
+                    bucket_id.trim(),
+                    &BucketObjectListQuery {
+                        limit,
+                        cursor: cursor.and_then(non_empty_trimmed),
+                    },
+                )
+                .await?;
+            output::print_json(&response, format)
+        }
+        BucketCommand::Upload {
+            bucket_id,
+            file,
+            name,
+        } => {
+            let bytes = std::fs::read(&file)
+                .with_context(|| format!("failed to read {}", file.display()))?;
+            anyhow::ensure!(!bytes.is_empty(), "{} is empty", file.display());
+            let filename = name
+                .and_then(non_empty_trimmed)
+                .or_else(|| {
+                    file.file_name()
+                        .and_then(|value| value.to_str())
+                        .map(str::to_string)
+                })
+                .context("could not determine an object name; pass --name")?;
+            let content_type = mime_guess_from_path(&file);
+            let response = client
+                .upload_file(bucket_id.trim(), &filename, &content_type, bytes)
+                .await?;
+            output::print_json(&response, format)
+        }
+        BucketCommand::Download {
+            bucket_id,
+            object_id,
+            out,
+        } => {
+            let bytes = client
+                .download_file(bucket_id.trim(), object_id.trim())
+                .await?;
+            write_download(&out, &bytes)?;
+            println!("Downloaded {} bytes to {}", bytes.len(), out.display());
+            Ok(())
+        }
+        BucketCommand::Rm {
+            bucket_id,
+            object_id,
+        } => {
+            let response = client
+                .delete_bucket_object(bucket_id.trim(), object_id.trim())
+                .await?;
+            output::print_json(&response, format)
+        }
+    }
+}
+
+/// Best-effort content-type guess from a path's extension, defaulting to
+/// `application/octet-stream` so the bucket object always carries a valid MIME
+/// type for the presigned PUT.
+fn mime_guess_from_path(path: &Path) -> String {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_default();
+    match ext.as_str() {
+        "pdf" => "application/pdf",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "txt" | "log" => "text/plain",
+        "csv" => "text/csv",
+        "json" => "application/json",
+        "xml" => "application/xml",
+        "html" | "htm" => "text/html",
+        "zip" => "application/zip",
+        "gz" => "application/gzip",
+        "mp4" => "video/mp4",
+        "mp3" => "audio/mpeg",
+        "doc" => "application/msword",
+        "docx" => {
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+        "xls" => "application/vnd.ms-excel",
+        "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        _ => "application/octet-stream",
+    }
+    .to_string()
 }
 
 /// Assembles the `POST /v1/letters` body from the parsed `send` args. Exactly

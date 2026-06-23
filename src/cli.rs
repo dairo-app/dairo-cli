@@ -35,6 +35,9 @@ Realtime and webhooks:
 Physical mail:
   letter         Send and track physical-mail letters (Fairo)
 
+Storage:
+  bucket         Store and retrieve files in named storage buckets
+
 Account and access:
   domain         Manage sending domains
   api-key        Manage API keys
@@ -179,6 +182,12 @@ pub enum Command {
     Letter {
         #[command(subcommand)]
         command: LetterCommand,
+    },
+    /// Store and retrieve files in named storage buckets.
+    #[command(name = "bucket", alias = "buckets")]
+    Bucket {
+        #[command(subcommand)]
+        command: BucketCommand,
     },
     /// Inspect outbound email history and delivery events.
     Outbound {
@@ -605,6 +614,63 @@ pub enum A2aCommand {
     },
     /// Get a single A2A hop receipt.
     Get { id: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum BucketCommand {
+    /// Create a named storage bucket (scope `buckets:write`).
+    Create {
+        /// Unique-per-account bucket name (slug).
+        name: String,
+        /// Optional human-readable display name.
+        #[arg(long = "display-name")]
+        display_name: Option<String>,
+        /// Optional description.
+        #[arg(long)]
+        description: Option<String>,
+    },
+    /// List buckets with their used bytes and object counts (scope `buckets:read`).
+    List,
+    /// Get one bucket (scope `buckets:read`).
+    Get { bucket_id: String },
+    /// Archive a bucket and stop its objects counting toward storage
+    /// (scope `buckets:write`). The protected default bucket cannot be deleted.
+    Delete { bucket_id: String },
+    /// Upload a local file into a bucket (scope `buckets:write`).
+    ///
+    /// Initiates an upload, PUTs the file to the presigned S3 URL, then
+    /// finalizes so the object is recorded at its true size.
+    Upload {
+        bucket_id: String,
+        /// Local file to upload.
+        file: PathBuf,
+        /// Object filename recorded on the bucket object. Defaults to the
+        /// `file` name on disk.
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// List a bucket's objects with keyset pagination (scope `buckets:read`).
+    Ls {
+        bucket_id: String,
+        /// Max rows to return (1..=100).
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: Option<u32>,
+        /// Opaque keyset cursor from a prior page's `pagination.nextCursor`.
+        #[arg(long)]
+        cursor: Option<String>,
+    },
+    /// Download a bucket object to a local path (scope `buckets:read`).
+    Download {
+        bucket_id: String,
+        object_id: String,
+        /// Output file path the bytes are written to.
+        out: PathBuf,
+    },
+    /// Soft-delete a bucket object (scope `buckets:write`).
+    Rm {
+        bucket_id: String,
+        object_id: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]

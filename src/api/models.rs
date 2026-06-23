@@ -507,6 +507,82 @@ pub struct LetterListQuery {
     pub country: Option<String>,
 }
 
+// ---------------------------------------------------------------------------
+// Storage buckets (`/v1/buckets`)
+// ---------------------------------------------------------------------------
+// Wire types for the named-bucket object store. Bucket reads use `buckets:read`;
+// create/patch/delete and the object upload/finalize/delete mutations use
+// `buckets:write`. The single-object and list endpoints return the unified
+// envelope, rendered verbatim by `print_json`. Upload is a three-step flow:
+// initiate (returns a presigned PUT URL + required SSE headers), PUT the bytes
+// straight to S3, then finalize (HEADs for the true size and records the
+// ledger object). Optional request fields are omitted from the wire request
+// when unset, exactly like `SendEmailRequest`.
+
+/// `POST /v1/buckets` request body. `name` is the unique-per-user slug; the
+/// optional display name / description default server-side.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateBucketRequest {
+    pub name: String,
+    #[serde(rename = "displayName", skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// `POST /v1/buckets/{bucketId}/objects` request body: initiate an upload. The
+/// optional `expectedBytes` lets the backend pre-check the storage limit; the
+/// true size is HEADed at finalize regardless.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InitiateUploadRequest {
+    pub filename: String,
+    #[serde(rename = "contentType")]
+    pub content_type: String,
+    #[serde(rename = "expectedBytes", skip_serializing_if = "Option::is_none")]
+    pub expected_bytes: Option<u64>,
+}
+
+/// Response of `POST /v1/buckets/{bucketId}/objects`: a presigned S3 PUT the
+/// client uploads the bytes to, plus any SSE headers that MUST be echoed on the
+/// PUT (else S3 rejects with 403). Nothing is recorded in the ledger yet.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InitiateUploadResponse {
+    #[serde(rename = "objectId")]
+    pub object_id: String,
+    #[serde(rename = "uploadUrl")]
+    pub upload_url: String,
+    #[serde(default = "default_put_method")]
+    pub method: String,
+    /// SSE (and any other) headers that MUST accompany the PUT, exactly as the
+    /// bucket policy requires. Empty when none are needed.
+    #[serde(default)]
+    pub headers: std::collections::BTreeMap<String, String>,
+    #[serde(rename = "expiresInSeconds")]
+    pub expires_in_seconds: u64,
+}
+
+fn default_put_method() -> String {
+    "PUT".to_string()
+}
+
+/// Response of `GET /v1/buckets/{bucketId}/objects/{objectId}/download`: a
+/// presigned S3 GET URL the client streams the bytes from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BucketObjectDownloadResponse {
+    #[serde(rename = "downloadUrl")]
+    pub download_url: String,
+    #[serde(rename = "expiresInSeconds")]
+    pub expires_in_seconds: u64,
+}
+
+/// Query for `GET /v1/buckets/{bucketId}/objects`: keyset pagination over a
+/// bucket's objects. Empty values are not appended to the URL.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct BucketObjectListQuery {
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateWebhookRequest {
     pub url: String,
@@ -892,6 +968,16 @@ pub(crate) fn apply_letter_query(url: &mut Url, query: &LetterListQuery) {
     }
     if let Some(value) = &query.country {
         pairs.append_pair("country", value);
+    }
+}
+
+pub(crate) fn apply_bucket_object_query(url: &mut Url, query: &BucketObjectListQuery) {
+    let mut pairs = url.query_pairs_mut();
+    if let Some(value) = query.limit {
+        pairs.append_pair("limit", &value.to_string());
+    }
+    if let Some(value) = &query.cursor {
+        pairs.append_pair("cursor", value);
     }
 }
 

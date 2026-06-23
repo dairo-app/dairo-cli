@@ -977,6 +977,224 @@ impl ApiClient {
         .await
     }
 
+    // --- Storage buckets (buckets.rs) -------------------------------------
+    // The `/v1/buckets` named object store. Bucket/object reads use
+    // `buckets:read`; create/patch/delete and the object upload/finalize/delete
+    // mutations use `buckets:write`. Responses pass through as
+    // `serde_json::Value` (the unified envelope, rendered verbatim by
+    // `print_json`) for the bucket/object CRUD, matching the letters/templates
+    // convention; the upload/download flows need the presigned-URL fields, so
+    // those use typed structs.
+
+    /// Lists buckets, each carrying its `usedBytes`/`objectCount`
+    /// (`GET /v1/buckets`, scope `buckets:read`). The default bucket is lazily
+    /// seeded server-side before listing.
+    pub async fn list_buckets(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "buckets"], None::<&()>)?)
+            .await
+    }
+
+    /// Creates a named bucket (`POST /v1/buckets`, scope `buckets:write`).
+    /// Returns the single `bucket` object envelope. Surfaces the backend's
+    /// `429` (per-plan bucket limit) or `409` (duplicate name) verbatim.
+    pub async fn create_bucket(&self, body: &CreateBucketRequest) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "buckets"], Some(body))?)
+            .await
+    }
+
+    /// Gets one bucket envelope (`GET /v1/buckets/{bucketId}`, scope
+    /// `buckets:read`).
+    pub async fn get_bucket(&self, bucket_id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "buckets", bucket_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Archives a bucket and marks its child objects deleted
+    /// (`DELETE /v1/buckets/{bucketId}`, scope `buckets:write`). Surfaces the
+    /// backend's `409` when the bucket is the protected default. Returns the
+    /// archived `bucket` envelope.
+    pub async fn delete_bucket(&self, bucket_id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "buckets", bucket_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Lists a bucket's objects with keyset pagination
+    /// (`GET /v1/buckets/{bucketId}/objects`, scope `buckets:read`).
+    pub async fn list_bucket_objects(
+        &self,
+        bucket_id: &str,
+        query: &BucketObjectListQuery,
+    ) -> Result<serde_json::Value> {
+        let mut request = self.build_request(
+            Method::GET,
+            &["v1", "buckets", bucket_id, "objects"],
+            None::<&()>,
+        )?;
+        apply_bucket_object_query(request.url_mut(), query);
+        self.execute_json(request).await
+    }
+
+    /// Soft-deletes a bucket object (`DELETE
+    /// /v1/buckets/{bucketId}/objects/{objectId}`, scope `buckets:write`). The
+    /// ledger row is marked deleted and the S3 object is removed best-effort.
+    pub async fn delete_bucket_object(
+        &self,
+        bucket_id: &str,
+        object_id: &str,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "buckets", bucket_id, "objects", object_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Initiates an upload (`POST /v1/buckets/{bucketId}/objects`, scope
+    /// `buckets:write`). Returns the presigned S3 PUT URL plus any SSE headers
+    /// that must accompany the PUT. Records nothing in the ledger yet.
+    pub async fn initiate_bucket_upload(
+        &self,
+        bucket_id: &str,
+        body: &InitiateUploadRequest,
+    ) -> Result<InitiateUploadResponse> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "buckets", bucket_id, "objects"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Finalizes an upload (`POST
+    /// /v1/buckets/{bucketId}/objects/{objectId}/finalize`, scope
+    /// `buckets:write`). The backend HEADs the S3 object for its true size,
+    /// gates the storage limit, and records the ledger object. Returns the
+    /// `bucket_object` envelope.
+    pub async fn finalize_bucket_upload(
+        &self,
+        bucket_id: &str,
+        object_id: &str,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "buckets", bucket_id, "objects", object_id, "finalize"],
+            // An empty JSON object gives the default idempotency key a stable
+            // body to fold in, matching the letters-cancel precedent.
+            Some(&serde_json::json!({})),
+        )?)
+        .await
+    }
+
+    /// Requests a presigned download URL for a bucket object (`GET
+    /// /v1/buckets/{bucketId}/objects/{objectId}/download`, scope
+    /// `buckets:read`).
+    pub async fn get_bucket_object_download(
+        &self,
+        bucket_id: &str,
+        object_id: &str,
+    ) -> Result<BucketObjectDownloadResponse> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "buckets", bucket_id, "objects", object_id, "download"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Uploads a local file to a bucket end-to-end: initiate (presigned PUT),
+    /// PUT the bytes straight to S3 (echoing the required SSE headers), then
+    /// finalize so the ledger records the object's true size. Returns the
+    /// finalized `bucket_object` envelope.
+    ///
+    /// The PUT goes to a presigned S3 URL with no Dairo bearer auth, so it uses
+    /// a fresh short-lived client rather than `self.http` (which always attaches
+    /// the API key). The bytes are read fully into memory, matching the
+    /// attachment-send path.
+    pub async fn upload_file(
+        &self,
+        bucket_id: &str,
+        filename: &str,
+        content_type: &str,
+        bytes: Vec<u8>,
+    ) -> Result<serde_json::Value> {
+        let initiate = self
+            .initiate_bucket_upload(
+                bucket_id,
+                &InitiateUploadRequest {
+                    filename: filename.to_string(),
+                    content_type: content_type.to_string(),
+                    expected_bytes: Some(bytes.len() as u64),
+                },
+            )
+            .await?;
+
+        // The presigned PUT must NOT carry the Dairo bearer token, and must echo
+        // every header the URL was signed with (the SSE headers), or S3 returns
+        // a SignatureDoesNotMatch 403.
+        let s3 = reqwest::Client::builder()
+            .user_agent(USER_AGENT)
+            .timeout(REQUEST_TIMEOUT)
+            .build()
+            .map_err(ApiError::BuildRequest)?;
+        let mut put = s3
+            .put(&initiate.upload_url)
+            .header("Content-Type", content_type)
+            .body(bytes);
+        for (name, value) in &initiate.headers {
+            put = put.header(name, value);
+        }
+        let response = put.send().await.map_err(ApiError::Transport)?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "presigned upload failed".to_string());
+            return Err(ApiError::Api { status, message });
+        }
+
+        self.finalize_bucket_upload(bucket_id, &initiate.object_id)
+            .await
+    }
+
+    /// Downloads a bucket object's bytes: requests a presigned GET URL, then
+    /// fetches it from S3 (no Dairo bearer auth on the presigned URL).
+    pub async fn download_file(&self, bucket_id: &str, object_id: &str) -> Result<Vec<u8>> {
+        let download = self.get_bucket_object_download(bucket_id, object_id).await?;
+        let s3 = reqwest::Client::builder()
+            .user_agent(USER_AGENT)
+            .timeout(REQUEST_TIMEOUT)
+            .build()
+            .map_err(ApiError::BuildRequest)?;
+        let response = s3
+            .get(&download.download_url)
+            .send()
+            .await
+            .map_err(ApiError::Transport)?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "presigned download failed".to_string());
+            return Err(ApiError::Api { status, message });
+        }
+        response
+            .bytes()
+            .await
+            .map(|bytes| bytes.to_vec())
+            .map_err(ApiError::Transport)
+    }
+
     /// Fetches the public MCP tool catalog (`GET /v1/mcp/catalog`), the single
     /// source of truth for the hosted MCP surface served at `api.dairo.app/mcp`.
     ///
