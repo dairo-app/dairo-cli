@@ -2,10 +2,6 @@
 
 Official Dairo command-line interface.
 
-Status: private preview. The CLI is intended for Dairo developers and early
-integrators while the public API, package signing, and release channels settle.
-Do not treat this repository as a stable public distribution channel yet.
-
 ## Supported platforms
 
 Release automation builds native binaries for:
@@ -106,10 +102,10 @@ printf '%s' "$DAIRO_API_KEY" | dairo auth token set
 Do not pass tokens as command-line arguments. They can leak through shell
 history and process listings, so `dairo auth token set dairo_...` is rejected.
 
-Preview token storage uses a local TOML config file, not an OS keychain. On Unix
+Token storage uses a local TOML config file, not an OS keychain. On Unix
 platforms the CLI writes the config directory as `0700` and the config file as
 `0600` using an atomic replace. On Windows, use `DAIRO_API_KEY` or a dedicated
-preview account if ACL-backed storage is required.
+account if ACL-backed storage is required.
 
 Config file locations follow the platform config directory, for example
 `~/.config/dairo/config.toml` on Linux. The API URL can be overridden with
@@ -497,10 +493,9 @@ creation are intentionally printed once; redirect or capture stdout carefully.
 
 ## Release policy
 
-Version `0.1.x` is private preview. Breaking command/output changes may still
-happen, but security fixes should preserve documented behavior where possible.
-Before public release, Dairo should add signed multi-platform artifacts,
-changelog-based release notes, and a documented install channel.
+Releases follow semantic versioning. Tagged releases ship signed multi-platform
+artifacts with changelog-based release notes, and security fixes preserve
+documented behavior where possible.
 
 ## Development
 
@@ -513,7 +508,6 @@ cargo deny --locked check
 cargo audit --file Cargo.lock
 ```
 
-Support/contact: use the private `dairo-app/dairo-cli` repository while this is
-in preview.
+Support/contact: use the `dairo-app/dairo-cli` repository.
 
 License: MIT
