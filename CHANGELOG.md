@@ -4,6 +4,28 @@ All notable Dairo CLI private-preview changes are tracked here.
 
 ## Unreleased
 
+### Help & UX
+
+- Reworked `dairo --help` into a scannable, grouped command list (Getting
+  started / Email / Realtime and webhooks / Physical mail / Account and access /
+  Agents and governance / Tooling) with quick-start examples and a docs link,
+  instead of a flat 30-entry dump. A `root_help_lists_every_command` test guards
+  the curated list against drift.
+- `dairo listen` no longer dumps its full multi-line description as the one-line
+  summary in the top-level help (the summary is now a single line; the long form
+  shows only in `dairo listen --help`).
+- Filled in missing `dairo send` flag descriptions (`--to`, `--subject`,
+  `--text`, `--html`, `--attachment`).
+- The "missing Dairo API token" error now points to `dairo login` first
+  (browser sign-in), then `DAIRO_API_KEY` / `dairo auth token set`.
+
+### Docs
+
+- README now documents `dairo login` (browser OAuth) as the primary sign-in
+  path, adds a Quick start section, and corrects the token lookup order.
+- Added `CONTRIBUTING.md` (project layout, build/test commands, and how to add a
+  command).
+
 ### Tooling
 
 - New `dairo init <framework>` scaffolder. Drops a working Dairo starter into a

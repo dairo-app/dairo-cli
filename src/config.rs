@@ -210,7 +210,8 @@ impl Config {
 
         anyhow::ensure!(
             !token.is_empty(),
-            "missing Dairo API token; set DAIRO_API_KEY or run `dairo auth token set`"
+            "missing Dairo API token; run `dairo login` to sign in with your browser, \
+             set DAIRO_API_KEY, or run `dairo auth token set`"
         );
 
         Ok(token)

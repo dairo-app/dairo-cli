@@ -57,14 +57,39 @@ Release tags (`vX.Y.Z`) build all platform binaries, create a GitHub Release,
 produce npm platform packages, and can update the Homebrew tap when the release
 secrets are configured.
 
+## Quick start
+
+```sh
+dairo login                 # sign in with your browser (OAuth)
+dairo whoami                # confirm the signed-in account and scopes
+dairo inbox create billing --domain example.com
+dairo send --from billing@example.com --to max@example.com \
+  --subject "Hello from Dairo" --text "Sent with the Dairo CLI."
+dairo listen                # tail live inbox events
+```
+
+Run `dairo --help` for the grouped command list, or `dairo <command> --help`
+for any command's full options.
+
 ## Authentication and token security
 
-The CLI authenticates with a Dairo API key using bearer auth.
+The CLI authenticates with a Dairo API key using bearer auth. The easiest way
+to get one is `dairo login`, which runs a browser OAuth (Authorization Code +
+PKCE) flow — the same one the Dairo MCP clients use — and stores the resulting
+scoped `dairo_live_*` token for you:
+
+```sh
+dairo login                 # opens your browser, then stores the token
+dairo logout                # revokes the stored token server-side and clears it
+```
+
+For CI and headless hosts where no browser is available, set `DAIRO_API_KEY` or
+save a token manually with `dairo auth token set` (see below).
 
 Token lookup order:
 
 1. `DAIRO_API_KEY`
-2. local config file set by `dairo auth token set`
+2. local config file set by `dairo login` or `dairo auth token set`
 
 Prefer environment variables for CI and short-lived automation:
 

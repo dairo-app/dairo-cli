@@ -5,11 +5,85 @@ use std::{
     path::PathBuf,
 };
 
+/// Grouped command list + quick-start shown at the bottom of `dairo --help`.
+///
+/// Hand-curated so the top-level help reads like a guide instead of a flat
+/// dump. Keep the command names in sync with [`Command`]; the
+/// `root_help_lists_every_command` test fails if a command is added or renamed
+/// without updating this list.
+const ROOT_HELP_COMMANDS: &str = "Getting started:
+  login          Sign in with your browser (OAuth)
+  whoami         Show the signed-in account, scopes, and plan
+  init           Scaffold a Dairo starter into your project
+  doctor         Check local config and connectivity
+
+Email:
+  send           Send an email from an inbox
+  inbox          Manage inboxes
+  messages       Read inbox mail
+  threads        Read mail threads
+  outbound       Outbound history and delivery events
+  lists          Email lists and broadcasts
+  templates      Reusable email templates
+  attachments    Download message attachments
+
+Realtime and webhooks:
+  listen         Stream live events to your terminal (like `stripe listen`)
+  webhook        Manage webhook subscriptions
+  events         Read and replay the event ledger
+
+Physical mail:
+  letter         Send and track physical-mail letters (Fairo)
+
+Account and access:
+  domain         Manage sending domains
+  api-key        Manage API keys
+  auth           Manage stored credentials
+  logout         Sign out and revoke the stored token
+
+Agents and governance:
+  agents         Agent passports and provenance
+  a2a            Agent-to-agent hop receipts
+  reputation     Per-agent reputation / circuit-breaker state
+  budgets        Per-account/key/agent send budgets
+  audit-logs     Account audit log
+  dedicated-ips  Dedicated IP pool status
+  compliance     EU data-residency posture
+  erasure-jobs   GDPR subject-erasure jobs
+
+Tooling:
+  mcp            Install Dairo MCP for coding agents
+  completion     Generate shell completions
+  update         Check for a newer CLI release
+
+Examples:
+  dairo login                                       # sign in
+  dairo send --from you@dom.com --to a@b.com \\
+    --subject \"Hi\" --text \"Hello from Dairo\"        # send your first email
+  dairo init next                                   # scaffold a Next.js app
+  dairo listen                                      # tail live inbox events
+
+Run `dairo <command> --help` for details on any command.
+Docs: https://docs.dairo.app
+";
+
 #[derive(Debug, Parser)]
 #[command(
     name = "dairo",
     version,
-    about = "Official Dairo command-line interface"
+    about = "Official Dairo command-line interface",
+    // The auto-generated subcommand list is a flat wall of 30+ entries that is
+    // hard to scan and unwelcoming to newcomers. We hide it from the template
+    // (`{options}` only, no `{subcommands}`) and render our own grouped list +
+    // quick-start examples via `after_help` below. Parsing is unaffected; every
+    // command still works and `dairo <cmd> --help` shows its full help. The
+    // `root_help_lists_every_command` test guards this list against drift.
+    help_template = "\
+{about-with-newline}
+{usage-heading} {usage}{after-help}
+Options:
+{options}",
+    after_help = ROOT_HELP_COMMANDS,
 )]
 pub struct Cli {
     /// Print machine-readable JSON where supported.
@@ -175,12 +249,14 @@ pub enum Command {
         #[command(subcommand)]
         command: A2aCommand,
     },
-    /// Stream live inbound-email (and delivery) events to the terminal and,
-    /// optionally, re-POST each one to a local endpoint — the Dairo equivalent of
-    /// `stripe listen`. Pulls from the durable event ledger via long-poll, so no
-    /// public webhook URL or tunnel is needed; a persisted cursor resumes exactly
-    /// where it left off. Requires the `events:read` scope (plus `inboxes:read`
-    /// when filtering by an inbox address).
+    /// Stream live events to your terminal (the Dairo `stripe listen`).
+    ///
+    /// Streams live inbound-email (and delivery) events to the terminal and,
+    /// optionally, re-POSTs each one to a local endpoint. Pulls from the durable
+    /// event ledger via long-poll, so no public webhook URL or tunnel is needed;
+    /// a persisted cursor resumes exactly where it left off. Requires the
+    /// `events:read` scope (plus `inboxes:read` when filtering by an inbox
+    /// address).
     Listen(ListenArgs),
     /// Scaffold a working Dairo starter into your project for a framework.
     ///
@@ -1241,6 +1317,7 @@ pub struct SendArgs {
     /// Alias: `--inbox`.
     #[arg(long = "from", visible_alias = "inbox", value_name = "ADDRESS")]
     pub from: Option<String>,
+    /// Recipient address, e.g. `max@example.com` (or `Name <max@example.com>`). Required; repeatable.
     #[arg(long, required = true, action = clap::ArgAction::Append)]
     pub to: Vec<String>,
     /// CC recipient(s). Repeatable.
@@ -1249,13 +1326,16 @@ pub struct SendArgs {
     /// BCC recipient(s). Repeatable.
     #[arg(long = "bcc", value_name = "ADDRESS", action = clap::ArgAction::Append)]
     pub bcc: Vec<String>,
+    /// Email subject line.
     #[arg(long, default_value = "")]
     pub subject: String,
+    /// Plain-text body. Provide one of `--text`, `--text-file`, `--html`, `--html-file`, or `--react-source`.
     #[arg(long)]
     pub text: Option<String>,
     /// Read the plain-text body from a file (`-` for stdin).
     #[arg(long = "text-file", value_name = "PATH")]
     pub text_file: Option<PathBuf>,
+    /// HTML body.
     #[arg(long)]
     pub html: Option<String>,
     /// Read the HTML body from a file (`-` for stdin).
@@ -1267,6 +1347,7 @@ pub struct SendArgs {
     /// JSON object passed to the hosted React component as props.
     #[arg(long = "react-props", value_name = "JSON", requires = "react_source")]
     pub react_props: Option<String>,
+    /// Attach a local file. Repeatable. See `--attachment-delivery` for inline vs link behavior.
     #[arg(long = "attachment", value_name = "PATH", action = clap::ArgAction::Append)]
     pub attachments: Vec<PathBuf>,
     /// Attachment delivery mode. `auto` keeps files inline when safely below Dairo's inline limit.
@@ -1875,6 +1956,26 @@ mod tests {
     #[test]
     fn cli_command_tree_is_valid() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn root_help_lists_every_command() {
+        // The top-level `--help` renders a hand-curated, grouped command list
+        // (ROOT_HELP_COMMANDS) instead of clap's flat auto list. Guard it
+        // against drift: every visible subcommand clap exposes must appear in
+        // the curated text, so a command added or renamed without updating the
+        // list fails the test instead of silently becoming undiscoverable.
+        for sub in Cli::command().get_subcommands() {
+            let name = sub.get_name();
+            // `help` is clap's built-in and is intentionally not advertised.
+            if name == "help" {
+                continue;
+            }
+            assert!(
+                ROOT_HELP_COMMANDS.contains(name),
+                "command `{name}` is missing from ROOT_HELP_COMMANDS in src/cli.rs"
+            );
+        }
     }
     #[test]
     fn parses_send_arguments() {
