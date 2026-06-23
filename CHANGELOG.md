@@ -43,9 +43,8 @@ All notable Dairo CLI private-preview changes are tracked here.
   `GET /v1/whoami` connectivity check runs after scaffolding (skip with
   `--no-verify` or when no key is configured).
   - The templates pin published SDK versions (npm `dairo`, PyPI `dairo`, Go
-    `github.com/dairo-app/dairo-go`). Those SDK publishes are **owner-gated**:
-    confirm each package is live at its pinned version before cutting a CLI
-    release.
+    `github.com/dairo-app/dairo-go`). Confirm each package is live at its pinned
+    version before cutting a CLI release.
 
 ### Security & reliability
 
