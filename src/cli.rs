@@ -33,7 +33,7 @@ Realtime and webhooks:
   events         Read and replay the event ledger
 
 Physical mail:
-  letter         Send and track physical-mail letters (Fairo)
+  letter         Send and track physical-mail letters from a PDF
 
 Storage:
   bucket         Store and retrieve files in named storage buckets
@@ -177,7 +177,7 @@ pub enum Command {
     },
     /// Send an email from a Dairo inbox.
     Send(SendArgs),
-    /// Send and track physical-mail letters (Fairo).
+    /// Send and track physical-mail letters from a PDF.
     #[command(name = "letter", alias = "letters")]
     Letter {
         #[command(subcommand)]

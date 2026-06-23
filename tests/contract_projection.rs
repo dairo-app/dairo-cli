@@ -70,6 +70,18 @@ fn implemented_operations_are_an_honest_canonical_subset() {
         "getMcpCatalog",
         "listA2aMessages",
         "getA2aMessage",
+        // The `dairo bucket` command group must keep its backing operations
+        // declared — these were added after the projection and were initially
+        // missing, so they are pinned here to stop the surface drifting again.
+        "listBuckets",
+        "createBucket",
+        "getBucket",
+        "deleteBucket",
+        "createBucketObject",
+        "finalizeBucketObject",
+        "listBucketObjects",
+        "getBucketObjectDownloadUrl",
+        "deleteBucketObject",
     ] {
         assert!(
             implemented_ops

@@ -279,7 +279,7 @@ form in scripts.
 
 ### Send physical mail (`dairo letter`)
 
-Send and track physical-mail letters (Fairo) from a PDF, backed by
+Send and track physical-mail letters from a PDF, backed by
 `/v1/letters`. Physical mail is irreversible, so `letter send` defaults to a
 **draft** (`autoSend=false`): pass `--confirm` to submit it for printing and
 posting. The PDF is read locally and base64-encoded (`--pdf`), or referenced by

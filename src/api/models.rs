@@ -300,7 +300,7 @@ pub struct SendEmailWarning {
 }
 
 // ---------------------------------------------------------------------------
-// Letters (Fairo physical-mail surface)
+// Letters (physical-mail surface)
 // ---------------------------------------------------------------------------
 // Wire types for the `/v1/letters` resource. The PII-bearing address blocks
 // (`to`/`from`) and the print options carry the unified envelope's camelCase

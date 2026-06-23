@@ -896,7 +896,7 @@ impl ApiClient {
             .await
     }
 
-    // --- Letters (Fairo physical-mail surface) ----------------------------
+    // --- Letters (physical-mail surface) ----------------------------
     // The `/v1/letters` resource. Reads use `letters:read`; create/cancel use
     // `letters:send`. Responses pass through as `serde_json::Value` (the unified
     // envelope, rendered verbatim by `print_json`) matching the
@@ -1169,7 +1169,9 @@ impl ApiClient {
     /// Downloads a bucket object's bytes: requests a presigned GET URL, then
     /// fetches it from S3 (no Dairo bearer auth on the presigned URL).
     pub async fn download_file(&self, bucket_id: &str, object_id: &str) -> Result<Vec<u8>> {
-        let download = self.get_bucket_object_download(bucket_id, object_id).await?;
+        let download = self
+            .get_bucket_object_download(bucket_id, object_id)
+            .await?;
         let s3 = reqwest::Client::builder()
             .user_agent(USER_AGENT)
             .timeout(REQUEST_TIMEOUT)
@@ -2419,7 +2421,7 @@ mod tests {
         assert!(!format!("{api_key:?}").contains("dairo_real_secret"));
     }
 
-    // --- Letters (Fairo physical-mail surface) ----------------------------
+    // --- Letters (physical-mail surface) ----------------------------
 
     #[test]
     fn serializes_create_letter_body_with_openapi_names() {

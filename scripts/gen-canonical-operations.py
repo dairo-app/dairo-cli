@@ -10,8 +10,14 @@ compares two copies of the same hand-maintained file.
 Usage:
     python3 scripts/gen-canonical-operations.py [path/to/dairo.openapi.json]
 
-If no path is given it defaults to the in-repo copy referenced by the backend.
-The output is committed so the test stays deterministic and offline.
+If no path is given it defaults to the canonical OpenAPI spec vendored in this
+repo at ``contract/dairo.openapi.json``. That vendored copy is a verbatim mirror
+of the backend's published ``dairo-api/openapi/dairo.openapi.json`` and is what
+makes the freshness check self-contained: CI can regenerate the canonical
+projection from it and ``git diff --exit-code`` to catch any drift, without
+needing the backend repo checked out alongside.
+
+The output is committed so the contract test stays deterministic and offline.
 """
 
 from __future__ import annotations
@@ -21,10 +27,9 @@ import sys
 from collections import OrderedDict
 from pathlib import Path
 
-DEFAULT_SPEC = (
-    Path(__file__).resolve().parents[2]
-    / "dairo-backend/backend/dairo-api/openapi/dairo.openapi.json"
-)
+# Default to the canonical spec vendored in-repo so regeneration is fully
+# reproducible in CI (the backend repo is not checked out beside the CLI there).
+DEFAULT_SPEC = Path(__file__).resolve().parents[1] / "contract/dairo.openapi.json"
 OUTPUT = Path(__file__).resolve().parents[1] / "contract/canonical-operations.json"
 HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 

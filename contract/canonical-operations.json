@@ -3,7 +3,7 @@
   "description": "Derived from the canonical dairo.openapi.json. Regenerate via scripts/gen-canonical-operations.py; do not hand-edit.",
   "openapiVersion": "3.1.0",
   "specVersion": "0.1.0",
-  "operationCount": 83,
+  "operationCount": 93,
   "operations": [
     {
       "method": "GET",
@@ -347,6 +347,163 @@
       "path": "/v1/audit-logs/export",
       "scopes": [
         "account:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listBuckets",
+      "parameters": [],
+      "path": "/v1/buckets",
+      "scopes": [
+        "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createBucket",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/buckets",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteBucket",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getBucket",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}",
+      "scopes": [
+        "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchBucket",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listBucketObjects",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        },
+        {},
+        {}
+      ],
+      "path": "/v1/buckets/{bucketId}/objects",
+      "scopes": [
+        "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createBucketObject",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        },
+        {}
+      ],
+      "path": "/v1/buckets/{bucketId}/objects",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteBucketObject",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        },
+        {
+          "in": "path",
+          "name": "objectId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/objects/{objectId}",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getBucketObjectDownloadUrl",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        },
+        {
+          "in": "path",
+          "name": "objectId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/objects/{objectId}/download",
+      "scopes": [
+        "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "finalizeBucketObject",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        },
+        {
+          "in": "path",
+          "name": "objectId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/objects/{objectId}/finalize",
+      "scopes": [
+        "buckets:write"
       ],
       "contractSource": "openapi"
     },

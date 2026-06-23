@@ -9,20 +9,62 @@ on:
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Pin the toolchain (matches Cargo.toml rust-version)
+        uses: dtolnay/rust-toolchain@stable
         with:
+          # rust-version in Cargo.toml is the floor; stable is pinned by
+          # dtolnay/rust-toolchain so fmt/clippy lints stay deterministic.
           components: rustfmt, clippy
+
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --check
-      - run: cargo install cargo-deny --locked
-      - run: cargo install cargo-audit --locked
-      - run: cargo deny --locked check
-      - run: cargo audit --file Cargo.lock
-      - run: cargo clippy --locked --all-targets --all-features -- -D warnings
-      - run: cargo test --locked --all-features
-      - run: cargo build --release --locked
+
+      # --- Formatting: fails the build on any unformatted line. ----------------
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      # --- Supply-chain gates (real failures, never `|| true`). ----------------
+      - name: Install supply-chain tooling
+        run: |
+          cargo install cargo-deny --locked
+          cargo install cargo-audit --locked
+      - name: Dependency licenses, bans and sources
+        run: cargo deny --locked check
+      - name: Vulnerability audit
+        run: cargo audit --file Cargo.lock --deny warnings
+
+      # --- Lints: any clippy warning is a hard error. --------------------------
+      - name: Clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      # --- Contract honesty: the committed canonical projection MUST be a
+      #     verbatim regeneration of the vendored canonical OpenAPI spec.
+      #     This is what turns the subset contract test from a snapshot
+      #     comparison into a live drift detector: if the backend surface
+      #     changes, the regenerated file differs and `git diff --exit-code`
+      #     fails the build until the projection is refreshed.
+      - name: Contract projection is freshly generated from the canonical spec
+        run: |
+          python3 scripts/gen-canonical-operations.py
+          if ! git diff --exit-code -- contract/canonical-operations.json; then
+            echo "::error::contract/canonical-operations.json is stale." \
+                 "Run scripts/gen-canonical-operations.py and commit the result."
+            exit 1
+          fi
+
+      # --- Tests: unit + CLI behaviour + the de-tautologized contract test. ----
+      - name: Tests
+        run: cargo test --locked --all-features
+
+      # --- Release build must compile with the same locked deps. ---------------
+      - name: Release build
+        run: cargo build --release --locked

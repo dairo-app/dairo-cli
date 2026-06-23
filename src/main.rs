@@ -819,7 +819,7 @@ async fn run_logout(global_api_url: &Option<String>, config_path: &Path) -> Resu
 }
 
 // ---------------------------------------------------------------------------
-// Letters (Fairo physical-mail surface)
+// Letters (physical-mail surface)
 // ---------------------------------------------------------------------------
 
 /// Max decoded PDF size the CLI will base64-encode and send inline, mirroring
@@ -1014,9 +1014,7 @@ fn mime_guess_from_path(path: &Path) -> String {
         "mp4" => "video/mp4",
         "mp3" => "audio/mpeg",
         "doc" => "application/msword",
-        "docx" => {
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        }
+        "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "xls" => "application/vnd.ms-excel",
         "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         _ => "application/octet-stream",
