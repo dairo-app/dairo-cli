@@ -1,21 +1,10 @@
 # Dairo CLI
 
-Official Dairo command-line interface.
+The official Dairo command-line interface.
 
-## Supported platforms
+## Installation
 
-Release automation builds native binaries for:
-
-- macOS arm64 and x64
-- Linux arm64 and x64
-- Windows x64
-
-Runtime requires outbound HTTPS access to the Dairo API. Windows token-file
-permissions are best-effort; use `DAIRO_API_KEY` for CI or stricter ACL needs.
-
-## Install
-
-Official install channels:
+Dairo ships native binaries for macOS, Linux (arm64 and x64), and Windows (x64). The CLI requires outbound HTTPS access to the Dairo API at runtime.
 
 ```sh
 npm install -g @dairo/cli
@@ -29,8 +18,7 @@ Windows PowerShell:
 irm https://dairo.app/install.ps1 | iex
 ```
 
-Direct official download URLs redirect through Dairo's domain to GitHub Release
-artifacts, for example:
+Direct download URLs are available, for example:
 
 ```text
 https://dairo.app/downloads/cli/latest/dairo-aarch64-apple-darwin.tar.gz
@@ -49,38 +37,29 @@ Or run without installing:
 cargo run --locked -- --help
 ```
 
-Release tags (`vX.Y.Z`) build all platform binaries, create a GitHub Release,
-produce npm platform packages, and can update the Homebrew tap when the release
-secrets are configured.
-
 ## Quick start
 
 ```sh
 dairo login                 # sign in with your browser (OAuth)
 dairo whoami                # confirm the signed-in account and scopes
 dairo inbox create billing --domain example.com
-dairo send --from billing@example.com --to max@example.com \
+dairo send --from billing@example.com --to jane@example.com \
   --subject "Hello from Dairo" --text "Sent with the Dairo CLI."
 dairo listen                # tail live inbox events
 ```
 
-Run `dairo --help` for the grouped command list, or `dairo <command> --help`
-for any command's full options.
+Run `dairo --help` for the grouped command list, or `dairo <command> --help` for any command's full options.
 
-## Authentication and token security
+## Authentication
 
-The CLI authenticates with a Dairo API key using bearer auth. The easiest way
-to get one is `dairo login`, which runs a browser OAuth (Authorization Code +
-PKCE) flow — the same one the Dairo MCP clients use — and stores the resulting
-scoped `dairo_live_*` token for you:
+The CLI authenticates with a Dairo API key using bearer auth. The easiest way to get one is `dairo login`, which runs a browser OAuth (Authorization Code + PKCE) flow — the same one the Dairo MCP clients use — and stores the resulting scoped `dairo_live_*` token for you:
 
 ```sh
 dairo login                 # opens your browser, then stores the token
 dairo logout                # revokes the stored token server-side and clears it
 ```
 
-For CI and headless hosts where no browser is available, set `DAIRO_API_KEY` or
-save a token manually with `dairo auth token set` (see below).
+For CI and headless hosts where no browser is available, set `DAIRO_API_KEY` or save a token manually with `dairo auth token set` (see below).
 
 Token lookup order:
 
@@ -99,67 +78,44 @@ Save a token locally by piping it through stdin:
 printf '%s' "$DAIRO_API_KEY" | dairo auth token set
 ```
 
-Do not pass tokens as command-line arguments. They can leak through shell
-history and process listings, so `dairo auth token set dairo_...` is rejected.
+Do not pass tokens as command-line arguments. They can leak through shell history and process listings, so `dairo auth token set dairo_...` is rejected.
 
-Token storage uses a local TOML config file, not an OS keychain. On Unix
-platforms the CLI writes the config directory as `0700` and the config file as
-`0600` using an atomic replace. On Windows, use `DAIRO_API_KEY` or a dedicated
-account if ACL-backed storage is required.
+Token storage uses a local TOML config file, not an OS keychain. On Unix platforms the CLI writes the config directory as `0700` and the config file as `0600` using an atomic replace. On Windows, use `DAIRO_API_KEY` or a dedicated account if ACL-backed storage is required.
 
-Config file locations follow the platform config directory, for example
-`~/.config/dairo/config.toml` on Linux. The API URL can be overridden with
-`DAIRO_API_URL` or hidden global `--api-url` for tests and staging.
+Config file locations follow the platform config directory, for example `~/.config/dairo/config.toml` on Linux. The API URL can be overridden with `DAIRO_API_URL` or the hidden global `--api-url` for tests and staging.
 
 ## Commands
 
 ### Scaffold a project (`dairo init`)
 
-`dairo init <framework>` drops a working Dairo starter into your project: a
-configured SDK client, an inbound-webhook handler stub that verifies delivery
-signatures against the raw request body, `DAIRO_API_KEY` env wiring, and a
-`DAIRO.md` README snippet. Templates are embedded in the binary, so it works
-offline.
+`dairo init <framework>` drops a working Dairo starter into your project: a configured SDK client, an inbound-webhook handler stub that verifies delivery signatures against the raw request body, `DAIRO_API_KEY` env wiring, and a `DAIRO.md` README snippet. Templates are embedded in the binary, so it works offline.
 
 ```sh
 dairo init next
 ```
 
-Tier-1 frameworks: `next`, `express`, `hono`, `cloudflare-workers`, `fastapi`,
-`flask`, `go-http`. The first three pull the `dairo` npm SDK, the Python pair
-pull the `dairo` PyPI SDK, and `go-http` pulls `github.com/dairo-app/dairo-go`.
+Tier-1 frameworks: `next`, `express`, `hono`, `cloudflare-workers`, `fastapi`, `flask`, `go-http`. The first three pull the `dairo` npm SDK, the Python pair pull the `dairo` PyPI SDK, and `go-http` pulls `github.com/dairo-app/dairo-go`.
 
 Flags:
 
-- `--dir <PATH>` — target project directory (default `.`, created if missing).
-  All writes are confined to this directory.
-- `--force` — overwrite files that already exist. Without it, `init` never
-  clobbers an existing file: it skips and warns, so re-running is safe and
-  idempotent. `package.json` is always merged (your other keys are preserved),
-  and `.env`/`.gitignore` lines are only appended when missing (existing values
-  are never overwritten).
+- `--dir <PATH>` — target project directory (default `.`, created if missing). All writes are confined to this directory.
+- `--force` — overwrite files that already exist. Without it, `init` never clobbers an existing file: it skips and warns, so re-running is safe and idempotent. `package.json` is always merged (your other keys are preserved), and `.env`/`.gitignore` lines are only appended when missing (existing values are never overwritten).
 - `--no-install` — only write files and print the manual install command.
-- `--package-manager <pm>` — override auto-detection
-  (`npm`/`pnpm`/`yarn`/`bun`, `pip`/`poetry`/`uv`, or `go`).
-- `--inbox-route <PATH>` — the URL path the webhook handler is mounted at
-  (default `/api/dairo/webhook`).
-- `--no-verify` — skip the post-scaffold `GET /v1/whoami` connectivity check
-  (also auto-skipped when no API key is configured).
-- `--json` — emit the file manifest (`{ framework, dir, files, install,
-  nextSteps }`) instead of human text.
+- `--package-manager <pm>` — override auto-detection (`npm`/`pnpm`/`yarn`/`bun`, `pip`/`poetry`/`uv`, or `go`).
+- `--inbox-route <PATH>` — the URL path the webhook handler is mounted at (default `/api/dairo/webhook`).
+- `--no-verify` — skip the post-scaffold `GET /v1/whoami` connectivity check (also auto-skipped when no API key is configured).
+- `--json` — emit the file manifest (`{ framework, dir, files, install, nextSteps }`) instead of human text.
 
-The generated `.env.example` (or `.dev.vars.example` for Cloudflare Workers)
-contains only empty `DAIRO_API_KEY=` / `DAIRO_WEBHOOK_SECRET=` placeholders — a
-real secret is never written to disk. Secret-capable files are written `0600` on
-Unix.
+The generated `.env.example` (or `.dev.vars.example` for Cloudflare Workers) contains only empty `DAIRO_API_KEY=` / `DAIRO_WEBHOOK_SECRET=` placeholders — a real secret is never written to disk. Secret-capable files are written `0600` on Unix.
 
-After scaffolding, register the webhook and (for local development) forward live
-events to it:
+After scaffolding, register the webhook and (for local development) forward live events to it:
 
 ```sh
 dairo webhook create --url https://<your-host>/api/dairo/webhook --event message.received
 dairo listen --forward-to http://localhost:3000/api/dairo/webhook
 ```
+
+### Domains
 
 List domains:
 
@@ -179,6 +135,8 @@ Recheck a domain's DNS/SES status:
 dairo domain recheck example.com
 ```
 
+### Inboxes
+
 List inboxes:
 
 ```sh
@@ -191,22 +149,18 @@ Create an inbox:
 dairo inbox create billing --domain example.com
 ```
 
+### Send email
+
 Send an email. At least one non-empty `--to` recipient is required, along with at least one body option: `--text`, `--html`, or `--react-source`. Inline attachments use `--attachment`; `--attachment-delivery` accepts `attachment`, `link`, or `auto`. `attachment` sends files inline. `auto` sends inline only when the files fit Dairo's safe inline limit. `link` is explicit but currently cannot upload a new local file because the CLI has no standalone file upload/link API contract yet, so it fails with guided instructions instead of pretending to send or editing the email body. Dairo never auto-inserts links into `--text` or `--html`.
 
-Complaint suppression is enforced before Dairo queues the send. If a recipient
-previously complained, the CLI shows an actionable error and does not send by
-default. Override only deliberately with `--ignore-complaints`; API/MCP callers
-use `ignoreComplaints=true`. Use `--json` where supported to preserve raw
-warning/error metadata such as `recipient`, `sourceOutboundEmailId`,
-`providerMessageId`, `complaintFeedbackType`, `complaintUserAgent`, and
-`lastEventAt` when returned by the backend.
+Complaint suppression is enforced before Dairo queues the send. If a recipient previously complained, the CLI shows an actionable error and does not send by default. Override only deliberately with `--ignore-complaints`; API/MCP callers use `ignoreComplaints=true`. Use `--json` where supported to preserve raw warning/error metadata such as `recipient`, `sourceOutboundEmailId`, `providerMessageId`, `complaintFeedbackType`, `complaintUserAgent`, and `lastEventAt` when returned by the backend.
 
 For link-style delivery today, create or reuse a persisted email attachment link with `dairo attachments share <attachment-id> --expiry-hours <1-168>`, place the printed URL exactly where you want it in `--text`/`--html`, then send without the local file attachment. Use `--attachment-link-expiry-hours <1-168>` on `send` to make the guided `link`/oversize message use the same expiry window you intend to request once standalone local file links exist.
 
 ```sh
 dairo send \
   --inbox-id 018f0000-0000-0000-0000-000000000000 \
-  --to max@example.com \
+  --to jane@example.com \
   --subject "Hello from Dairo" \
   --text "This was sent with the Dairo CLI." \
   --attachment ./invoice.pdf \
@@ -218,22 +172,18 @@ Send using hosted React rendering. The CLI passes the React source and optional 
 ```sh
 dairo send \
   --inbox-id 018f0000-0000-0000-0000-000000000000 \
-  --to max@example.com \
+  --to jane@example.com \
   --subject "Your receipt" \
   --react-source 'export default function Email(props) { return <p>Hello {props.name}</p>; }' \
-  --react-props '{"name":"Max"}'
+  --react-props '{"name":"Jane"}'
 ```
 
-Schedule a send for a future time with `--send-at` (RFC3339 with an explicit
-timezone offset). The response status is `scheduled` with a `scheduledAt`
-timestamp; the message is staged and fires at the requested time. Cancel a
-scheduled send before it fires with `dairo outbound cancel <emailId>` (this
-fails if the email is no longer scheduled).
+Schedule a send for a future time with `--send-at` (RFC3339 with an explicit timezone offset). The response status is `scheduled` with a `scheduledAt` timestamp; the message is staged and fires at the requested time. Cancel a scheduled send before it fires with `dairo outbound cancel <emailId>` (this fails if the email is no longer scheduled).
 
 ```sh
 dairo send \
   --inbox-id 018f0000-0000-0000-0000-000000000000 \
-  --to max@example.com \
+  --to jane@example.com \
   --subject "Reminder" \
   --text "Sent on schedule." \
   --send-at 2026-06-11T09:00:00Z
@@ -241,8 +191,9 @@ dairo send \
 dairo outbound cancel <emailId>           # cancel a still-scheduled send
 ```
 
-List and create webhooks. `message.received` is the primary event for coding
-agents and external automation that need to react when new inbox mail arrives:
+### Webhooks
+
+List and create webhooks. `message.received` is the primary event for agents and external automation that need to react when new inbox mail arrives:
 
 ```sh
 dairo webhook list
@@ -252,13 +203,26 @@ dairo webhook create \
   --event email.delivered
 ```
 
-Supported events are `message.received`, `email.sent`, `email.delivered`,
-`email.bounced`, and `email.complained`. List output includes status, events,
-and the latest successful delivery time when the backend has one. The create
-command prints a one-time signing secret. Store it immediately.
+Supported events are `message.received`, `email.sent`, `email.delivered`, `email.bounced`, and `email.complained`. List output includes status, events, and the latest successful delivery time when the backend has one. The create command prints a one-time signing secret. Store it immediately.
 
-Inspect outbound email history and delivery events via the `dairo outbound`
-commands (backed by `GET /v1/emails` and `GET /v1/emails/{emailId}/events`):
+Delete a webhook by ID or URL:
+
+```sh
+dairo webhook delete https://example.com/dairo/webhook
+```
+
+Verify a received webhook delivery offline (no API call). Pipe the raw request body to stdin and pass the `whsec_...` signing secret plus the `X-Dairo-Signature` and `X-Dairo-Timestamp` header values. Verification is constant-time and the timestamp is checked against `--tolerance-seconds` (default 300; pass `0` to skip the freshness check):
+
+```sh
+printf '%s' "$RAW_BODY" | dairo webhook verify \
+  --secret "$DAIRO_WEBHOOK_SECRET" \
+  --signature "$X_DAIRO_SIGNATURE" \
+  --timestamp "$X_DAIRO_TIMESTAMP"
+```
+
+### Outbound history and delivery events
+
+Inspect outbound email history and delivery events via the `dairo outbound` commands (backed by `GET /v1/emails` and `GET /v1/emails/{emailId}/events`):
 
 ```sh
 dairo outbound list --limit 20            # recent outbound emails
@@ -269,22 +233,13 @@ dairo outbound bounces --email-id <id>    # only bounce events
 dairo outbound complaints --email-id <id> # only complaint events
 ```
 
-Outbound emails carry `status` (including `scheduled` and `canceled`) plus
-`scheduledAt`/`canceledAt` timestamps when set.
+Outbound emails carry `status` (including `scheduled` and `canceled`) plus `scheduledAt`/`canceledAt` timestamps when set.
 
-Event rows carry metadata-only join keys such as `emailId`, `recipient`,
-`providerMessageId`, `subject`, `from`, `to`, event `type`, bounce/complaint
-details, and `occurredAt`. Output is JSON; use `--json` for the same machine
-form in scripts.
+Event rows carry metadata-only join keys such as `emailId`, `recipient`, `providerMessageId`, `subject`, `from`, `to`, event `type`, bounce/complaint details, and `occurredAt`. Output is JSON; use `--json` for the same machine form in scripts.
 
 ### Send physical mail (`dairo letter`)
 
-Send and track physical-mail letters from a PDF, backed by
-`/v1/letters`. Physical mail is irreversible, so `letter send` defaults to a
-**draft** (`autoSend=false`): pass `--confirm` to submit it for printing and
-posting. The PDF is read locally and base64-encoded (`--pdf`), or referenced by
-an existing Dairo attachment (`--attachment-id`). Reads need `letters:read`;
-`send`/`cancel` need `letters:send`.
+Send and track physical-mail letters from a PDF, backed by `/v1/letters`. Physical mail is irreversible, so `letter send` defaults to a **draft** (`autoSend=false`): pass `--confirm` to submit it for printing and posting. The PDF is read locally and base64-encoded (`--pdf`), or referenced by an existing Dairo attachment (`--attachment-id`). Reads need `letters:read`; `send`/`cancel` need `letters:send`.
 
 ```sh
 # Create a draft (does NOT post yet) and inspect the exact request first
@@ -332,45 +287,11 @@ dairo letter events <letterId>                        # delivery events (undeliv
 dairo letter price --country CH --page-count 3 --grayscale --duplex  # project cost
 ```
 
-Print options are `--color`/`--grayscale`, `--simplex`/`--duplex`, and
-`--address-placement left|right`; delivery is one of
-`economy|priority|registered|bulk|premium`. The recipient address uses
-`--to-*` flags (`--to-country` is required, plus either `--to-street` or
-`--to-po-box`); an optional sender block uses the matching `--from-*` flags.
-Add `--json` for machine-readable output, as with the rest of the CLI.
+Print options are `--color`/`--grayscale`, `--simplex`/`--duplex`, and `--address-placement left|right`; delivery is one of `economy|priority|registered|bulk|premium`. The recipient address uses `--to-*` flags (`--to-country` is required, plus either `--to-street` or `--to-po-box`); an optional sender block uses the matching `--from-*` flags. Add `--json` for machine-readable output, as with the rest of the CLI.
 
-A letter comes from exactly one source: an inline `--pdf`, an existing
-`--attachment-id`, or a Dairo `--template-id` (rendered server-side). Payment
-slips have two shapes. The bare `--payment-slip qr|sepaDe|sepaAt` flag is for a
-**bring-your-own** slip — your PDF already carries it and the flag only selects
-the paper. The structured `--payment-*` flags make Dairo **generate** the slip
-(Swiss QR-bill in CHF for `qr`, SEPA Zahlschein + GiroCode in EUR for
-`sepaDe`/`sepaAt`) and composite it full-width at the bottom of the rendered
-letter; this is honored only on the `--template-id` path (a `--pdf` letter plus a
-generated slip is rejected with "payment slips require a template"). When you use
-`--payment-type`, the creditor block (`--payment-creditor-name`/`-iban`/
-`-country`) and `--payment-amount` (> 0, at most two decimals) are required, the
-currency defaults from the type, and the debtor defaults to the recipient unless
-you pass `--payment-debtor-*`.
+A letter comes from exactly one source: an inline `--pdf`, an existing `--attachment-id`, or a Dairo `--template-id` (rendered server-side). Payment slips have two shapes. The bare `--payment-slip qr|sepaDe|sepaAt` flag is for a **bring-your-own** slip — your PDF already carries it and the flag only selects the paper. The structured `--payment-*` flags make Dairo **generate** the slip (Swiss QR-bill in CHF for `qr`, SEPA Zahlschein + GiroCode in EUR for `sepaDe`/`sepaAt`) and composite it full-width at the bottom of the rendered letter; this is honored only on the `--template-id` path (a `--pdf` letter plus a generated slip is rejected with "payment slips require a template"). When you use `--payment-type`, the creditor block (`--payment-creditor-name`/`-iban`/`-country`) and `--payment-amount` (> 0, at most two decimals) are required, the currency defaults from the type, and the debtor defaults to the recipient unless you pass `--payment-debtor-*`.
 
-Delete a webhook by ID or URL:
-
-```sh
-dairo webhook delete https://example.com/dairo/webhook
-```
-
-Verify a received webhook delivery offline (no API call). Pipe the raw request
-body to stdin and pass the `whsec_...` signing secret plus the
-`X-Dairo-Signature` and `X-Dairo-Timestamp` header values. Verification is
-constant-time and the timestamp is checked against `--tolerance-seconds`
-(default 300; pass `0` to skip the freshness check):
-
-```sh
-printf '%s' "$RAW_BODY" | dairo webhook verify \
-  --secret "$DAIRO_WEBHOOK_SECRET" \
-  --signature "$X_DAIRO_SIGNATURE" \
-  --timestamp "$X_DAIRO_TIMESTAMP"
-```
+### API keys
 
 List and create API keys:
 
@@ -384,9 +305,7 @@ dairo api-key create \
 
 The create command prints a one-time API key secret. Store it immediately.
 
-Restrict a key to specific source IPs or CIDR ranges with one or more
-`--allowed-ip` flags. Omit the flag to allow the key from any IP. The allowlist
-is shown in `dairo api-key list`, `dairo whoami`, and the create output.
+Restrict a key to specific source IPs or CIDR ranges with one or more `--allowed-ip` flags. Omit the flag to allow the key from any IP. The allowlist is shown in `dairo api-key list`, `dairo whoami`, and the create output.
 
 ```sh
 dairo api-key create \
@@ -396,25 +315,23 @@ dairo api-key create \
   --allowed-ip 198.51.100.7
 ```
 
-Install Dairo MCP for coding agents with one command. It saves the token through
-stdin, then configures supported local clients without printing the key:
-
-```sh
-printf '%s' "$DAIRO_API_KEY" | dairo auth token set && dairo mcp install --client auto
-```
-
-`--client auto` configures Hermes, Codex, Cursor, and a project `.mcp.json` for
-Claude. You can target one client with `--client hermes`, `--client codex`,
-`--client cursor`, or `--client claude`. The remote endpoint is
-`https://api.dairo.app/mcp` and exposes agent-first tools like
-`dairo.whoami`, `dairo.send.email`, `dairo.list.outbound.events`, and
-`dairo.send.email.list`.
-
 Revoke an API key:
 
 ```sh
 dairo api-key revoke key_123
 ```
+
+### Install Dairo MCP
+
+Install Dairo MCP for agents with one command. It saves the token through stdin, then configures supported local clients without printing the key:
+
+```sh
+printf '%s' "$DAIRO_API_KEY" | dairo auth token set && dairo mcp install --client auto
+```
+
+`--client auto` configures Hermes, Codex, Cursor, and a project `.mcp.json` for Claude. You can target one client with `--client hermes`, `--client codex`, `--client cursor`, or `--client claude`. The remote endpoint is `https://api.dairo.app/mcp` and exposes agent-first tools like `dairo.whoami`, `dairo.send.email`, `dairo.list.outbound.events`, and `dairo.send.email.list`.
+
+### Messages
 
 Inspect mailbox messages. List output includes an attachment indicator; `get` prints body text/html and attachment metadata when present:
 
@@ -439,23 +356,24 @@ dairo threads list --inbox-id 018f0000-0000-0000-0000-000000000000
 dairo threads get thread_123
 ```
 
-Inspect the account audit log of security-relevant control-plane actions
-(resource create/delete, key revoke, email send). Output is JSON with keyset
-pagination; pass the returned `pagination.nextCursor` to `--cursor` for the next
-page:
+Singular aliases (`message`, `thread`, `attachment`) remain available, but the documented command surface is plural for mailbox collections.
+
+### Audit logs
+
+Inspect the account audit log of security-relevant control-plane actions (resource create/delete, key revoke, email send). Output is JSON with keyset pagination; pass the returned `pagination.nextCursor` to `--cursor` for the next page:
 
 ```sh
 dairo audit-logs list --limit 50
 dairo audit-logs list --limit 50 --cursor <nextCursor>
 ```
 
+### Dedicated IPs
+
 Inspect dedicated IP pool status (available on plans with dedicated IPs):
 
 ```sh
 dairo dedicated-ips status
 ```
-
-Singular aliases (`message`, `thread`, `attachment`) remain available, but the documented command surface is plural for mailbox collections.
 
 ## JSON and error contract
 
@@ -477,37 +395,19 @@ Failures with `--json` are emitted to stderr as a stable envelope:
 }
 ```
 
-Human output remains table/text oriented. One-time secrets from webhook/API-key
-creation are intentionally printed once; redirect or capture stdout carefully.
+Human output remains table/text oriented. One-time secrets from webhook/API-key creation are intentionally printed once; redirect or capture stdout carefully.
 
 ## Troubleshooting
 
-- `missing Dairo API token`: set `DAIRO_API_KEY` or pipe a token into
-  `dairo auth token set`.
-- Network errors: verify `DAIRO_API_URL` is unset or points at a reachable Dairo
-  API such as `https://api.dairo.app`.
-- Permission errors writing config: prefer `DAIRO_API_KEY`, or remove and
-  recreate the platform config directory with user-only permissions.
-- SES provider errors: SES remains the source of truth for sender/domain verification,
-  quotas, suppression, bounces, complaints, and provider rejections.
+- `missing Dairo API token`: set `DAIRO_API_KEY` or pipe a token into `dairo auth token set`.
+- Network errors: verify `DAIRO_API_URL` is unset or points at a reachable Dairo API such as `https://api.dairo.app`.
+- Permission errors writing config: prefer `DAIRO_API_KEY`, or remove and recreate the platform config directory with user-only permissions.
+- SES provider errors: SES remains the source of truth for sender/domain verification, quotas, suppression, bounces, complaints, and provider rejections.
 
-## Release policy
+## Documentation
 
-Releases follow semantic versioning. Tagged releases ship signed multi-platform
-artifacts with changelog-based release notes, and security fixes preserve
-documented behavior where possible.
+Full API and CLI documentation is available at [dairo.app](https://dairo.app).
 
-## Development
+## License
 
-```sh
-cargo fmt --check
-cargo clippy --locked --all-targets --all-features -- -D warnings
-cargo test --locked --all-features
-cargo build --release --locked
-cargo deny --locked check
-cargo audit --file Cargo.lock
-```
-
-Support/contact: use the `dairo-app/dairo-cli` repository.
-
-License: MIT
+MIT
