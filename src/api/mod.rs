@@ -1017,8 +1017,11 @@ impl ApiClient {
     /// (`DELETE /v1/buckets/{bucketId}`, scope `buckets:write`). Surfaces the
     /// backend's `409` when the bucket is the protected default. Returns the
     /// archived `bucket` envelope.
-    pub async fn delete_bucket(&self, bucket_id: &str) -> Result<serde_json::Value> {
-        self.execute_json(self.build_request(
+    pub async fn delete_bucket(&self, bucket_id: &str) -> Result<()> {
+        // DELETE /v1/buckets/{id} responds 204 with an EMPTY body; parsing it as
+        // JSON (execute_json) fails with "EOF while parsing a value" even though the
+        // delete succeeded. Use the no-content path like delete_webhook/revoke_api_key.
+        self.execute_no_content(self.build_request(
             Method::DELETE,
             &["v1", "buckets", bucket_id],
             None::<&()>,
@@ -1045,12 +1048,10 @@ impl ApiClient {
     /// Soft-deletes a bucket object (`DELETE
     /// /v1/buckets/{bucketId}/objects/{objectId}`, scope `buckets:write`). The
     /// ledger row is marked deleted and the S3 object is removed best-effort.
-    pub async fn delete_bucket_object(
-        &self,
-        bucket_id: &str,
-        object_id: &str,
-    ) -> Result<serde_json::Value> {
-        self.execute_json(self.build_request(
+    pub async fn delete_bucket_object(&self, bucket_id: &str, object_id: &str) -> Result<()> {
+        // DELETE /v1/buckets/{id}/objects/{objectId} responds 204 with an EMPTY body;
+        // execute_json would fail with "EOF while parsing a value" despite success.
+        self.execute_no_content(self.build_request(
             Method::DELETE,
             &["v1", "buckets", bucket_id, "objects", object_id],
             None::<&()>,
@@ -1145,13 +1146,23 @@ impl ApiClient {
             .timeout(REQUEST_TIMEOUT)
             .build()
             .map_err(ApiError::BuildRequest)?;
-        let mut put = s3
-            .put(&initiate.upload_url)
-            .header("Content-Type", content_type)
-            .body(bytes);
+        // The backend's signed `headers` map already includes the Content-Type the
+        // URL was signed with. Setting it again here makes reqwest send TWO
+        // Content-Type headers, which it joins as `text/plain,text/plain` — breaking
+        // the presigned-PUT signature (S3 403 SignatureDoesNotMatch). Only set the
+        // explicit Content-Type when the signed headers don't already carry one.
+        let signed_has_content_type = initiate
+            .headers
+            .iter()
+            .any(|(name, _)| name.eq_ignore_ascii_case("content-type"));
+        let mut put = s3.put(&initiate.upload_url);
+        if !signed_has_content_type {
+            put = put.header("Content-Type", content_type);
+        }
         for (name, value) in &initiate.headers {
             put = put.header(name, value);
         }
+        let put = put.body(bytes);
         let response = put.send().await.map_err(ApiError::Transport)?;
         if !response.status().is_success() {
             let status = response.status();

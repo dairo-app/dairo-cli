@@ -923,8 +923,8 @@ async fn run_bucket(
             output::print_json(&response, format)
         }
         BucketCommand::Delete { bucket_id } => {
-            let response = client.delete_bucket(bucket_id.trim()).await?;
-            output::print_json(&response, format)
+            client.delete_bucket(bucket_id.trim()).await?;
+            output::print_deleted("bucket", format)
         }
         BucketCommand::Ls {
             bucket_id,
@@ -980,10 +980,10 @@ async fn run_bucket(
             bucket_id,
             object_id,
         } => {
-            let response = client
+            client
                 .delete_bucket_object(bucket_id.trim(), object_id.trim())
                 .await?;
-            output::print_json(&response, format)
+            output::print_deleted("bucket object", format)
         }
     }
 }
