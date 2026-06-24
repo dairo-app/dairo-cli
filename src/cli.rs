@@ -638,8 +638,10 @@ pub enum BucketCommand {
     Delete { bucket_id: String },
     /// Upload a local file into a bucket (scope `buckets:write`).
     ///
-    /// Initiates an upload, PUTs the file to the presigned S3 URL, then
-    /// finalizes so the object is recorded at its true size.
+    /// Auto-selects the transfer strategy by size: files up to 64MiB take a
+    /// single presigned PUT; larger files use a resumable multipart upload
+    /// (parallel, per-part retried part PUTs). Either way the object is recorded
+    /// at its true size.
     Upload {
         bucket_id: String,
         /// Local file to upload.

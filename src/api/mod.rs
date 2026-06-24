@@ -25,6 +25,23 @@ const RETRY_MAX_BACKOFF: Duration = Duration::from_secs(5);
 /// User-Agent advertised to the API. Never include the API key here.
 const USER_AGENT: &str = concat!("dairo-cli/", env!("CARGO_PKG_VERSION"));
 
+/// Size threshold at/under which `upload_file` keeps the single-PUT branded
+/// flow; strictly above it switches to the resumable multipart flow. 64MiB
+/// comfortably fits one PUT while keeping the multipart win for big objects.
+pub const MULTIPART_THRESHOLD_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Wall-clock timeout for one part PUT. A multipart part can be up to 5GiB, so
+/// the 30s API timeout is far too short — a part needs its own generous budget.
+const PART_UPLOAD_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+
+/// Max number of part PUTs in flight at once. Bounded so a huge object doesn't
+/// open thousands of sockets, while still parallelising for throughput.
+const MULTIPART_PARALLELISM: usize = 4;
+
+/// Additional attempts after the first for a single part PUT (transient S3
+/// failures). This per-part retry is the resumability/robustness win.
+const PART_MAX_RETRIES: u32 = 3;
+
 #[derive(Debug, Error)]
 pub enum ApiError {
     #[error("invalid API base URL: {0}")]
@@ -1111,16 +1128,98 @@ impl ApiClient {
         .await
     }
 
-    /// Uploads a local file to a bucket end-to-end: initiate (presigned PUT),
-    /// PUT the bytes straight to S3 (echoing the required SSE headers), then
-    /// finalize so the ledger records the object's true size. Returns the
-    /// finalized `bucket_object` envelope.
+    /// Initiates a multipart upload (`POST
+    /// /v1/buckets/{bucketId}/objects/multipart`, scope `buckets:write`).
+    /// Returns the S3 upload id, placeholder object id, part size/count and the
+    /// per-part branded presigned PUT urls. Records a `multipart_pending`
+    /// placeholder ledger row.
+    pub async fn initiate_multipart_upload(
+        &self,
+        bucket_id: &str,
+        body: &InitiateMultipartRequest,
+    ) -> Result<InitiateMultipartResponse> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "buckets", bucket_id, "objects", "multipart"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Completes a multipart upload (`POST
+    /// /v1/buckets/{bucketId}/objects/multipart/{uploadId}/complete`, scope
+    /// `buckets:write`). The backend CompleteMultipartUpload's the parts
+    /// (sorted ascending), HEADs the true size, gates the storage limit, and
+    /// records the object. Idempotent. Returns the `bucket_object` envelope.
+    pub async fn complete_multipart_upload(
+        &self,
+        bucket_id: &str,
+        upload_id: &str,
+        body: &CompleteMultipartRequest,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &[
+                "v1", "buckets", bucket_id, "objects", "multipart", upload_id, "complete",
+            ],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Aborts a multipart upload (`POST
+    /// /v1/buckets/{bucketId}/objects/multipart/{uploadId}/abort`, scope
+    /// `buckets:write`). Frees the staged S3 parts and soft-deletes the
+    /// placeholder ledger row. The backend returns `null`.
+    pub async fn abort_multipart_upload(
+        &self,
+        bucket_id: &str,
+        upload_id: &str,
+        body: &AbortMultipartRequest,
+    ) -> Result<()> {
+        // The abort endpoint returns a `null` body; parsing it as a typed JSON
+        // value would be pointless, so discard it (mirrors the DELETE 204 path
+        // via execute_no_content, which ignores any body on a 2xx).
+        self.execute_no_content(self.build_request(
+            Method::POST,
+            &[
+                "v1", "buckets", bucket_id, "objects", "multipart", upload_id, "abort",
+            ],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Uploads a local file to a bucket end-to-end, AUTO-SELECTING the transfer
+    /// strategy by size: files at/under [`MULTIPART_THRESHOLD_BYTES`] take the
+    /// single-PUT branded flow; larger files take the resumable multipart flow
+    /// (parallel + per-part retried part PUTs). Returns the finalized
+    /// `bucket_object` envelope either way.
+    pub async fn upload_file(
+        &self,
+        bucket_id: &str,
+        filename: &str,
+        content_type: &str,
+        bytes: Vec<u8>,
+    ) -> Result<serde_json::Value> {
+        if bytes.len() as u64 > MULTIPART_THRESHOLD_BYTES {
+            self.upload_file_multipart(bucket_id, filename, content_type, bytes)
+                .await
+        } else {
+            self.upload_file_single(bucket_id, filename, content_type, bytes)
+                .await
+        }
+    }
+
+    /// Single-PUT branded upload: initiate (presigned PUT), PUT the bytes
+    /// straight to S3 (echoing the required SSE headers), then finalize so the
+    /// ledger records the object's true size.
     ///
     /// The PUT goes to a presigned S3 URL with no Dairo bearer auth, so it uses
     /// a fresh short-lived client rather than `self.http` (which always attaches
     /// the API key). The bytes are read fully into memory, matching the
     /// attachment-send path.
-    pub async fn upload_file(
+    pub async fn upload_file_single(
         &self,
         bucket_id: &str,
         filename: &str,
@@ -1175,6 +1274,144 @@ impl ApiClient {
 
         self.finalize_bucket_upload(bucket_id, &initiate.object_id)
             .await
+    }
+
+    /// Resumable multipart upload: initiate (records a placeholder + returns the
+    /// per-part branded presigned PUT urls), PUT every part to its branded url
+    /// with bounded parallelism and per-part retry (reading the `ETag` response
+    /// header off each), then complete with the collected `{partNumber, etag}`.
+    /// On any failure the upload is aborted (best-effort) so no staged parts are
+    /// left billing. Returns the finalized `bucket_object` envelope.
+    pub async fn upload_file_multipart(
+        &self,
+        bucket_id: &str,
+        filename: &str,
+        content_type: &str,
+        bytes: Vec<u8>,
+    ) -> Result<serde_json::Value> {
+        let total_bytes = bytes.len() as u64;
+        let initiate = self
+            .initiate_multipart_upload(
+                bucket_id,
+                &InitiateMultipartRequest {
+                    filename: filename.to_string(),
+                    content_type: content_type.to_string(),
+                    total_bytes,
+                    // Let the backend pick the default part size (256MiB).
+                    part_size: None,
+                },
+            )
+            .await?;
+
+        // Upload every part, then complete. Any error past the initiate must
+        // abort the upload so staged parts don't linger.
+        match self.upload_parts_then_complete(bucket_id, &initiate, bytes).await {
+            Ok(object) => Ok(object),
+            Err(error) => {
+                // Best-effort abort; preserve the original error regardless of
+                // whether the abort itself succeeds.
+                let _ = self
+                    .abort_multipart_upload(
+                        bucket_id,
+                        &initiate.upload_id,
+                        &AbortMultipartRequest {
+                            object_id: initiate.object_id.clone(),
+                        },
+                    )
+                    .await;
+                Err(error)
+            }
+        }
+    }
+
+    /// Slices `bytes` into the parts described by `initiate`, PUTs them to their
+    /// branded urls with bounded parallelism + per-part retry, then completes.
+    async fn upload_parts_then_complete(
+        &self,
+        bucket_id: &str,
+        initiate: &InitiateMultipartResponse,
+        bytes: Vec<u8>,
+    ) -> Result<serde_json::Value> {
+        // A presigned PUT carries no Dairo bearer token and must echo the
+        // initiate-level signed headers verbatim, so use a fresh client with a
+        // part-sized timeout rather than `self.http` (which attaches the key).
+        let s3 = std::sync::Arc::new(
+            reqwest::Client::builder()
+                .user_agent(USER_AGENT)
+                .timeout(PART_UPLOAD_TIMEOUT)
+                .build()
+                .map_err(ApiError::BuildRequest)?,
+        );
+        let bytes = std::sync::Arc::new(bytes);
+        let headers = std::sync::Arc::new(initiate.headers.clone());
+        let part_size = initiate.part_size;
+        let total = bytes.len() as u64;
+
+        // Drive a bounded number of part PUTs concurrently. Parts are pulled off
+        // a shared index; each task computes its own byte range from part_size.
+        let next = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let parts = std::sync::Arc::new(initiate.parts.clone());
+        let workers = MULTIPART_PARALLELISM.min(parts.len().max(1));
+
+        let mut set = tokio::task::JoinSet::new();
+        for _ in 0..workers {
+            let s3 = s3.clone();
+            let bytes = bytes.clone();
+            let headers = headers.clone();
+            let parts = parts.clone();
+            let next = next.clone();
+            set.spawn(async move {
+                let mut done: Vec<CompletedPart> = Vec::new();
+                loop {
+                    let idx = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    if idx >= parts.len() {
+                        break;
+                    }
+                    let part = &parts[idx];
+                    // `part_number` is 1-based; the byte range is contiguous.
+                    let start = (part.part_number as u64 - 1) * part_size;
+                    let end = (start + part_size).min(total);
+                    let chunk = bytes[start as usize..end as usize].to_vec();
+                    let etag = put_one_part_with_retry(&s3, &part.url, &headers, chunk).await?;
+                    done.push(CompletedPart {
+                        part_number: part.part_number,
+                        etag,
+                    });
+                }
+                Ok::<_, ApiError>(done)
+            });
+        }
+
+        let mut completed: Vec<CompletedPart> = Vec::new();
+        while let Some(joined) = set.join_next().await {
+            match joined {
+                Ok(Ok(mut done)) => completed.append(&mut done),
+                Ok(Err(error)) => {
+                    set.abort_all();
+                    return Err(error);
+                }
+                Err(join_error) => {
+                    set.abort_all();
+                    return Err(ApiError::Api {
+                        status: StatusCode::INTERNAL_SERVER_ERROR,
+                        message: format!("multipart upload task failed: {join_error}"),
+                    });
+                }
+            }
+        }
+
+        // The backend sorts ascending, but send them ordered for a stable body.
+        completed.sort_by_key(|part| part.part_number);
+
+        self.complete_multipart_upload(
+            bucket_id,
+            &initiate.upload_id,
+            &CompleteMultipartRequest {
+                object_id: initiate.object_id.clone(),
+                parts: completed,
+            },
+        )
+        .await
     }
 
     /// Downloads a bucket object's bytes: requests a presigned GET URL, then
@@ -1415,6 +1652,63 @@ async fn error_from_response(response: reqwest::Response) -> ApiError {
             .to_string(),
     };
     ApiError::Api { status, message }
+}
+
+/// PUTs one multipart part to its branded presigned url, echoing the signed
+/// `headers` (`x-amz-content-sha256: UNSIGNED-PAYLOAD`; no SSE header on parts),
+/// with bounded retry on transient failures. Returns the `ETag` response header
+/// (quotes preserved) which the complete step reports back per part. The retry
+/// here is the resumability win: a flaky part PUT is replayed rather than
+/// failing the whole large upload.
+async fn put_one_part_with_retry(
+    s3: &reqwest::Client,
+    url: &str,
+    headers: &std::collections::BTreeMap<String, String>,
+    chunk: Vec<u8>,
+) -> Result<String> {
+    let mut attempt: u32 = 0;
+    loop {
+        let mut put = s3.put(url).body(chunk.clone());
+        for (name, value) in headers {
+            put = put.header(name, value);
+        }
+        match put.send().await {
+            Ok(response) if response.status().is_success() => {
+                // S3 returns the part's ETag in the response header; it is the
+                // value the complete call must echo back per part.
+                return response
+                    .headers()
+                    .get(reqwest::header::ETAG)
+                    .and_then(|value| value.to_str().ok())
+                    .map(str::to_string)
+                    .ok_or_else(|| ApiError::Api {
+                        status: StatusCode::BAD_GATEWAY,
+                        message: "part upload succeeded but returned no ETag header".to_string(),
+                    });
+            }
+            Ok(response) => {
+                let status = response.status();
+                if attempt < PART_MAX_RETRIES && is_retryable_status(status) {
+                    backoff(attempt, RETRY_BASE_BACKOFF, RETRY_MAX_BACKOFF).await;
+                    attempt += 1;
+                    continue;
+                }
+                let message = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "part upload failed".to_string());
+                return Err(ApiError::Api { status, message });
+            }
+            Err(error) => {
+                if attempt < PART_MAX_RETRIES && (error.is_timeout() || error.is_connect()) {
+                    backoff(attempt, RETRY_BASE_BACKOFF, RETRY_MAX_BACKOFF).await;
+                    attempt += 1;
+                    continue;
+                }
+                return Err(ApiError::Transport(error));
+            }
+        }
+    }
 }
 
 /// Sleeps for an exponentially increasing, capped backoff before the next
@@ -2741,5 +3035,122 @@ mod tests {
         assert!(query.contains("cursor=cur_1"));
         assert!(query.contains("status=in_transit"));
         assert!(query.contains("country=CH"));
+    }
+
+    #[test]
+    fn multipart_initiate_targets_objects_multipart_route() {
+        // Regression: the initiate must hit `/objects/multipart`, not the
+        // single-PUT `/objects`, and serialize the documented field names.
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::POST,
+                &["v1", "buckets", "buk_1", "objects", "multipart"],
+                Some(&InitiateMultipartRequest {
+                    filename: "big.bin".to_string(),
+                    content_type: "application/octet-stream".to_string(),
+                    total_bytes: 700 * 1024 * 1024,
+                    part_size: None,
+                }),
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/buckets/buk_1/objects/multipart"
+        );
+        let body = std::str::from_utf8(request.body().unwrap().as_bytes().unwrap()).unwrap();
+        assert!(body.contains("\"totalBytes\":734003200"), "body: {body}");
+        assert!(body.contains("\"contentType\":\"application/octet-stream\""));
+        // partSize is None -> omitted so the backend default (256MiB) applies.
+        assert!(!body.contains("partSize"), "partSize must be omitted: {body}");
+    }
+
+    #[test]
+    fn multipart_complete_and_abort_target_uploadid_subroutes() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let complete = client
+            .build_request(
+                Method::POST,
+                &[
+                    "v1", "buckets", "buk_1", "objects", "multipart", "up_9", "complete",
+                ],
+                Some(&CompleteMultipartRequest {
+                    object_id: "obj_1".to_string(),
+                    parts: vec![CompletedPart {
+                        part_number: 1,
+                        etag: "\"abc\"".to_string(),
+                    }],
+                }),
+            )
+            .unwrap();
+        assert_eq!(
+            complete.url().as_str(),
+            "https://api.example.test/v1/buckets/buk_1/objects/multipart/up_9/complete"
+        );
+        let body = std::str::from_utf8(complete.body().unwrap().as_bytes().unwrap()).unwrap();
+        assert!(body.contains("\"partNumber\":1"));
+        assert!(body.contains("\"objectId\":\"obj_1\""));
+
+        let abort = client
+            .build_request(
+                Method::POST,
+                &[
+                    "v1", "buckets", "buk_1", "objects", "multipart", "up_9", "abort",
+                ],
+                Some(&AbortMultipartRequest {
+                    object_id: "obj_1".to_string(),
+                }),
+            )
+            .unwrap();
+        assert_eq!(
+            abort.url().as_str(),
+            "https://api.example.test/v1/buckets/buk_1/objects/multipart/up_9/abort"
+        );
+    }
+
+    #[test]
+    fn multipart_initiate_response_deserializes_branded_part_urls() {
+        // The initiate response carries the per-part BRANDED storage.dairo.app
+        // urls plus the headers echoed on every part PUT.
+        let raw = serde_json::json!({
+            "object": "bucket_multipart_upload",
+            "uploadId": "up_9",
+            "objectId": "obj_1",
+            "bucketId": "buk_1",
+            "key": "uploads/u/buk_1/uuid",
+            "method": "PUT",
+            "partSize": 268435456,
+            "partCount": 2,
+            "headers": { "x-amz-content-sha256": "UNSIGNED-PAYLOAD" },
+            "parts": [
+                { "partNumber": 1, "url": "https://storage.dairo.app/u/k?partNumber=1&uploadId=up_9" },
+                { "partNumber": 2, "url": "https://storage.dairo.app/u/k?partNumber=2&uploadId=up_9" }
+            ],
+            "oneTime": true,
+            "expiresInSeconds": 3600,
+            "downloadUrl": "https://storage.dairo.app/d/tok/big.bin",
+            "shareUrl": "https://storage.dairo.app/s/tok",
+            "linkExpiresInSeconds": 3600
+        });
+        let parsed: InitiateMultipartResponse = serde_json::from_value(raw).unwrap();
+        assert_eq!(parsed.upload_id, "up_9");
+        assert_eq!(parsed.part_count, 2);
+        assert_eq!(parsed.part_size, 268435456);
+        assert_eq!(parsed.parts.len(), 2);
+        assert_eq!(parsed.parts[1].part_number, 2);
+        assert!(parsed.parts[0].url.starts_with("https://storage.dairo.app/u/"));
+        assert_eq!(
+            parsed.headers.get("x-amz-content-sha256").map(String::as_str),
+            Some("UNSIGNED-PAYLOAD")
+        );
+    }
+
+    #[test]
+    fn multipart_threshold_is_64_mib() {
+        // The auto-select boundary: <= threshold single-PUT, strictly above
+        // multipart. Pin the documented 64MiB so a refactor can't silently move
+        // it (which would change which uploads go resumable).
+        assert_eq!(MULTIPART_THRESHOLD_BYTES, 64 * 1024 * 1024);
     }
 }

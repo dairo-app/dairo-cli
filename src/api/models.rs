@@ -565,6 +565,84 @@ fn default_put_method() -> String {
     "PUT".to_string()
 }
 
+/// `POST /v1/buckets/{bucketId}/objects/multipart` request body: initiate a
+/// multipart upload. `partSize` is optional (backend default 256MiB, range
+/// 5MiB..5GiB); the backend computes `partCount = ceil(totalBytes/partSize)`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InitiateMultipartRequest {
+    pub filename: String,
+    #[serde(rename = "contentType")]
+    pub content_type: String,
+    #[serde(rename = "totalBytes")]
+    pub total_bytes: u64,
+    #[serde(rename = "partSize", skip_serializing_if = "Option::is_none")]
+    pub part_size: Option<u64>,
+}
+
+/// One presigned part PUT in the multipart initiate response. The client PUTs
+/// the corresponding byte range to `url` (echoing the initiate-level `headers`)
+/// and reads the `ETag` response header back.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MultipartPartUrl {
+    #[serde(rename = "partNumber")]
+    pub part_number: u32,
+    pub url: String,
+}
+
+/// Response of `POST /v1/buckets/{bucketId}/objects/multipart`: the S3 upload
+/// id, the placeholder ledger object id, the part size/count, the per-part
+/// branded presigned PUT urls, and the headers that MUST accompany every part
+/// PUT (`x-amz-content-sha256: UNSIGNED-PAYLOAD`; NO SSE header on parts).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InitiateMultipartResponse {
+    #[serde(rename = "uploadId")]
+    pub upload_id: String,
+    #[serde(rename = "objectId")]
+    pub object_id: String,
+    #[serde(rename = "bucketId")]
+    pub bucket_id: String,
+    pub key: String,
+    #[serde(default = "default_put_method")]
+    pub method: String,
+    #[serde(rename = "partSize")]
+    pub part_size: u64,
+    #[serde(rename = "partCount")]
+    pub part_count: u32,
+    /// Headers that MUST be echoed on EVERY part PUT, exactly as signed.
+    #[serde(default)]
+    pub headers: std::collections::BTreeMap<String, String>,
+    pub parts: Vec<MultipartPartUrl>,
+    #[serde(rename = "expiresInSeconds")]
+    pub expires_in_seconds: u64,
+}
+
+/// One completed part `{ partNumber, etag }` reported back at complete time.
+/// The S3 `ETag` response header (quotes included) is passed through verbatim.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompletedPart {
+    #[serde(rename = "partNumber")]
+    pub part_number: u32,
+    pub etag: String,
+}
+
+/// `POST /v1/buckets/{bucketId}/objects/multipart/{uploadId}/complete` request
+/// body: the placeholder ledger id from initiate plus the collected part ETags
+/// (the backend sorts ascending and CompleteMultipartUpload's them).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompleteMultipartRequest {
+    #[serde(rename = "objectId")]
+    pub object_id: String,
+    pub parts: Vec<CompletedPart>,
+}
+
+/// `POST /v1/buckets/{bucketId}/objects/multipart/{uploadId}/abort` request
+/// body: the placeholder ledger id to abort (frees the staged S3 parts).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AbortMultipartRequest {
+    #[serde(rename = "objectId")]
+    pub object_id: String,
+}
+
 /// Response of `GET /v1/buckets/{bucketId}/objects/{objectId}/download`: a
 /// presigned S3 GET URL the client streams the bytes from.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
