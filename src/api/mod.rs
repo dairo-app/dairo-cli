@@ -430,6 +430,24 @@ impl ApiClient {
         .await
     }
 
+    /// Bulk-deletes up to 1000 mailbox messages in a single call (`POST
+    /// /v1/messages/batch-delete`, scope `mail:read`). Removes the message rows
+    /// and their stored bytes. Ownership is enforced per id; a bad/foreign/unknown
+    /// id is reported in `failed` and never aborts the batch. Returns the
+    /// partial-success `batch_delete_result` envelope.
+    pub async fn batch_delete_messages(
+        &self,
+        message_ids: Vec<String>,
+    ) -> Result<BatchDeleteResult> {
+        let body = BatchDeleteMessagesRequest { message_ids };
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "messages", "batch-delete"],
+            Some(&body),
+        )?)
+        .await
+    }
+
     pub async fn get_attachment_url(
         &self,
         attachment_id: &str,
@@ -1076,6 +1094,26 @@ impl ApiClient {
         .await
     }
 
+    /// Bulk-deletes up to 1000 objects from one bucket in a single call (`POST
+    /// /v1/buckets/{bucketId}/objects/batch-delete`, scope `buckets:write`). Each
+    /// id is soft-deleted (its bytes stop counting) and the stored bytes are
+    /// removed in one batched S3 delete. Ownership is enforced per id; a
+    /// bad/foreign/unknown id is reported in `failed` and never aborts the batch.
+    /// Returns the partial-success `batch_delete_result` envelope.
+    pub async fn batch_delete_bucket_objects(
+        &self,
+        bucket_id: &str,
+        object_ids: Vec<String>,
+    ) -> Result<BatchDeleteResult> {
+        let body = BatchDeleteBucketObjectsRequest { object_ids };
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "buckets", bucket_id, "objects", "batch-delete"],
+            Some(&body),
+        )?)
+        .await
+    }
+
     /// Initiates an upload (`POST /v1/buckets/{bucketId}/objects`, scope
     /// `buckets:write`). Returns the presigned S3 PUT URL plus any SSE headers
     /// that must accompany the PUT. Records nothing in the ledger yet.
@@ -1160,7 +1198,13 @@ impl ApiClient {
         self.execute_json(self.build_request(
             Method::POST,
             &[
-                "v1", "buckets", bucket_id, "objects", "multipart", upload_id, "complete",
+                "v1",
+                "buckets",
+                bucket_id,
+                "objects",
+                "multipart",
+                upload_id,
+                "complete",
             ],
             Some(body),
         )?)
@@ -1183,7 +1227,13 @@ impl ApiClient {
         self.execute_no_content(self.build_request(
             Method::POST,
             &[
-                "v1", "buckets", bucket_id, "objects", "multipart", upload_id, "abort",
+                "v1",
+                "buckets",
+                bucket_id,
+                "objects",
+                "multipart",
+                upload_id,
+                "abort",
             ],
             Some(body),
         )?)
@@ -1305,7 +1355,10 @@ impl ApiClient {
 
         // Upload every part, then complete. Any error past the initiate must
         // abort the upload so staged parts don't linger.
-        match self.upload_parts_then_complete(bucket_id, &initiate, bytes).await {
+        match self
+            .upload_parts_then_complete(bucket_id, &initiate, bytes)
+            .await
+        {
             Ok(object) => Ok(object),
             Err(error) => {
                 // Best-effort abort; preserve the original error regardless of
@@ -3063,7 +3116,10 @@ mod tests {
         assert!(body.contains("\"totalBytes\":734003200"), "body: {body}");
         assert!(body.contains("\"contentType\":\"application/octet-stream\""));
         // partSize is None -> omitted so the backend default (256MiB) applies.
-        assert!(!body.contains("partSize"), "partSize must be omitted: {body}");
+        assert!(
+            !body.contains("partSize"),
+            "partSize must be omitted: {body}"
+        );
     }
 
     #[test]
@@ -3073,7 +3129,13 @@ mod tests {
             .build_request(
                 Method::POST,
                 &[
-                    "v1", "buckets", "buk_1", "objects", "multipart", "up_9", "complete",
+                    "v1",
+                    "buckets",
+                    "buk_1",
+                    "objects",
+                    "multipart",
+                    "up_9",
+                    "complete",
                 ],
                 Some(&CompleteMultipartRequest {
                     object_id: "obj_1".to_string(),
@@ -3096,7 +3158,13 @@ mod tests {
             .build_request(
                 Method::POST,
                 &[
-                    "v1", "buckets", "buk_1", "objects", "multipart", "up_9", "abort",
+                    "v1",
+                    "buckets",
+                    "buk_1",
+                    "objects",
+                    "multipart",
+                    "up_9",
+                    "abort",
                 ],
                 Some(&AbortMultipartRequest {
                     object_id: "obj_1".to_string(),
@@ -3107,6 +3175,64 @@ mod tests {
             abort.url().as_str(),
             "https://api.example.test/v1/buckets/buk_1/objects/multipart/up_9/abort"
         );
+    }
+
+    #[test]
+    fn batch_delete_bucket_objects_targets_batch_delete_route() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::POST,
+                &["v1", "buckets", "buk_1", "objects", "batch-delete"],
+                Some(&BatchDeleteBucketObjectsRequest {
+                    object_ids: vec!["a".to_string(), "b".to_string()],
+                }),
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/buckets/buk_1/objects/batch-delete"
+        );
+        let body = std::str::from_utf8(request.body().unwrap().as_bytes().unwrap()).unwrap();
+        assert!(body.contains("\"objectIds\":[\"a\",\"b\"]"), "body: {body}");
+    }
+
+    #[test]
+    fn batch_delete_messages_targets_batch_delete_route() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::POST,
+                &["v1", "messages", "batch-delete"],
+                Some(&BatchDeleteMessagesRequest {
+                    message_ids: vec!["m1".to_string()],
+                }),
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/messages/batch-delete"
+        );
+        let body = std::str::from_utf8(request.body().unwrap().as_bytes().unwrap()).unwrap();
+        assert!(body.contains("\"messageIds\":[\"m1\"]"), "body: {body}");
+    }
+
+    #[test]
+    fn batch_delete_result_deserializes_partial_success_envelope() {
+        let result: BatchDeleteResult = serde_json::from_str(
+            r#"{
+                "object": "batch_delete_result",
+                "deleted": ["a"],
+                "failed": [{ "id": "b", "error": "not_found" }]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(result.deleted, vec!["a".to_string()]);
+        assert_eq!(result.failed.len(), 1);
+        assert_eq!(result.failed[0].id, "b");
+        assert_eq!(result.failed[0].error, "not_found");
     }
 
     #[test]
@@ -3139,9 +3265,14 @@ mod tests {
         assert_eq!(parsed.part_size, 268435456);
         assert_eq!(parsed.parts.len(), 2);
         assert_eq!(parsed.parts[1].part_number, 2);
-        assert!(parsed.parts[0].url.starts_with("https://storage.dairo.app/u/"));
+        assert!(parsed.parts[0]
+            .url
+            .starts_with("https://storage.dairo.app/u/"));
         assert_eq!(
-            parsed.headers.get("x-amz-content-sha256").map(String::as_str),
+            parsed
+                .headers
+                .get("x-amz-content-sha256")
+                .map(String::as_str),
             Some("UNSIGNED-PAYLOAD")
         );
     }

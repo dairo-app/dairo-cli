@@ -254,6 +254,10 @@ async fn run(cli: Cli) -> Result<()> {
                         let message = client.get_message(&message_id).await?;
                         output::print_message(&message, format)
                     }
+                    MessageCommand::BatchDelete { message_ids } => {
+                        let result = client.batch_delete_messages(message_ids).await?;
+                        output::print_batch_delete_result("message", &result, format)
+                    }
                     MessageCommand::DownloadAttachments { message_id, out } => {
                         let message = client.get_message(&message_id).await?;
                         if message.attachments.is_empty() {
@@ -984,6 +988,15 @@ async fn run_bucket(
                 .delete_bucket_object(bucket_id.trim(), object_id.trim())
                 .await?;
             output::print_deleted("bucket object", format)
+        }
+        BucketCommand::BatchRm {
+            bucket_id,
+            object_ids,
+        } => {
+            let result = client
+                .batch_delete_bucket_objects(bucket_id.trim(), object_ids)
+                .await?;
+            output::print_batch_delete_result("bucket object", &result, format)
         }
     }
 }

@@ -661,6 +661,43 @@ pub struct BucketObjectListQuery {
     pub cursor: Option<String>,
 }
 
+/// `POST /v1/buckets/{bucketId}/objects/batch-delete` request body: the storage
+/// object ids to soft-delete (1..1000) in a single call.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchDeleteBucketObjectsRequest {
+    #[serde(rename = "objectIds")]
+    pub object_ids: Vec<String>,
+}
+
+/// `POST /v1/messages/batch-delete` request body: the message ids to delete
+/// (1..1000) in a single call.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchDeleteMessagesRequest {
+    #[serde(rename = "messageIds")]
+    pub message_ids: Vec<String>,
+}
+
+/// One per-id failure from a batch-delete call. The id was skipped (e.g. not
+/// found or not owned by the caller) and never aborts the rest of the batch.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchDeleteFailure {
+    pub id: String,
+    pub error: String,
+}
+
+/// Partial-success result of a batch-delete call (`object: "batch_delete_result"`),
+/// shared by the bucket-objects and messages batch-delete endpoints. `deleted`
+/// holds the ids that were removed; `failed` holds the per-id failures.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchDeleteResult {
+    #[serde(default)]
+    pub object: Option<String>,
+    #[serde(default)]
+    pub deleted: Vec<String>,
+    #[serde(default)]
+    pub failed: Vec<BatchDeleteFailure>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateWebhookRequest {
     pub url: String,

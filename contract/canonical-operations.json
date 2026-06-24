@@ -3,7 +3,7 @@
   "description": "Derived from the canonical dairo.openapi.json. Regenerate via scripts/gen-canonical-operations.py; do not hand-edit.",
   "openapiVersion": "3.1.0",
   "specVersion": "0.1.0",
-  "operationCount": 93,
+  "operationCount": 95,
   "operations": [
     {
       "method": "GET",
@@ -445,6 +445,21 @@
         {}
       ],
       "path": "/v1/buckets/{bucketId}/objects",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "batchDeleteBucketObjects",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/objects/batch-delete",
       "scopes": [
         "buckets:write"
       ],
@@ -1156,6 +1171,16 @@
         }
       ],
       "path": "/v1/messages",
+      "scopes": [
+        "mail:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "batchDeleteMessages",
+      "parameters": [],
+      "path": "/v1/messages/batch-delete",
       "scopes": [
         "mail:read"
       ],

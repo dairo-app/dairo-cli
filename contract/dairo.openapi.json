@@ -10160,6 +10160,219 @@
           }
         }
       }
+    },
+    "/v1/buckets/{bucketId}/objects/batch-delete": {
+      "post": {
+        "tags": [
+          "Buckets"
+        ],
+        "summary": "Bulk-delete many objects from one bucket in a single call.",
+        "description": "Soft-delete up to 1000 objects from one bucket in ONE call (so their bytes stop counting) and remove the stored bytes in a single batched S3 delete. Ownership is enforced per id. Partial-success: one bad/foreign/unknown id is reported in `failed` and never fails the whole call.",
+        "operationId": "batchDeleteBucketObjects",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "buckets:write"
+        ],
+        "parameters": [
+          {
+            "name": "bucketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bucket identifier (buk_*)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchDeleteBucketObjectsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Partial-success result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchDeleteResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/messages/batch-delete": {
+      "post": {
+        "tags": [
+          "Messages"
+        ],
+        "summary": "Bulk-delete many mailbox messages in a single call.",
+        "description": "Owner-scoped bulk delete of up to 1000 messages in ONE call. Removes the message rows and their stored bytes (raw email + attachments). Partial-success: one bad/foreign/unknown id is reported in `failed` and never fails the whole call.",
+        "operationId": "batchDeleteMessages",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "mail:read"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchDeleteMessagesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Partial-success result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchDeleteResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -15416,6 +15629,90 @@
             "$ref": "#/components/schemas/Pagination"
           }
         }
+      },
+      "BatchDeleteBucketObjectsRequest": {
+        "type": "object",
+        "required": [
+          "objectIds"
+        ],
+        "properties": {
+          "objectIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 1000,
+            "description": "The storage object ids to delete (1-1000)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "BatchDeleteMessagesRequest": {
+        "type": "object",
+        "required": [
+          "messageIds"
+        ],
+        "properties": {
+          "messageIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 1000,
+            "description": "The message ids to delete (1-1000)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "BatchDeleteResult": {
+        "type": "object",
+        "required": [
+          "object",
+          "deleted",
+          "failed"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "batch_delete_result"
+            ]
+          },
+          "deleted": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The ids that were successfully deleted."
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "error"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The id that could not be deleted."
+                },
+                "error": {
+                  "type": "string",
+                  "description": "Why this id was skipped (e.g. not found / not owned)."
+                }
+              },
+              "additionalProperties": false
+            },
+            "description": "Per-id failures; never aborts the rest of the batch."
+          }
+        },
+        "additionalProperties": false
       }
     }
   }

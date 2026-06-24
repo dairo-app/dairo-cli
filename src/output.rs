@@ -4,9 +4,10 @@ use crate::cli::PrintMode;
 use crate::mcp_install::McpInstallReport;
 
 use crate::api::{
-    ApiKey, AttachmentDownloadUrlResponse, CreateApiKeyResponse, CreateWebhookResponse, Domain,
-    EmailList, EmailListDetailResponse, EmailListImportResponse, EmailListSendResponse, Inbox,
-    LedgerEvent, Message, SendEmailResponse, SendEmailWarning, Thread, Webhook, WhoamiResponse,
+    ApiKey, AttachmentDownloadUrlResponse, BatchDeleteResult, CreateApiKeyResponse,
+    CreateWebhookResponse, Domain, EmailList, EmailListDetailResponse, EmailListImportResponse,
+    EmailListSendResponse, Inbox, LedgerEvent, Message, SendEmailResponse, SendEmailWarning,
+    Thread, Webhook, WhoamiResponse,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -641,6 +642,30 @@ pub fn print_deleted(resource: &str, format: OutputFormat) -> Result<()> {
     }
 
     println!("Deleted {resource}.");
+    Ok(())
+}
+
+/// Renders the partial-success result of a batch-delete call. In JSON mode the
+/// raw `batch_delete_result` envelope is echoed; in text mode a one-line summary
+/// plus per-id failures are printed.
+pub fn print_batch_delete_result(
+    resource: &str,
+    result: &BatchDeleteResult,
+    format: OutputFormat,
+) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(result)?);
+        return Ok(());
+    }
+
+    println!(
+        "Deleted {} {resource}(s); {} failed.",
+        result.deleted.len(),
+        result.failed.len()
+    );
+    for failure in &result.failed {
+        println!("  failed {}: {}", failure.id, failure.error);
+    }
     Ok(())
 }
 

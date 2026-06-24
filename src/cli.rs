@@ -673,6 +673,15 @@ pub enum BucketCommand {
         bucket_id: String,
         object_id: String,
     },
+    /// Bulk soft-delete up to 1000 objects from one bucket in a single call
+    /// (scope `buckets:write`). A bad/foreign/unknown id is reported as a
+    /// failure and never aborts the batch.
+    BatchRm {
+        bucket_id: String,
+        /// Object ids to delete (1..=1000). Pass repeatedly or comma-separated.
+        #[arg(required = true, value_delimiter = ',', num_args = 1..)]
+        object_ids: Vec<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -1883,6 +1892,14 @@ pub enum MessageCommand {
     },
     /// Get a message by ID.
     Get { message_id: String },
+    /// Bulk-delete up to 1000 mailbox messages in a single call
+    /// (scope `mail:read`). A bad/foreign/unknown id is reported as a failure
+    /// and never aborts the batch.
+    BatchDelete {
+        /// Message ids to delete (1..=1000). Pass repeatedly or comma-separated.
+        #[arg(required = true, value_delimiter = ',', num_args = 1..)]
+        message_ids: Vec<String>,
+    },
     /// Download every attachment on a message into a directory.
     DownloadAttachments {
         message_id: String,
