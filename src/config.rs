@@ -419,7 +419,10 @@ api_url = "https://example.test"
             api_key: Some("dairo_live_abc".to_string()),
             api_url: None,
             auth_method: Some("oauth".to_string()),
-            scopes: Some(vec!["messages:read".to_string(), "messages:send".to_string()]),
+            scopes: Some(vec![
+                "messages:read".to_string(),
+                "messages:send".to_string(),
+            ]),
             obtained_at: Some("2026-06-20T12:00:00Z".to_string()),
         };
 

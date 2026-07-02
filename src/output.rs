@@ -4,10 +4,10 @@ use crate::cli::PrintMode;
 use crate::mcp_install::McpInstallReport;
 
 use crate::api::{
-    ApiKey, AttachmentDownloadUrlResponse, BatchDeleteResult, CreateApiKeyResponse,
-    CreateWebhookResponse, Domain, Audience, AudienceDetailResponse, AudienceImportResponse,
-    AudienceSendResponse, Inbox, LedgerEvent, Message, SendMessageResponse, SendMessageWarning,
-    Thread, Webhook, WhoamiResponse,
+    ApiKey, AttachmentDownloadUrlResponse, Audience, AudienceDetailResponse,
+    AudienceImportResponse, AudienceSendResponse, BatchDeleteResult, CreateApiKeyResponse,
+    CreateWebhookResponse, Domain, Inbox, LedgerEvent, Message, SendMessageResponse,
+    SendMessageWarning, Thread, Webhook, WhoamiResponse,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

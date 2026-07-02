@@ -14,9 +14,9 @@ mod webhook;
 
 use anyhow::{Context, Result};
 use api::{
-    A2aMessageQuery, ApiClient, AuditLogQuery, BucketObjectListQuery, CreateApiKeyRequest,
-    CreateBucketRequest, CreateDomainRequest, CreateAudienceRequest, CreateInboxRequest,
-    CreateLetterRequest, CreateWebhookRequest, AudienceMemberInput, AudienceMembersRequest,
+    A2aMessageQuery, ApiClient, AudienceMemberInput, AudienceMembersRequest, AuditLogQuery,
+    BucketObjectListQuery, CreateApiKeyRequest, CreateAudienceRequest, CreateBucketRequest,
+    CreateDomainRequest, CreateInboxRequest, CreateLetterRequest, CreateWebhookRequest,
     EventsQuery, LetterCreditor, LetterDebtor, LetterFileRef, LetterListQuery, LetterPayment,
     LetterPriceRequest, LetterPrintOptions, MessageListQuery, PostalAddress, SendMessageAttachment,
     SendMessageReact, SendMessageRequest, ThreadListQuery, VerifyAgentQuery,
@@ -26,8 +26,8 @@ use clap::CommandFactory;
 use clap::Parser;
 use cli::{
     A2aCommand, AgentCommand, ApiKeyCommand, AttachmentCommand, AttachmentDelivery,
-    AuditLogCommand, AuthCommand, BucketCommand, BudgetCommand, Cli, Command, ComplianceCommand,
-    DedicatedIpCommand, DomainCommand, AudienceCommand, ErasureJobCommand, EventsCommand,
+    AudienceCommand, AuditLogCommand, AuthCommand, BucketCommand, BudgetCommand, Cli, Command,
+    ComplianceCommand, DedicatedIpCommand, DomainCommand, ErasureJobCommand, EventsCommand,
     InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode, LetterCommand, LetterPaymentArgs,
     LetterPriceArgs, LetterPrintArgs, LetterSendArgs, LoginArgs, McpCommand, MessageCommand,
     OutboundCommand, RecipientArgs, ReputationCommand, SenderArgs, TemplateCommand, ThreadCommand,
