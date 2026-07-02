@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+      - '*.*.*'
   workflow_dispatch:
     inputs:
       version:
@@ -23,6 +24,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
@@ -78,6 +80,8 @@ jobs:
       tag: ${{ steps.meta.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           pattern: binary-*
@@ -104,6 +108,15 @@ jobs:
             VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
             TAG="v$VERSION"
           fi
+          if ! printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$'; then
+            echo "Invalid release version: $VERSION" >&2
+            exit 1
+          fi
+          CARGO_VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          if [ "$CARGO_VERSION" != "$VERSION" ]; then
+            echo "Cargo.toml version ($CARGO_VERSION) must match release tag version ($VERSION)." >&2
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
       - name: Create archives and checksums
@@ -128,6 +141,27 @@ jobs:
         with:
           name: release-assets
           path: dist/release/*
+      - id: gcp-auth
+        name: Authenticate to Google Cloud
+        if: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_RELEASE_NOTES_SERVICE_ACCOUNT != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_RELEASE_NOTES_SERVICE_ACCOUNT }}
+          token_format: access_token
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate release notes
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
+          RELEASE_NOTES_FILE: release-notes.md
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_LOCATION: ${{ vars.GCP_LOCATION || 'us-central1' }}
+          VERTEX_MODEL: ${{ vars.VERTEX_MODEL || 'gemini-2.5-flash' }}
+          VERTEX_ACCESS_TOKEN: ${{ steps.gcp-auth.outputs.access_token }}
+        run: node scripts/generate-release-notes.mjs
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -136,10 +170,12 @@ jobs:
           TAG='${{ steps.meta.outputs.tag }}'
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/release/* --clobber
+            gh release edit "$TAG" --title "Dairo CLI $TAG" --notes-file release-notes.md --target "$GITHUB_SHA"
           else
             gh release create "$TAG" dist/release/* \
               --title "Dairo CLI $TAG" \
-              --notes "Official Dairo CLI release. Install with npm, Homebrew, cURL, PowerShell, or download the platform archive."
+              --target "$GITHUB_SHA" \
+              --notes-file release-notes.md
           fi
 
   npm:
