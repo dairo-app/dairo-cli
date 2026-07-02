@@ -4,6 +4,27 @@ All notable Dairo CLI changes are tracked here.
 
 ## Unreleased
 
+### Channel-agnostic API rename (breaking)
+
+- Send and outbound now ride the unified messages collection. `dairo send` posts
+  to `POST /v1/messages` (was `POST /v1/emails`) and `dairo outbound`
+  (list/get/cancel/events) is re-pathed onto `/v1/messages*`: the outbound list
+  reads `GET /v1/messages?direction=outbound` and is equivalent to
+  `dairo messages list --direction outbound`. Command names (`send`, `outbound`,
+  `messages`) are unchanged for script stability.
+- `dairo messages list` gains a `--channel` filter (alongside the existing
+  `--direction`), and `dairo send` gains an optional `--channel` (defaults to the
+  inbox's channel, `email`).
+- `Message` now carries `channel` + `channelMetadata` (outbound delivery metadata
+  — `providerMessageId`, `provider`, `lastEventType`, bounce/complaint timestamps
+  — folds in here), `Inbox` carries `channel` and drops the `username` alias, and
+  the send request accepts an optional `channel`.
+- Webhook event vocabulary renamed: `--event` now takes `message.sent`,
+  `message.delivered`, `message.bounced`, `message.complained` (were `email.*`);
+  `message.received` is unchanged.
+- Vendored OpenAPI + the canonical/implemented contract projections re-synced to
+  the messages surface.
+
 ### Help & UX
 
 - Reworked `dairo --help` into a scannable, grouped command list (Getting

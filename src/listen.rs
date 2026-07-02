@@ -907,11 +907,11 @@ mod tests {
         assert!(glob_matches("all", "message.received"));
         assert!(glob_matches("message.*", "message.received"));
         assert!(glob_matches("message.*", "message.quarantined"));
-        assert!(!glob_matches("message.*", "email.delivered"));
+        assert!(!glob_matches("message.*", "domain.verified"));
         assert!(glob_matches("*.received", "message.received"));
         assert!(!glob_matches("*.received", "message.bounced"));
-        assert!(glob_matches("email.delivered", "email.delivered"));
-        assert!(!glob_matches("email.delivered", "email.bounced"));
+        assert!(glob_matches("message.delivered", "message.delivered"));
+        assert!(!glob_matches("message.delivered", "message.bounced"));
     }
 
     #[test]
@@ -926,7 +926,7 @@ mod tests {
             &config_globs
         ));
         assert!(!matches_event_type(
-            &event("email.delivered", None),
+            &event("message.delivered", None),
             &config_globs
         ));
     }
@@ -952,7 +952,7 @@ mod tests {
             &[]
         ));
         // No-inbox events only show in unfiltered mode.
-        assert!(!matches_inbox(&event("email.delivered", None), &filter));
+        assert!(!matches_inbox(&event("message.delivered", None), &filter));
     }
 
     #[test]
@@ -1000,7 +1000,7 @@ mod tests {
 
     #[test]
     fn webhook_body_falls_back_to_created_at_when_no_occurred_at() {
-        let mut e = event("email.delivered", None);
+        let mut e = event("message.delivered", None);
         e.occurred_at = None;
         let body = webhook_body(&e);
         assert_eq!(body["createdAt"], "2026-06-11T00:00:01Z");

@@ -53,7 +53,7 @@ app.post("/api/dairo/send", async (req, res) => {
     subject?: string;
     text?: string;
   };
-  const result = await dairo.emails.send({
+  const result = await dairo.messages.send({
     inboxId,
     to,
     subject: subject ?? "Hello from Dairo",

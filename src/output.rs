@@ -36,12 +36,12 @@ pub fn print_json(value: &serde_json::Value, _format: OutputFormat) -> Result<()
 /// Returns a copy of a unified list envelope (`{ "object": "list", "data": [...] }`)
 /// keeping only events whose `type` matches `kind` ("bounce"/"complaint"),
 /// case-insensitively (stored SES types are capitalized) plus the webhook form
-/// (email.bounced/complained). The per-email events endpoint
-/// (`GET /v1/emails/{id}/events`) now wraps its rows under `data`.
+/// (message.bounced/complained). The per-message events endpoint
+/// (`GET /v1/messages/{id}/events`) now wraps its rows under `data`.
 pub fn filter_events_of_type(mut value: serde_json::Value, kind: &str) -> serde_json::Value {
     let webhook_form = match kind {
-        "bounce" => "email.bounced",
-        "complaint" => "email.complained",
+        "bounce" => "message.bounced",
+        "complaint" => "message.complained",
         _ => "",
     };
     if let Some(events) = value.get_mut("data").and_then(|v| v.as_array_mut()) {

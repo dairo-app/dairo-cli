@@ -236,6 +236,7 @@ async fn run(cli: Cli) -> Result<()> {
                         inbox_id,
                         thread_id,
                         direction,
+                        channel,
                         limit,
                         cursor,
                     } => {
@@ -244,6 +245,7 @@ async fn run(cli: Cli) -> Result<()> {
                                 inbox_id,
                                 thread_id,
                                 direction,
+                                channel,
                                 limit,
                                 cursor,
                             })
@@ -412,7 +414,7 @@ async fn run(cli: Cli) -> Result<()> {
                     if dry_run {
                         print_dry_run_request(&request)
                     } else {
-                        let response = client.send_email(&request).await?;
+                        let response = client.send(&request).await?;
                         output::print_send_result(&response, format)
                     }
                 }
@@ -1491,6 +1493,7 @@ async fn build_send_request(
         reply_to,
         headers,
         tags,
+        channel: args.channel.and_then(non_empty_trimmed),
     })
 }
 
@@ -2586,6 +2589,7 @@ mod tests {
             reply_to: Some("support@dairo.app".to_string()),
             headers: None,
             tags: None,
+            channel: None,
         };
         let mut value = serde_json::to_value(&request).unwrap();
         // Mirror the redaction the dry-run printer performs.

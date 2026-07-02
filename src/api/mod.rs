@@ -257,11 +257,13 @@ impl ApiClient {
         .await
     }
 
-    /// Sends (or schedules) an outbound email (`POST /v1/emails`, scope
-    /// `mail:send`; was `/v1/send-email`). The response is the single `email`
-    /// object envelope.
-    pub async fn send_email(&self, body: &SendEmailRequest) -> Result<SendEmailResponse> {
-        self.execute_json(self.build_request(Method::POST, &["v1", "emails"], Some(body))?)
+    /// Sends (or schedules) an outbound message (`POST /v1/messages`, scope
+    /// `mail:send`; was `POST /v1/emails`). The channel-agnostic redesign folds
+    /// send onto the unified messages collection; the body is the send request
+    /// plus an optional `channel` (default `email`). The response is the single
+    /// send-result envelope.
+    pub async fn send(&self, body: &SendEmailRequest) -> Result<SendEmailResponse> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "messages"], Some(body))?)
             .await
     }
 
@@ -526,39 +528,43 @@ impl ApiClient {
         .await
     }
 
-    /// Lists outbound emails, most recent first (`GET /v1/emails`, scope
-    /// `mail:read`; was `/v1/outbound-emails`). Passes through the unified list
-    /// envelope verbatim.
+    /// Lists outbound messages, most recent first (`GET
+    /// /v1/messages?direction=outbound`, scope `mail:read`). The channel-agnostic
+    /// redesign folds the former `GET /v1/emails` outbound list into the unified
+    /// messages collection filtered to the outbound direction. Passes through the
+    /// unified list envelope verbatim.
     pub async fn list_outbound_emails(&self, limit: Option<u32>) -> Result<serde_json::Value> {
-        let mut request = self.build_request(Method::GET, &["v1", "emails"], None::<&()>)?;
-        if let Some(limit) = limit {
-            request
-                .url_mut()
-                .query_pairs_mut()
-                .append_pair("limit", &limit.to_string());
+        let mut request = self.build_request(Method::GET, &["v1", "messages"], None::<&()>)?;
+        {
+            let mut pairs = request.url_mut().query_pairs_mut();
+            pairs.append_pair("direction", "outbound");
+            if let Some(limit) = limit {
+                pairs.append_pair("limit", &limit.to_string());
+            }
         }
         self.execute_json(request).await
     }
 
-    /// Gets one outbound email plus its delivery-event timeline
-    /// (`GET /v1/emails/{id}`, scope `mail:read`; was `/v1/outbound-emails/{id}`).
+    /// Gets one outbound message plus its delivery-event timeline
+    /// (`GET /v1/messages/{id}`, scope `mail:read`; was `GET /v1/emails/{id}`).
+    /// An outbound id resolves here too under the unified message resolver.
     pub async fn get_outbound_email(&self, email_id: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::GET,
-            &["v1", "emails", email_id],
+            &["v1", "messages", email_id],
             None::<&()>,
         )?)
         .await
     }
 
-    /// Cancels a scheduled outbound email (`POST /v1/emails/{id}/cancel`, scope
-    /// `mail:send`). Returns the canceled `email` object (`status: "canceled"`),
-    /// or surfaces the backend's `409 Conflict` if the email is no longer
-    /// scheduled.
+    /// Cancels a scheduled outbound message (`POST /v1/messages/{id}/cancel`,
+    /// scope `mail:send`; was `POST /v1/emails/{id}/cancel`). Returns the canceled
+    /// message (`status: "canceled"`), or surfaces the backend's `409 Conflict`
+    /// if it is no longer scheduled.
     pub async fn cancel_outbound_email(&self, email_id: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::POST,
-            &["v1", "emails", email_id, "cancel"],
+            &["v1", "messages", email_id, "cancel"],
             None::<&()>,
         )?)
         .await
@@ -611,10 +617,11 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
-    /// Lists the delivery-event timeline for one outbound email
-    /// (`GET /v1/emails/{id}/events`, scope `mail:read`). The redesign folds the
-    /// former flat `/v1/outbound-events?emailId=` reader into this per-email
-    /// sub-resource, so an `email_id` is now required.
+    /// Lists the delivery-event timeline for one outbound message
+    /// (`GET /v1/messages/{id}/events`, scope `mail:read`; was
+    /// `GET /v1/emails/{id}/events`). The redesign folds the former flat
+    /// `/v1/outbound-events?emailId=` reader into this per-message sub-resource,
+    /// so a message id is now required.
     pub async fn list_outbound_events(
         &self,
         email_id: &str,
@@ -622,7 +629,7 @@ impl ApiClient {
     ) -> Result<serde_json::Value> {
         let mut request = self.build_request(
             Method::GET,
-            &["v1", "emails", email_id, "events"],
+            &["v1", "messages", email_id, "events"],
             None::<&()>,
         )?;
         if let Some(limit) = limit {
@@ -2016,6 +2023,7 @@ mod tests {
             reply_to: None,
             headers: None,
             tags: None,
+            channel: None,
         };
 
         let value = serde_json::to_value(body).unwrap();
@@ -2056,6 +2064,7 @@ mod tests {
             reply_to: None,
             headers: None,
             tags: None,
+            channel: None,
         };
 
         let value = serde_json::to_value(body).unwrap();
@@ -2087,6 +2096,7 @@ mod tests {
             reply_to: None,
             headers: None,
             tags: None,
+            channel: None,
         };
 
         let value = serde_json::to_value(body).unwrap();
@@ -2112,6 +2122,7 @@ mod tests {
             reply_to: None,
             headers: None,
             tags: None,
+            channel: None,
         };
 
         let value = serde_json::to_value(body).unwrap();
@@ -2145,6 +2156,7 @@ mod tests {
             reply_to: Some("support@dairo.app".to_string()),
             headers: Some(headers),
             tags: Some(tags),
+            channel: None,
         };
 
         let value = serde_json::to_value(body).unwrap();
@@ -2254,18 +2266,20 @@ mod tests {
 
     #[test]
     fn cancel_outbound_email_targets_cancel_route() {
+        // The channel-agnostic redesign re-paths cancel onto the unified
+        // messages collection (`POST /v1/messages/{id}/cancel`).
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
         let request = client
             .build_request(
                 Method::POST,
-                &["v1", "emails", "email_123", "cancel"],
+                &["v1", "messages", "email_123", "cancel"],
                 None::<&()>,
             )
             .unwrap();
         assert_eq!(request.method(), Method::POST);
         assert_eq!(
             request.url().as_str(),
-            "https://api.example.test/v1/emails/email_123/cancel"
+            "https://api.example.test/v1/messages/email_123/cancel"
         );
     }
 
@@ -2362,7 +2376,7 @@ mod tests {
                     "object": "webhook",
                     "id": "wh_123",
                     "url": "https://example.com/hook",
-                    "events": ["message.received", "email.delivered"],
+                    "events": ["message.received", "message.delivered"],
                     "status": "active",
                     "createdAt": "2026-06-01T00:00:00Z",
                     "lastDeliveryAt": "2026-06-02T10:00:00Z"
@@ -2526,11 +2540,11 @@ mod tests {
         // to None rather than fail deserialization.
         let event: LedgerEvent = serde_json::from_value(serde_json::json!({
             "eventId": "evt_2",
-            "type": "email.delivered"
+            "type": "message.delivered"
         }))
         .unwrap();
         assert_eq!(event.event_id, "evt_2");
-        assert_eq!(event.event_type, "email.delivered");
+        assert_eq!(event.event_type, "message.delivered");
         assert_eq!(event.message_id, None);
         assert_eq!(event.inbox_id, None);
         assert_eq!(event.seq, None);

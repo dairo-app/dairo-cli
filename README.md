@@ -200,10 +200,10 @@ dairo webhook list
 dairo webhook create \
   --url https://example.com/dairo/webhook \
   --event message.received \
-  --event email.delivered
+  --event message.delivered
 ```
 
-Supported events are `message.received`, `email.sent`, `email.delivered`, `email.bounced`, and `email.complained`. List output includes status, events, and the latest successful delivery time when the backend has one. The create command prints a one-time signing secret. Store it immediately.
+Supported events are `message.received`, `message.sent`, `message.delivered`, `message.bounced`, and `message.complained`. List output includes status, events, and the latest successful delivery time when the backend has one. The create command prints a one-time signing secret. Store it immediately.
 
 Delete a webhook by ID or URL:
 
@@ -222,20 +222,20 @@ printf '%s' "$RAW_BODY" | dairo webhook verify \
 
 ### Outbound history and delivery events
 
-Inspect outbound email history and delivery events via the `dairo outbound` commands (backed by `GET /v1/emails` and `GET /v1/emails/{emailId}/events`):
+Inspect outbound message history and delivery events via the `dairo outbound` commands. The channel-agnostic redesign folds these onto the unified messages collection (backed by `GET /v1/messages?direction=outbound` and `GET /v1/messages/{id}/events`); `dairo outbound list` is equivalent to `dairo messages list --direction outbound`:
 
 ```sh
-dairo outbound list --limit 20            # recent outbound emails
-dairo outbound get <emailId>              # one email + its delivery timeline
-dairo outbound cancel <emailId>           # cancel a scheduled (not-yet-sent) email
+dairo outbound list --limit 20            # recent outbound messages
+dairo outbound get <messageId>            # one message + its delivery timeline
+dairo outbound cancel <messageId>         # cancel a scheduled (not-yet-sent) message
 dairo outbound events --email-id <id>     # delivery events (delivered/bounced/...)
 dairo outbound bounces --email-id <id>    # only bounce events
 dairo outbound complaints --email-id <id> # only complaint events
 ```
 
-Outbound emails carry `status` (including `scheduled` and `canceled`) plus `scheduledAt`/`canceledAt` timestamps when set.
+Outbound messages carry `status` (including `scheduled` and `canceled`) plus `scheduledAt`/`canceledAt` timestamps when set, and channel-specific delivery metadata under `channelMetadata`.
 
-Event rows carry metadata-only join keys such as `emailId`, `recipient`, `providerMessageId`, `subject`, `from`, `to`, event `type`, bounce/complaint details, and `occurredAt`. Output is JSON; use `--json` for the same machine form in scripts.
+Event rows carry metadata-only join keys such as `messageId`, `recipient`, `providerMessageId`, `subject`, `from`, `to`, event `type`, bounce/complaint details, and `occurredAt`. Output is JSON; use `--json` for the same machine form in scripts.
 
 ### Send physical mail (`dairo letter`)
 
@@ -333,10 +333,12 @@ printf '%s' "$DAIRO_API_KEY" | dairo auth token set && dairo mcp install --clien
 
 ### Messages
 
-Inspect mailbox messages. List output includes an attachment indicator; `get` prints body text/html and attachment metadata when present:
+Inspect mailbox messages (both directions). List output includes an attachment indicator; `get` prints body text/html and attachment metadata when present. Filter with `--direction inbound|outbound` and `--channel email|a2a` (`--direction outbound` is the folded outbound history view):
 
 ```sh
 dairo messages list --inbox-id 018f0000-0000-0000-0000-000000000000
+dairo messages list --direction outbound          # outbound history
+dairo messages list --channel a2a                 # agent-to-agent messages
 dairo messages get msg_123
 ```
 

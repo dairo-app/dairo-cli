@@ -686,22 +686,25 @@ pub enum BucketCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum OutboundCommand {
-    /// List outbound emails (most recent first).
+    /// List outbound messages (most recent first).
+    ///
+    /// Reads `GET /v1/messages?direction=outbound`; equivalent to
+    /// `dairo messages list --direction outbound`.
     List {
         #[arg(long)]
         limit: Option<u32>,
     },
-    /// Get one outbound email with its delivery-event timeline.
+    /// Get one outbound message with its delivery-event timeline.
     Get { email_id: String },
-    /// Cancel a scheduled outbound email before its fire time.
+    /// Cancel a scheduled outbound message before its fire time.
     ///
-    /// Fails with a conflict if the email is no longer scheduled (already sent,
+    /// Fails with a conflict if the message is no longer scheduled (already sent,
     /// queued, or canceled).
     Cancel { email_id: String },
-    /// List the delivery-event timeline for one outbound email
+    /// List the delivery-event timeline for one outbound message
     /// (delivered, bounced, complained, ...).
     ///
-    /// Events are now a per-email sub-resource (`GET /v1/emails/{id}/events`),
+    /// Events are a per-message sub-resource (`GET /v1/messages/{id}/events`),
     /// so `--email-id` is required.
     Events {
         #[arg(long = "email-id")]
@@ -709,7 +712,7 @@ pub enum OutboundCommand {
         #[arg(long)]
         limit: Option<u32>,
     },
-    /// List only the bounce events for one outbound email.
+    /// List only the bounce events for one outbound message.
     Bounces {
         #[arg(long = "email-id")]
         email_id: String,
@@ -717,7 +720,7 @@ pub enum OutboundCommand {
         limit: Option<u32>,
     },
     /// List only the complaint events (recipients who reported spam) for one
-    /// outbound email.
+    /// outbound message.
     Complaints {
         #[arg(long = "email-id")]
         email_id: String,
@@ -1456,6 +1459,10 @@ pub struct SendArgs {
     /// SES message tag as `KEY=VALUE`. Repeatable.
     #[arg(long = "tags", value_name = "KEY=VALUE", action = clap::ArgAction::Append)]
     pub tags: Vec<String>,
+    /// Delivery channel for this message (defaults to the inbox's channel,
+    /// `email`). Part of the channel-agnostic send request.
+    #[arg(long = "channel", value_name = "CHANNEL")]
+    pub channel: Option<String>,
     /// Build the exact send request, print it as pretty JSON, and exit without
     /// calling the API. Attachment bytes are never printed (only filename + byte
     /// length are shown).
@@ -1877,14 +1884,20 @@ pub enum VerificationWaitCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum MessageCommand {
-    /// List messages.
+    /// List messages (both directions). Filter with `--direction inbound|outbound`
+    /// and `--channel email|a2a`; `--direction outbound` is the folded outbound
+    /// history view (was `dairo outbound list`).
     List {
         #[arg(long = "inbox-id")]
         inbox_id: Option<String>,
         #[arg(long = "thread-id")]
         thread_id: Option<String>,
+        /// Filter by direction: `inbound` or `outbound`.
         #[arg(long)]
         direction: Option<String>,
+        /// Filter by delivery channel: `email`, `a2a`, ...
+        #[arg(long)]
+        channel: Option<String>,
         #[arg(long)]
         limit: Option<u32>,
         #[arg(long)]
@@ -1982,28 +1995,33 @@ pub enum WebhookCommand {
     },
 }
 
+// After the channel-agnostic rename every event lives under the `message.*`
+// namespace, so the variant identifiers intentionally share the `Message`
+// prefix that mirrors the wire event names. The shared prefix is meaningful,
+// not accidental, so the enum_variant_names lint is silenced here.
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum WebhookEvent {
     #[value(name = "message.received")]
     MessageReceived,
-    #[value(name = "email.sent")]
-    EmailSent,
-    #[value(name = "email.delivered")]
-    EmailDelivered,
-    #[value(name = "email.bounced")]
-    EmailBounced,
-    #[value(name = "email.complained")]
-    EmailComplained,
+    #[value(name = "message.sent")]
+    MessageSent,
+    #[value(name = "message.delivered")]
+    MessageDelivered,
+    #[value(name = "message.bounced")]
+    MessageBounced,
+    #[value(name = "message.complained")]
+    MessageComplained,
 }
 
 impl WebhookEvent {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::MessageReceived => "message.received",
-            Self::EmailSent => "email.sent",
-            Self::EmailDelivered => "email.delivered",
-            Self::EmailBounced => "email.bounced",
-            Self::EmailComplained => "email.complained",
+            Self::MessageSent => "message.sent",
+            Self::MessageDelivered => "message.delivered",
+            Self::MessageBounced => "message.bounced",
+            Self::MessageComplained => "message.complained",
         }
     }
 }
@@ -2102,6 +2120,7 @@ mod tests {
                 reply_to,
                 headers,
                 tags,
+                channel,
                 dry_run,
             }) => {
                 assert_eq!(inbox_id.as_deref(), Some("inbox_123"));
@@ -2124,6 +2143,7 @@ mod tests {
                 assert_eq!(reply_to, None);
                 assert!(headers.is_empty());
                 assert!(tags.is_empty());
+                assert_eq!(channel, None);
                 assert!(!dry_run);
             }
             _ => panic!("expected send command"),
@@ -2607,7 +2627,7 @@ mod tests {
             "--event",
             "message.received",
             "--event",
-            "email.delivered",
+            "message.delivered",
         ]);
         match webhook.command {
             Command::Webhook {
@@ -2616,7 +2636,10 @@ mod tests {
                 assert_eq!(url, "https://example.com/hook");
                 assert_eq!(
                     events,
-                    vec![WebhookEvent::MessageReceived, WebhookEvent::EmailDelivered]
+                    vec![
+                        WebhookEvent::MessageReceived,
+                        WebhookEvent::MessageDelivered
+                    ]
                 );
             }
             _ => panic!("expected webhook create command"),
@@ -2810,7 +2833,7 @@ mod tests {
         let message = error.to_string();
         assert!(message.contains("message.created"));
         assert!(message.contains("message.received"));
-        assert!(message.contains("email.complained"));
+        assert!(message.contains("message.complained"));
     }
 
     #[test]
@@ -3123,7 +3146,7 @@ mod tests {
             "--type",
             "message.received",
             "--type",
-            "email.delivered",
+            "message.delivered",
             "--max-events",
             "500",
         ]);
@@ -3142,7 +3165,7 @@ mod tests {
                 assert_eq!(since, None);
                 assert_eq!(since_seq, Some(42));
                 assert_eq!(inbox_id.as_deref(), Some("inbox_123"));
-                assert_eq!(types, vec!["message.received", "email.delivered"]);
+                assert_eq!(types, vec!["message.received", "message.delivered"]);
                 assert_eq!(max_events, Some(500));
             }
             _ => panic!("expected events replay command"),

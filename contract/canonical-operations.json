@@ -3,7 +3,7 @@
   "description": "Derived from the canonical dairo.openapi.json. Regenerate via scripts/gen-canonical-operations.py; do not hand-edit.",
   "openapiVersion": "3.1.0",
   "specVersion": "0.1.0",
-  "operationCount": 95,
+  "operationCount": 93,
   "operations": [
     {
       "method": "GET",
@@ -646,76 +646,6 @@
     },
     {
       "method": "GET",
-      "operationId": "listOutboundEmails",
-      "parameters": [
-        {}
-      ],
-      "path": "/v1/emails",
-      "scopes": [
-        "mail:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "sendEmail",
-      "parameters": [
-        {}
-      ],
-      "path": "/v1/emails",
-      "scopes": [
-        "mail:send"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getOutboundEmail",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "emailId"
-        }
-      ],
-      "path": "/v1/emails/{emailId}",
-      "scopes": [
-        "mail:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "cancelOutboundEmail",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "emailId"
-        }
-      ],
-      "path": "/v1/emails/{emailId}/cancel",
-      "scopes": [
-        "mail:send"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listOutboundEvents",
-      "parameters": [
-        {},
-        {
-          "in": "path",
-          "name": "emailId"
-        }
-      ],
-      "path": "/v1/emails/{emailId}/events",
-      "scopes": [
-        "mail:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
       "operationId": "listErasureJobs",
       "parameters": [],
       "path": "/v1/erasure-jobs",
@@ -1178,6 +1108,18 @@
     },
     {
       "method": "POST",
+      "operationId": "sendEmail",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/messages",
+      "scopes": [
+        "mail:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
       "operationId": "batchDeleteMessages",
       "parameters": [],
       "path": "/v1/messages/batch-delete",
@@ -1196,6 +1138,37 @@
         }
       ],
       "path": "/v1/messages/{messageId}",
+      "scopes": [
+        "mail:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "cancelOutboundEmail",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}/cancel",
+      "scopes": [
+        "mail:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listOutboundEvents",
+      "parameters": [
+        {},
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}/events",
       "scopes": [
         "mail:read"
       ],

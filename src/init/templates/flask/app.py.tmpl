@@ -17,7 +17,7 @@ def send():
     Body: {"inboxId": str, "to": str | list[str], "subject"?: str, "text"?: str}
     """
     body = request.get_json(force=True)
-    result = dairo.emails.send(
+    result = dairo.messages.send(
         inbox_id=body["inboxId"],
         to=body["to"],
         subject=body.get("subject", "Hello from Dairo"),

@@ -102,11 +102,13 @@ pub struct CreateInboxRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Inbox {
     pub id: String,
-    pub address: String,
-    // The redesign dropped the duplicate `username` field; `localPart` is the
-    // single canonical name. Defaulted so older payloads still deserialize.
+    /// Delivery channel this inbox provisions (`email`, ...). Added by the
+    /// channel-agnostic redesign; defaulted so older payloads still deserialize.
     #[serde(default)]
-    pub username: String,
+    pub channel: String,
+    pub address: String,
+    // The redesign dropped the duplicate `username` alias; `localPart` is the
+    // single canonical name.
     #[serde(rename = "localPart")]
     pub local_part: String,
     pub domain: String,
@@ -163,6 +165,11 @@ pub struct SendEmailRequest {
     /// empty/unset.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<std::collections::BTreeMap<String, String>>,
+    /// Optional delivery channel (defaults to the inbox's channel, `email`).
+    /// Part of the channel-agnostic send request (was `SendEmailRequest`, now
+    /// the unified `SendMessageRequest`). Omitted entirely when unset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -787,6 +794,9 @@ pub struct MessageListQuery {
     pub inbox_id: Option<String>,
     pub thread_id: Option<String>,
     pub direction: Option<String>,
+    /// Channel filter (`email`, `a2a`, ...). Added by the channel-agnostic
+    /// redesign; `channel=a2a` folds in the former `/v1/a2a/messages` surface.
+    pub channel: Option<String>,
     pub limit: Option<u32>,
     pub cursor: Option<String>,
 }
@@ -934,6 +944,10 @@ pub struct MessageAddress {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Message {
     pub id: String,
+    /// Delivery channel this message rode (`email`, `a2a`, ...). Added by the
+    /// channel-agnostic redesign; defaulted so older payloads still deserialize.
+    #[serde(default)]
+    pub channel: String,
     #[serde(rename = "inboxId")]
     pub inbox_id: String,
     #[serde(rename = "threadId")]
@@ -965,6 +979,12 @@ pub struct Message {
     pub created_at: Option<String>,
     #[serde(default)]
     pub attachments: Vec<MessageAttachment>,
+    /// Channel-specific metadata. For outbound (folded from the old
+    /// `OutboundEmail`) this carries `providerMessageId`, `provider`,
+    /// `lastEventType`, `lastEventAt`, `bouncedAt`, `complainedAt`; for a2a it
+    /// carries `receiptId`/`provenance`. Passed through verbatim.
+    #[serde(default, rename = "channelMetadata")]
+    pub channel_metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1026,6 +1046,9 @@ pub(crate) fn apply_message_query(url: &mut Url, query: &MessageListQuery) {
     }
     if let Some(value) = &query.direction {
         pairs.append_pair("direction", value);
+    }
+    if let Some(value) = &query.channel {
+        pairs.append_pair("channel", value);
     }
     if let Some(value) = query.limit {
         pairs.append_pair("limit", &value.to_string());

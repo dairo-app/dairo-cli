@@ -46,7 +46,7 @@ export default {
         subject?: string;
         text?: string;
       };
-      const result = await dairo.emails.send({
+      const result = await dairo.messages.send({
         inboxId,
         to,
         subject: subject ?? "Hello from Dairo",

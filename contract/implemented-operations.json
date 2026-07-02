@@ -2,7 +2,7 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 83,
+  "operationCount": 81,
   "operations": [
     {
       "method": "GET",
@@ -495,41 +495,14 @@
       "contractSource": "openapi"
     },
     {
-      "method": "GET",
-      "operationId": "listOutboundEmails",
-      "parameters": [
-        {}
-      ],
-      "path": "/v1/emails",
-      "scopes": [
-        "mail:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
       "method": "POST",
       "operationId": "sendEmail",
       "parameters": [
         {}
       ],
-      "path": "/v1/emails",
+      "path": "/v1/messages",
       "scopes": [
         "mail:send"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getOutboundEmail",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "emailId"
-        }
-      ],
-      "path": "/v1/emails/{emailId}",
-      "scopes": [
-        "mail:read"
       ],
       "contractSource": "openapi"
     },
@@ -539,10 +512,10 @@
       "parameters": [
         {
           "in": "path",
-          "name": "emailId"
+          "name": "messageId"
         }
       ],
-      "path": "/v1/emails/{emailId}/cancel",
+      "path": "/v1/messages/{messageId}/cancel",
       "scopes": [
         "mail:send"
       ],
@@ -552,17 +525,16 @@
       "method": "GET",
       "operationId": "listOutboundEvents",
       "parameters": [
-        {},
         {
           "in": "query",
-          "name": "emailId"
+          "name": "limit"
         },
         {
           "in": "path",
-          "name": "emailId"
+          "name": "messageId"
         }
       ],
-      "path": "/v1/emails/{emailId}/events",
+      "path": "/v1/messages/{messageId}/events",
       "scopes": [
         "mail:read"
       ],

@@ -175,7 +175,7 @@ mod tests {
     fn rejects_tampered_body() {
         let body = br#"{"id":"evt_1","type":"message.received"}"#;
         let sig = sign_webhook(SECRET, body);
-        let tampered = br#"{"id":"evt_1","type":"email.bounced"}"#;
+        let tampered = br#"{"id":"evt_1","type":"message.bounced"}"#;
         assert_eq!(
             verify_webhook(SECRET, tampered, &sig, &fresh_ts(), 300),
             Err(WebhookError::SignatureMismatch)
