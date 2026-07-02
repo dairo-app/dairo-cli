@@ -87,7 +87,7 @@ equality). No live/integration tests against a real or mocked HTTP server.
 
 **Known internal inconsistency:** the `contract/*.json` snapshots declare
 **23 operations** and omit several routes the CLI actually calls
-(`listOutboundEmails`, `getOutboundEmail`, `listOutboundEvents`,
+(`listOutboundMessages`, `getOutboundMessage`, `listOutboundEvents`,
 `getAttachmentBrandedLink`, all 7 `email-lists` ops, `whoami`). The projection
 test only checks `live == implemented`, not `implemented == code`, so this drift
 is invisible to CI. See gap C1.
@@ -97,7 +97,7 @@ is invisible to CI. See gap C1.
 ## 3. Parity gaps vs backend `/v1` + newer features
 
 Baseline: backend exposes ~34 `/v1` routes (per `dairo.catalog` families:
-account, domains, inboxes, mail, attachments, outbound, email_lists, webhooks,
+account, domains, inboxes, mail, attachments, outbound, audiences, webhooks,
 api_keys, audit, dedicated_ips) plus scopes `lists:read`/`lists:write` and the
 metering tools `dairo.get.usage` / `dairo.get.storage.usage`.
 
@@ -105,8 +105,8 @@ Legend: `[ ]` not done · `[~]` partial · `[x]` done (listed for completeness).
 
 ### A. Feature-area parity
 
-- [x] **A1. Scheduled send** — `send --send-at` + `SendEmailRequest.sendAt` +
-  `SendEmailResponse.scheduledAt` (status `scheduled`). Done.
+- [x] **A1. Scheduled send** — `send --send-at` + `SendMessageRequest.sendAt` +
+  `SendMessageResponse.scheduledAt` (status `scheduled`). Done.
 - [x] **A2. Cancel scheduled send** — `outbound cancel <id>` →
   `POST /v1/outbound-emails/{id}/cancel`. Done.
 - [x] **A3. Audit logs** — `audit-logs list` → `GET /v1/audit-logs` with
@@ -119,7 +119,7 @@ Legend: `[ ]` not done · `[~]` partial · `[x]` done (listed for completeness).
 - [x] **A7. Webhooks** — list/create/delete + offline verify. Done.
 - [ ] **A8. Template system (UPCOMING).** No `template` command group, no
   `ApiClient` template methods, no `templateId`/`templateData` fields on
-  `SendEmailRequest`. **Net-new; blocked on backend route freeze.** See §6.
+  `SendMessageRequest`. **Net-new; blocked on backend route freeze.** See §6.
 - [~] **A9. Usage-based metering.** `whoami` surfaces `usage`/`limits`/`period`
   as opaque `serde_json::Value`, so the data is reachable but not typed,
   labeled, or convenient. The MCP exposes dedicated `dairo.get.usage` and
@@ -138,11 +138,11 @@ Legend: `[ ]` not done · `[~]` partial · `[x]` done (listed for completeness).
   return raw `serde_json::Value` via `print_json` (no typed model, no human
   table). Bounces/complaints are filtered by string-matching `type`. Backend has
   a real `OutboundEvent` shape; add typed structs + a human table.
-- [ ] **B3. CC/BCC on `send`.** `SendEmailRequest` has `cc`/`bcc` fields but
+- [ ] **B3. CC/BCC on `send`.** `SendMessageRequest` has `cc`/`bcc` fields but
   `SendArgs` exposes no `--cc`/`--bcc` flags, so they are always `None`. The
   backend accepts them and meters per accepted recipient including cc/bcc.
 - [ ] **B4. `--reply-to` / custom headers / tags** on `send` (if backend
-  `SendEmailRequest` supports them — verify against OpenAPI before adding).
+  `SendMessageRequest` supports them — verify against OpenAPI before adding).
 - [ ] **B5. List pagination flags** for `lists list` and `audit-logs`/`outbound`
   consistency (`--limit` exists on some, absent on others; unify).
 
@@ -161,7 +161,7 @@ Legend: `[ ]` not done · `[~]` partial · `[x]` done (listed for completeness).
 - [ ] **C3. No typed audit-log / dedicated-ip / outbound models.** These three
   are `serde_json::Value` pass-throughs. Backend has
   `AuditLogListResponse`, `DedicatedIpListResponse`,
-  `CancelOutboundEmailResponse` schemas (referenced in the contract). Add typed
+  `CancelOutboundMessageResponse` schemas (referenced in the contract). Add typed
   structs so response-shape drift is caught at compile/test time.
 
 ### D. Types / fields
@@ -358,7 +358,7 @@ code↔contract check, and (pre-GA) `cargo llvm-cov` coverage reporting.
   - `dairo template list|get|create|update|delete`,
   - `ApiClient` template methods + typed `Template` models,
   - `send --template-id <id> --template-data <json>` and `templateId`/
-    `templateData` on `SendEmailRequest`,
+    `templateData` on `SendMessageRequest`,
   - update contract snapshots + docs + CHANGELOG.
 
 ### Phase 3 — Distribution GA

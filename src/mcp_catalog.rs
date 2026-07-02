@@ -217,7 +217,7 @@ mod tests {
             "catalogVersion": "abc123def456",
             "server": "dairo",
             "toolCount": 3,
-            "toolNames": ["dairo.docs", "dairo.list.inboxes", "dairo.send.email"],
+            "toolNames": ["dairo.docs", "dairo.list.inboxes", "dairo.send"],
             "tools": [
                 {
                     "name": "dairo.docs",
@@ -230,14 +230,14 @@ mod tests {
                     "name": "dairo.list.inboxes",
                     "family": "inboxes",
                     "description": "List inboxes.",
-                    "scope": "mail:read",
+                    "scope": "messages:read",
                     "confirmRequired": false
                 },
                 {
-                    "name": "dairo.send.email",
+                    "name": "dairo.send",
                     "family": "outbound",
                     "description": "Send.",
-                    "scope": "mail:send",
+                    "scope": "messages:send",
                     "confirmRequired": false
                 }
             ]
@@ -255,7 +255,7 @@ mod tests {
     fn family_filter_narrows_rows() {
         let rows = collect_tools(&sample_catalog(), false, Some("outbound"));
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].name, "dairo.send.email");
+        assert_eq!(rows[0].name, "dairo.send");
     }
 
     #[test]
@@ -269,12 +269,12 @@ mod tests {
         let mut catalog = sample_catalog();
         let tools = catalog["tools"].as_array_mut().unwrap();
         tools[0]["allowed"] = json!(true); // docs (local)
-        tools[1]["allowed"] = json!(true); // list.inboxes (mail:read)
-        tools[2]["allowed"] = json!(false); // send.email (mail:send, not held)
+        tools[1]["allowed"] = json!(true); // list.inboxes (messages:read)
+        tools[2]["allowed"] = json!(false); // send.email (messages:send, not held)
 
         let rows = collect_tools(&catalog, true, None);
         assert_eq!(rows.len(), 2);
-        assert!(rows.iter().all(|row| row.name != "dairo.send.email"));
+        assert!(rows.iter().all(|row| row.name != "dairo.send"));
     }
 
     #[test]
@@ -290,7 +290,7 @@ mod tests {
         assert_eq!(scope_label(Some(&Value::Null)), "none");
         assert_eq!(scope_label(None), "none");
         assert_eq!(scope_label(Some(&json!("__any__"))), "any");
-        assert_eq!(scope_label(Some(&json!("mail:read"))), "mail:read");
+        assert_eq!(scope_label(Some(&json!("messages:read"))), "messages:read");
     }
 
     #[test]
@@ -298,7 +298,7 @@ mod tests {
         let filtered = filter_catalog_by_family(&sample_catalog(), "outbound");
         assert_eq!(filtered["toolCount"], json!(1));
         assert_eq!(filtered["tools"].as_array().unwrap().len(), 1);
-        assert_eq!(filtered["toolNames"], json!(["dairo.send.email"]));
+        assert_eq!(filtered["toolNames"], json!(["dairo.send"]));
         // Untouched top-level fields are preserved.
         assert_eq!(filtered["server"], json!("dairo"));
         assert_eq!(filtered["catalogVersion"], json!("abc123def456"));

@@ -15,11 +15,11 @@ mod webhook;
 use anyhow::{Context, Result};
 use api::{
     A2aMessageQuery, ApiClient, AuditLogQuery, BucketObjectListQuery, CreateApiKeyRequest,
-    CreateBucketRequest, CreateDomainRequest, CreateEmailListRequest, CreateInboxRequest,
-    CreateLetterRequest, CreateWebhookRequest, EmailListMemberInput, EmailListMembersRequest,
+    CreateBucketRequest, CreateDomainRequest, CreateAudienceRequest, CreateInboxRequest,
+    CreateLetterRequest, CreateWebhookRequest, AudienceMemberInput, AudienceMembersRequest,
     EventsQuery, LetterCreditor, LetterDebtor, LetterFileRef, LetterListQuery, LetterPayment,
-    LetterPriceRequest, LetterPrintOptions, MessageListQuery, PostalAddress, SendEmailAttachment,
-    SendEmailReact, SendEmailRequest, ThreadListQuery, VerifyAgentQuery,
+    LetterPriceRequest, LetterPrintOptions, MessageListQuery, PostalAddress, SendMessageAttachment,
+    SendMessageReact, SendMessageRequest, ThreadListQuery, VerifyAgentQuery,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::CommandFactory;
@@ -27,7 +27,7 @@ use clap::Parser;
 use cli::{
     A2aCommand, AgentCommand, ApiKeyCommand, AttachmentCommand, AttachmentDelivery,
     AuditLogCommand, AuthCommand, BucketCommand, BudgetCommand, Cli, Command, ComplianceCommand,
-    DedicatedIpCommand, DomainCommand, EmailListCommand, ErasureJobCommand, EventsCommand,
+    DedicatedIpCommand, DomainCommand, AudienceCommand, ErasureJobCommand, EventsCommand,
     InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode, LetterCommand, LetterPaymentArgs,
     LetterPriceArgs, LetterPrintArgs, LetterSendArgs, LoginArgs, McpCommand, MessageCommand,
     OutboundCommand, RecipientArgs, ReputationCommand, SenderArgs, TemplateCommand, ThreadCommand,
@@ -425,89 +425,89 @@ async fn run(cli: Cli) -> Result<()> {
                         let response = client.list_outbound_emails(limit).await?;
                         output::print_json(&response, format)
                     }
-                    OutboundCommand::Get { email_id } => {
-                        let response = client.get_outbound_email(&email_id).await?;
+                    OutboundCommand::Get { message_id } => {
+                        let response = client.get_outbound_email(&message_id).await?;
                         output::print_json(&response, format)
                     }
-                    OutboundCommand::Cancel { email_id } => {
-                        let response = client.cancel_outbound_email(&email_id).await?;
+                    OutboundCommand::Cancel { message_id } => {
+                        let response = client.cancel_outbound_email(&message_id).await?;
                         output::print_json(&response, format)
                     }
-                    OutboundCommand::Events { email_id, limit } => {
-                        let response = client.list_outbound_events(&email_id, limit).await?;
+                    OutboundCommand::Events { message_id, limit } => {
+                        let response = client.list_outbound_events(&message_id, limit).await?;
                         output::print_json(&response, format)
                     }
-                    OutboundCommand::Bounces { email_id, limit } => {
-                        let response = client.list_outbound_events(&email_id, limit).await?;
+                    OutboundCommand::Bounces { message_id, limit } => {
+                        let response = client.list_outbound_events(&message_id, limit).await?;
                         output::print_json(
                             &output::filter_events_of_type(response, "bounce"),
                             format,
                         )
                     }
-                    OutboundCommand::Complaints { email_id, limit } => {
-                        let response = client.list_outbound_events(&email_id, limit).await?;
+                    OutboundCommand::Complaints { message_id, limit } => {
+                        let response = client.list_outbound_events(&message_id, limit).await?;
                         output::print_json(
                             &output::filter_events_of_type(response, "complaint"),
                             format,
                         )
                     }
                 },
-                Command::EmailList { command } => match command {
-                    EmailListCommand::List => {
-                        let response = client.list_email_lists().await?;
-                        output::print_email_lists(&response.data, format)
+                Command::Audience { command } => match command {
+                    AudienceCommand::List => {
+                        let response = client.list_audiences().await?;
+                        output::print_audiences(&response.data, format)
                     }
-                    EmailListCommand::Create { name, description } => {
+                    AudienceCommand::Create { name, description } => {
                         let list = client
-                            .create_email_list(&CreateEmailListRequest { name, description })
+                            .create_audience(&CreateAudienceRequest { name, description })
                             .await?;
-                        output::print_email_lists(std::slice::from_ref(&list), format)
+                        output::print_audiences(std::slice::from_ref(&list), format)
                     }
-                    EmailListCommand::Get { list_id } => {
-                        let response = client.get_email_list(&list_id).await?;
-                        output::print_email_list_detail(&response, format)
+                    AudienceCommand::Get { list_id } => {
+                        let response = client.get_audience(&list_id).await?;
+                        output::print_audience_detail(&response, format)
                     }
-                    EmailListCommand::Delete { list_id } => {
-                        client.delete_email_list(&list_id).await?;
+                    AudienceCommand::Delete { list_id } => {
+                        client.delete_audience(&list_id).await?;
                         output::print_deleted("email list", format)
                     }
-                    EmailListCommand::Add {
+                    AudienceCommand::Add {
                         list_id,
                         email,
                         name,
                     } => {
                         let response = client
-                            .add_email_list_members(
+                            .add_audience_members(
                                 &list_id,
-                                &EmailListMembersRequest {
-                                    members: vec![EmailListMemberInput { email, name }],
+                                &AudienceMembersRequest {
+                                    members: vec![AudienceMemberInput { email, name }],
                                 },
                             )
                             .await?;
-                        output::print_email_list_import(&response, format)
+                        output::print_audience_import(&response, format)
                     }
-                    EmailListCommand::ImportCsv { list_id, file } => {
-                        let members = read_email_list_csv(&file)?;
+                    AudienceCommand::ImportCsv { list_id, file } => {
+                        let members = read_audience_csv(&file)?;
                         // The /members/import alias was removed in the redesign; the
                         // canonical /members endpoint upserts and accepts the same
                         // payload, so CSV import now posts there too.
                         let response = client
-                            .add_email_list_members(
+                            .add_audience_members(
                                 &list_id,
-                                &EmailListMembersRequest { members },
+                                &AudienceMembersRequest { members },
                             )
                             .await?;
-                        output::print_email_list_import(&response, format)
+                        output::print_audience_import(&response, format)
                     }
-                    EmailListCommand::Send { list_id, send } => {
+                    AudienceCommand::Send { list_id, send } => {
                         let dry_run = send.dry_run;
                         let request = build_send_request(&client, send, false).await?;
                         if dry_run {
                             print_dry_run_request(&request)
                         } else {
                             let response =
-                                client.send_email_list(&list_id, &request).await?;
-                            output::print_email_list_send(&response, format)
+                                client.send_audience(&list_id, &request).await?;
+                            output::print_audience_send(&response, format)
                         }
                     }
                 },
@@ -1445,7 +1445,7 @@ async fn build_send_request(
     client: &ApiClient,
     mut args: cli::SendArgs,
     require_to: bool,
-) -> Result<SendEmailRequest> {
+) -> Result<SendMessageRequest> {
     // Resolve the sending inbox to its id: either the given --inbox-id, or the
     // --from address looked up against the account's inboxes.
     let inbox_id = resolve_inbox_id(client, &args).await?;
@@ -1477,7 +1477,7 @@ async fn build_send_request(
         Some(raw) => Some(resolve_send_at(&raw)?),
         None => None,
     };
-    Ok(SendEmailRequest {
+    Ok(SendMessageRequest {
         inbox_id,
         to: args.to,
         cc: (!cc.is_empty()).then_some(cc),
@@ -1556,11 +1556,11 @@ fn normalize_natural_time(raw: &str) -> String {
     without_in.replace(" at ", " ")
 }
 
-/// Renders a built [`SendEmailRequest`] as pretty JSON for `--dry-run`, without
+/// Renders a built [`SendMessageRequest`] as pretty JSON for `--dry-run`, without
 /// ever emitting attachment bytes: each attachment's `contentBase64` is replaced
 /// by a `byteLength` (the decoded size) so the operator sees what would be sent
 /// without dumping base64 to the terminal. Nothing is sent to the API.
-fn print_dry_run_request(request: &SendEmailRequest) -> Result<()> {
+fn print_dry_run_request(request: &SendMessageRequest) -> Result<()> {
     let mut value = serde_json::to_value(request).context("failed to serialize send request")?;
     if let Some(attachments) = value.get_mut("attachments").and_then(|v| v.as_array_mut()) {
         for attachment in attachments {
@@ -2050,7 +2050,7 @@ fn non_empty_trimmed(value: String) -> Option<String> {
     }
 }
 
-fn read_email_list_csv(path: &Path) -> Result<Vec<EmailListMemberInput>> {
+fn read_audience_csv(path: &Path) -> Result<Vec<AudienceMemberInput>> {
     let content = std::fs::read_to_string(path)
         .with_context(|| format!("failed to read CSV {}", path.display()))?;
     let mut members = Vec::new();
@@ -2069,7 +2069,7 @@ fn read_email_list_csv(path: &Path) -> Result<Vec<EmailListMemberInput>> {
             .get(1)
             .map(|value| value.trim_matches('"').trim().to_string())
             .filter(|value| !value.is_empty());
-        members.push(EmailListMemberInput {
+        members.push(AudienceMemberInput {
             email: email.to_string(),
             name,
         });
@@ -2081,7 +2081,7 @@ fn read_email_list_csv(path: &Path) -> Result<Vec<EmailListMemberInput>> {
 fn build_react_request(
     source: Option<String>,
     props_json: Option<String>,
-) -> Result<Option<SendEmailReact>> {
+) -> Result<Option<SendMessageReact>> {
     let Some(source) = source else {
         anyhow::ensure!(
             props_json.is_none(),
@@ -2103,14 +2103,14 @@ fn build_react_request(
         None => None,
     };
 
-    Ok(Some(SendEmailReact { source, props }))
+    Ok(Some(SendMessageReact { source, props }))
 }
 
 fn read_send_attachments(
     paths: &[PathBuf],
     delivery: AttachmentDelivery,
     link_expiry_hours: Option<u32>,
-) -> Result<Option<Vec<SendEmailAttachment>>> {
+) -> Result<Option<Vec<SendMessageAttachment>>> {
     if paths.is_empty() {
         return Ok(None);
     }
@@ -2139,7 +2139,7 @@ fn read_send_attachments(
             .filter(|value| !value.trim().is_empty())
             .map(str::to_string)
             .with_context(|| format!("attachment {} has no valid filename", path.display()))?;
-        attachments.push(SendEmailAttachment {
+        attachments.push(SendMessageAttachment {
             content_type: guess_content_type(path),
             filename,
             content_base64: BASE64_STANDARD.encode(bytes),
@@ -2568,7 +2568,7 @@ mod tests {
 
     #[test]
     fn dry_run_redacts_attachment_bytes() {
-        let request = SendEmailRequest {
+        let request = SendMessageRequest {
             inbox_id: "inbox_1".to_string(),
             to: vec!["max@example.com".to_string()],
             cc: None,
@@ -2577,7 +2577,7 @@ mod tests {
             text: Some("Body".to_string()),
             html: None,
             react: None,
-            attachments: Some(vec![SendEmailAttachment {
+            attachments: Some(vec![SendMessageAttachment {
                 filename: "invoice.pdf".to_string(),
                 content_type: "application/pdf".to_string(),
                 content_base64: "JVBERi0xLjQ=".to_string(),

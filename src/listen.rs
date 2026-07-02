@@ -866,7 +866,7 @@ mod tests {
             inbox_id: inbox.map(|i| i.to_string()),
             thread_id: None,
             idempotency_key: None,
-            outbound_email_id: None,
+            outbound_message_id: None,
             message_id: Some("msg_1".to_string()),
             provider_message_id: None,
             occurred_at: Some("2026-06-11T00:00:00Z".to_string()),

@@ -196,9 +196,9 @@ pub enum Command {
     },
     /// Manage email lists and send to list recipients.
     #[command(name = "lists", alias = "list")]
-    EmailList {
+    Audience {
         #[command(subcommand)]
-        command: EmailListCommand,
+        command: AudienceCommand,
     },
     /// Inspect the account audit log (security-relevant control-plane actions).
     #[command(name = "audit-logs", alias = "audit-log")]
@@ -695,12 +695,12 @@ pub enum OutboundCommand {
         limit: Option<u32>,
     },
     /// Get one outbound message with its delivery-event timeline.
-    Get { email_id: String },
+    Get { message_id: String },
     /// Cancel a scheduled outbound message before its fire time.
     ///
     /// Fails with a conflict if the message is no longer scheduled (already sent,
     /// queued, or canceled).
-    Cancel { email_id: String },
+    Cancel { message_id: String },
     /// List the delivery-event timeline for one outbound message
     /// (delivered, bounced, complained, ...).
     ///
@@ -708,14 +708,14 @@ pub enum OutboundCommand {
     /// so `--email-id` is required.
     Events {
         #[arg(long = "email-id")]
-        email_id: String,
+        message_id: String,
         #[arg(long)]
         limit: Option<u32>,
     },
     /// List only the bounce events for one outbound message.
     Bounces {
         #[arg(long = "email-id")]
-        email_id: String,
+        message_id: String,
         #[arg(long)]
         limit: Option<u32>,
     },
@@ -723,7 +723,7 @@ pub enum OutboundCommand {
     /// outbound message.
     Complaints {
         #[arg(long = "email-id")]
-        email_id: String,
+        message_id: String,
         #[arg(long)]
         limit: Option<u32>,
     },
@@ -1185,7 +1185,7 @@ impl LetterPaymentArgs {
 
 // LetterSendArgs is `#[command(flatten)]`-ed into the `Send` variant, which clap
 // requires to be the concrete Args type, so the variant-size difference is
-// inherent and benign — matching the `EmailListCommand::Send` precedent.
+// inherent and benign — matching the `AudienceCommand::Send` precedent.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 pub enum LetterCommand {
@@ -1631,7 +1631,7 @@ impl std::fmt::Display for Framework {
 // difference between variants is inherent and benign.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
-pub enum EmailListCommand {
+pub enum AudienceCommand {
     /// List email lists.
     List,
     /// Create an email list.
@@ -1734,7 +1734,7 @@ impl std::fmt::Display for AttachmentDelivery {
 pub struct LoginArgs {
     /// Scopes to request, space- or comma-separated. Defaults to the `admin`
     /// bundle, which the backend expands to every scope so the CLI is fully
-    /// functional. Pass a narrower set (e.g. `--scope "mail:read mail:send"`) to
+    /// functional. Pass a narrower set (e.g. `--scope "messages:read messages:send"`) to
     /// mint a least-privilege token.
     #[arg(long = "scope", default_value = crate::auth::DEFAULT_LOGIN_SCOPE)]
     pub scope: String,
@@ -1906,7 +1906,7 @@ pub enum MessageCommand {
     /// Get a message by ID.
     Get { message_id: String },
     /// Bulk-delete up to 1000 mailbox messages in a single call
-    /// (scope `mail:read`). A bad/foreign/unknown id is reported as a failure
+    /// (scope `messages:read`). A bad/foreign/unknown id is reported as a failure
     /// and never aborts the batch.
     BatchDelete {
         /// Message ids to delete (1..=1000). Pass repeatedly or comma-separated.
@@ -2252,8 +2252,8 @@ mod tests {
         let cli = Cli::parse_from(["dairo", "outbound", "cancel", "email_123"]);
         match cli.command {
             Command::Outbound {
-                command: OutboundCommand::Cancel { email_id },
-            } => assert_eq!(email_id, "email_123"),
+                command: OutboundCommand::Cancel { message_id },
+            } => assert_eq!(message_id, "email_123"),
             _ => panic!("expected outbound cancel command"),
         }
     }
@@ -2399,7 +2399,7 @@ mod tests {
             "--name",
             "scoped",
             "--scope",
-            "mail:send",
+            "messages:send",
             "--allowed-ip",
             "203.0.113.0/24",
             "--allowed-ip",
@@ -2414,7 +2414,7 @@ mod tests {
                         ..
                     },
             } => {
-                assert_eq!(scopes, vec!["mail:send"]);
+                assert_eq!(scopes, vec!["messages:send"]);
                 assert_eq!(allowed_ips, vec!["203.0.113.0/24", "198.51.100.7"]);
             }
             _ => panic!("expected api-key create command"),
@@ -2652,9 +2652,9 @@ mod tests {
             "--name",
             "CI",
             "--scope",
-            "mail:send",
+            "messages:send",
             "--scope",
-            "mail:read",
+            "messages:read",
         ]);
         match api_key.command {
             Command::ApiKey {
@@ -2666,7 +2666,7 @@ mod tests {
                     },
             } => {
                 assert_eq!(name, "CI");
-                assert_eq!(scopes, vec!["mail:send", "mail:read"]);
+                assert_eq!(scopes, vec!["messages:send", "messages:read"]);
                 assert!(allowed_ips.is_empty());
             }
             _ => panic!("expected api-key create command"),
@@ -2709,11 +2709,11 @@ mod tests {
     }
 
     #[test]
-    fn parses_email_list_delete_command() {
+    fn parses_audience_delete_command() {
         let cli = Cli::parse_from(["dairo", "lists", "delete", "list_123"]);
         match cli.command {
-            Command::EmailList {
-                command: EmailListCommand::Delete { list_id },
+            Command::Audience {
+                command: AudienceCommand::Delete { list_id },
             } => assert_eq!(list_id, "list_123"),
             _ => panic!("expected lists delete command"),
         }
@@ -3562,7 +3562,7 @@ mod tests {
     }
 
     #[test]
-    fn outbound_events_requires_email_id() {
+    fn outbound_events_requires_message_id() {
         // Events are now a per-email sub-resource, so --email-id is required.
         let error = Cli::try_parse_from(["dairo", "outbound", "events"])
             .expect_err("outbound events without --email-id should fail clap validation");
@@ -3571,8 +3571,8 @@ mod tests {
         let cli = Cli::parse_from(["dairo", "outbound", "events", "--email-id", "email_123"]);
         match cli.command {
             Command::Outbound {
-                command: OutboundCommand::Events { email_id, .. },
-            } => assert_eq!(email_id, "email_123"),
+                command: OutboundCommand::Events { message_id, .. },
+            } => assert_eq!(message_id, "email_123"),
             _ => panic!("expected outbound events command"),
         }
     }

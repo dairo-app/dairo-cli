@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Dairo API",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "summary": "Email infrastructure API for AI agents and applications.",
     "description": "Source-of-truth public Dairo API contract. Operations marked x-dairo-status=live are implemented; planned operations define the SDK/CLI target surface."
   },
@@ -47,7 +47,7 @@
       "description": "Threaded email conversations."
     },
     {
-      "name": "Email Lists",
+      "name": "Audiences",
       "description": "Reusable recipient lists and list sends."
     },
     {
@@ -65,10 +65,6 @@
     {
       "name": "Events",
       "description": "The durable, replayable event ledger (reliability spine)."
-    },
-    {
-      "name": "A2A Mail",
-      "description": "Internal Dairo-to-Dairo email transport: when every recipient is a Dairo-managed inbox, sends skip SES and are delivered directly with re-verifiable agent provenance."
     },
     {
       "name": "Agents",
@@ -98,7 +94,7 @@
           "Compliance"
         ],
         "summary": "Machine-checkable residency assertion.",
-        "description": "Returns the data-residency posture (primary region, no-US-egress assertion, enforcement summary) and the org-wide subprocessor list with a monotonic version a buyer's compliance automation can assert on in CI. Requires the mail:read scope.",
+        "description": "Returns the data-residency posture (primary region, no-US-egress assertion, enforcement summary) and the org-wide subprocessor list with a monotonic version a buyer's compliance automation can assert on in CI. Requires the messages:read scope.",
         "operationId": "getResidency",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -194,7 +190,7 @@
           "Agents"
         ],
         "summary": "List agent passports.",
-        "description": "Returns the account's agent passports (verified, portable agent identities). Requires the mail:read scope.",
+        "description": "Returns the account's agent passports (verified, portable agent identities). Requires the messages:read scope.",
         "operationId": "listAgents",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -462,7 +458,7 @@
           "Reputation"
         ],
         "summary": "List per-agent reputation (fleet view).",
-        "description": "Returns the rolling bounce/complaint reputation and circuit-breaker state for every one of your agents that has been evaluated. Each agent carries its own reputation, isolated from the domain and from sibling agents; an agent whose bounce/complaint rate climbs is throttled and then quarantined before the SES cliff. Requires the mail:read scope.",
+        "description": "Returns the rolling bounce/complaint reputation and circuit-breaker state for every one of your agents that has been evaluated. Each agent carries its own reputation, isolated from the domain and from sibling agents; an agent whose bounce/complaint rate climbs is throttled and then quarantined before the SES cliff. Requires the messages:read scope.",
         "operationId": "listAgentReputation",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -695,7 +691,7 @@
           "Agents"
         ],
         "summary": "Get an agent passport.",
-        "description": "Reads one of the account's agent passports by its UUID or portable agentId (agt_...). Requires the mail:read scope.",
+        "description": "Reads one of the account's agent passports by its UUID or portable agentId (agt_...). Requires the messages:read scope.",
         "operationId": "getAgent",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -919,7 +915,7 @@
           "Reputation"
         ],
         "summary": "Get one agent's reputation and should-send verdict.",
-        "description": "Returns this agent's rolling bounce/complaint rates over the reputation window, its circuit-breaker state, the active thresholds, and a shouldSend boolean (false when the agent is quarantined). Poll this before a batch to decide whether to send. Requires the mail:read scope.",
+        "description": "Returns this agent's rolling bounce/complaint rates over the reputation window, its circuit-breaker state, the active thresholds, and a shouldSend boolean (false when the agent is quarantined). Poll this before a batch to decide whether to send. Requires the messages:read scope.",
         "operationId": "getAgentReputation",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -1024,7 +1020,7 @@
           "Reputation"
         ],
         "summary": "Clear an agent's reputation state (operator override).",
-        "description": "Operator override for an agent's circuit-breaker: clears a quarantine or resolves a review back to healthy (the default), or pins a chosen state. Set overrideLocked to stop the breaker from auto-tripping the agent again until you clear the lock. Use this once the underlying cause of the elevated bounce/complaint rate is fixed. Requires the mail:send scope.",
+        "description": "Operator override for an agent's circuit-breaker: clears a quarantine or resolves a review back to healthy (the default), or pins a chosen state. Set overrideLocked to stop the breaker from auto-tripping the agent again until you clear the lock. Use this once the underlying cause of the elevated bounce/complaint rate is fixed. Requires the messages:send scope.",
         "operationId": "clearAgentReputation",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -1618,7 +1614,7 @@
         },
         "x-dairo-status": "live",
         "x-dairo-scopes": [
-          "mail:read"
+          "messages:read"
         ]
       }
     },
@@ -1721,7 +1717,7 @@
           }
         ],
         "x-dairo-scopes": [
-          "mail:read"
+          "messages:read"
         ]
       }
     },
@@ -1838,7 +1834,7 @@
           }
         ],
         "x-dairo-scopes": [
-          "mail:read"
+          "messages:read"
         ]
       }
     },
@@ -1848,7 +1844,7 @@
           "Audit Logs"
         ],
         "summary": "List audit log events.",
-        "description": "Returns a paginated, reverse-chronological stream of governance-relevant actions (resource creation, deletion, key management, and similar). Page with limit and cursor. Requires the mail:read scope.",
+        "description": "Returns a paginated, reverse-chronological stream of governance-relevant actions (resource creation, deletion, key management, and similar). Page with limit and cursor. Requires the messages:read scope.",
         "operationId": "listAuditLogs",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -1952,7 +1948,7 @@
           "Compliance"
         ],
         "summary": "Export the tamper-evident hash-chained audit ledger.",
-        "description": "Returns the caller's own audit-log rows in ascending chainSeq order, each carrying prevHash/rowHash, plus an Ed25519-signed manifest committing to the chain head. An auditor verifies the manifest against JWKS and independently re-derives every rowHash from the rows to detect any insert/delete/edit \u2014 no server trust required. Optionally bounded by an RFC3339 from/to window; an over-wide window is rejected so the export always matches the chain head. Requires the mail:read scope.",
+        "description": "Returns the caller's own audit-log rows in ascending chainSeq order, each carrying prevHash/rowHash, plus an Ed25519-signed manifest committing to the chain head. An auditor verifies the manifest against JWKS and independently re-derives every rowHash from the rows to detect any insert/delete/edit — no server trust required. With NO from/to the export defaults to the last 30 days (not the entire history) to avoid accidental over-disclosure; supply either bound to request an explicit, full-history-capable window. A single page is capped at 5000 rows: when more rows remain, pagination.nextCursor carries the head chainSeq — pass it back as ?after=<cursor> to drain the next page. Each page's manifest commits to that page's exact window, so every page is independently verifiable. Requires the messages:read scope.",
         "operationId": "exportAuditLedger",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -1977,6 +1973,16 @@
             "schema": {
               "type": "string",
               "format": "date-time"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "description": "Keyset cursor: the prior page's pagination.nextCursor (a chainSeq). Returns rows with a strictly greater chainSeq, draining history past the 5000-row page cap.",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
             }
           },
           {
@@ -2083,7 +2089,7 @@
           "Budgets"
         ],
         "summary": "List spend & send budgets.",
-        "description": "Returns every budget you have set (account, key, or agent scope) with its configured limits and live windowed usage (sends in the last 24h, new recipients in the last hour, and whether the account has any recorded complaint). Each budget is a fail-closed, server-side ceiling enforced inside the send path. Requires the mail:read scope.",
+        "description": "Returns every budget you have set (account, key, or agent scope) with its configured limits and live windowed usage (sends in the last 24h, new recipients in the last hour, and whether the account has any recorded complaint). Each budget is a fail-closed, server-side ceiling enforced inside the send path. Requires the messages:read scope.",
         "operationId": "listBudgets",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -2177,7 +2183,7 @@
           "Budgets"
         ],
         "summary": "Set or replace a budget.",
-        "description": "Idempotently sets (upserts) a fail-closed budget for an account, key, or agent scope. Volume limits (maxSendsPerDay, maxNewRecipientsPerHour) and a hardStopOnComplaint flip are enforced inside the send path before a message is enqueued and re-checked at scheduled fire time; over the line, a send is rejected with a budget_exceeded error and a budget.tripped event is emitted. The reserved maxSpendPerDayCents money cap is accepted but not yet enforced (V2). Setting a cap is a privileged control-plane action, so it requires the keys:write scope (a mail:send-only key cannot raise its own ceiling). In V1, scope=agent is an alias for scope=key keyed on the api_key id until Agent Passport ships.",
+        "description": "Idempotently sets (upserts) a fail-closed budget for an account, key, or agent scope. Volume limits (maxSendsPerDay, maxNewRecipientsPerHour) and a hardStopOnComplaint flip are enforced inside the send path before a message is enqueued and re-checked at scheduled fire time; over the line, a send is rejected with a budget_exceeded error and a budget.tripped event is emitted. The reserved maxSpendPerDayCents money cap is accepted but not yet enforced (V2). Setting a cap is a privileged control-plane action, so it requires the keys:write scope (a messages:send-only key cannot raise its own ceiling). In V1, scope=agent is an alias for scope=key keyed on the api_key id until Agent Passport ships.",
         "operationId": "setBudget",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -2283,7 +2289,7 @@
           "Budgets"
         ],
         "summary": "Get a single budget by scope.",
-        "description": "Returns a single budget plus its live usage. Use 'account' for the account-scope budget, or a key/agent scopeId for a key/agent budget. Requires the mail:read scope.",
+        "description": "Returns a single budget plus its live usage. Use 'account' for the account-scope budget, or a key/agent scopeId for a key/agent budget. Requires the messages:read scope.",
         "operationId": "getBudget",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -2464,102 +2470,6 @@
         "x-dairo-scopes": [
           "budgets:write"
         ]
-      }
-    },
-    "/v1/dedicated-ips": {
-      "get": {
-        "tags": [
-          "Dedicated IPs"
-        ],
-        "summary": "List dedicated IP pools and their warmup status.",
-        "description": "Returns the managed dedicated sending IP pools provisioned for your account, each with live managed-warmup status. Dedicated IPs are an enterprise feature; accounts without any provisioned pools receive an empty list. Requires the mail:read scope.",
-        "operationId": "listDedicatedIps",
-        "x-dairo-status": "live",
-        "x-dairo-scopes": [
-          "dedicated-ips:read"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DedicatedIpListResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/v1/domains": {
@@ -2771,18 +2681,12 @@
           "Domains"
         ],
         "summary": "Delete a domain owned by the authenticated account.",
+        "description": "Deletes a custom domain. A domain with no inboxes is deleted directly (204). A domain that still OWNS inboxes is refused with a structured 409 (code `cascade_confirmation_required`) whose `error.details` carries `requiresCascadeConfirmation:true` plus the exact `inboxes` and `messages` counts a cascade would remove. Re-send the request with `cascade=true` (query parameter, or a JSON body `{\"cascade\":true}`) to delete the domain AND all of its inboxes and their messages/threads/attachments in one atomic, org-scoped transaction. The included `dairo.app` system domain cannot be deleted.",
         "operationId": "deleteDomain",
         "x-dairo-status": "live",
         "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DomainListResponse"
-                }
-              }
-            }
+          "204": {
+            "description": "Domain deleted (no content)."
           },
           "400": {
             "description": "Error",
@@ -2824,12 +2728,12 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
+          "409": {
+            "description": "The domain still owns inboxes and cascade confirmation is required. `error.code` is `cascade_confirmation_required` and `error.details` carries the cascade preview.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/CascadeConfirmationErrorResponse"
                 }
               }
             }
@@ -2862,6 +2766,15 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "cascade",
+            "in": "query",
+            "required": false,
+            "description": "When `true`, also delete every inbox on this domain and all of their messages/threads/attachments in one atomic, org-scoped transaction. Required to delete a domain that still owns inboxes.",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -3268,7 +3181,7 @@
           "Compliance"
         ],
         "summary": "Get an erasure job + its signed deletion certificate.",
-        "description": "Returns the status and tallies of an erasure job; once completed, the response includes the Ed25519-signed deletion certificate and its signature. Requires the mail:read scope.",
+        "description": "Returns the status and tallies of an erasure job; once completed, the response includes the Ed25519-signed deletion certificate and its signature. Requires the messages:read scope.",
         "operationId": "getErasureJob",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -3376,7 +3289,7 @@
           "Events"
         ],
         "summary": "Read the durable event ledger (catch-up).",
-        "description": "Returns the account's durable, ordered event stream (outbound, SES status, and inbound events) forward from an optional cursor, with per-partition gap detection. No re-delivery. Requires the mail:read scope.",
+        "description": "Returns the account's durable, ordered event stream (outbound, SES status, and inbound events) forward from an optional cursor, with per-partition gap detection. No re-delivery. Requires the messages:read scope.",
         "operationId": "listEvents",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -4855,10 +4768,10 @@
     "/v1/lists": {
       "get": {
         "tags": [
-          "Email Lists"
+          "Audiences"
         ],
         "summary": "List email lists.",
-        "operationId": "listEmailLists",
+        "operationId": "listAudiences",
         "x-dairo-status": "live",
         "responses": {
           "200": {
@@ -4866,7 +4779,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmailListListResponse"
+                  "$ref": "#/components/schemas/AudienceListResponse"
                 }
               }
             }
@@ -4948,10 +4861,10 @@
       },
       "post": {
         "tags": [
-          "Email Lists"
+          "Audiences"
         ],
         "summary": "Create an email list.",
-        "operationId": "createEmailList",
+        "operationId": "createAudience",
         "x-dairo-status": "live",
         "responses": {
           "200": {
@@ -4959,7 +4872,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmailListResponse"
+                  "$ref": "#/components/schemas/AudienceResponse"
                 }
               }
             }
@@ -5043,7 +4956,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EmailListCreateRequest"
+                "$ref": "#/components/schemas/AudienceCreateRequest"
               }
             }
           }
@@ -5058,10 +4971,10 @@
     "/v1/lists/{listId}": {
       "get": {
         "tags": [
-          "Email Lists"
+          "Audiences"
         ],
         "summary": "Get an email list and active members.",
-        "operationId": "getEmailList",
+        "operationId": "getAudience",
         "x-dairo-status": "live",
         "responses": {
           "200": {
@@ -5069,7 +4982,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmailListDetailResponse"
+                  "$ref": "#/components/schemas/AudienceDetailResponse"
                 }
               }
             }
@@ -5162,10 +5075,10 @@
       },
       "delete": {
         "tags": [
-          "Email Lists"
+          "Audiences"
         ],
         "summary": "Archive an email list.",
-        "operationId": "deleteEmailList",
+        "operationId": "deleteAudience",
         "x-dairo-status": "live",
         "responses": {
           "200": {
@@ -5173,7 +5086,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmailListDeleteResponse"
+                  "$ref": "#/components/schemas/AudienceDeleteResponse"
                 }
               }
             }
@@ -5268,10 +5181,10 @@
     "/v1/lists/{listId}/members": {
       "post": {
         "tags": [
-          "Email Lists"
+          "Audiences"
         ],
         "summary": "Add or update email-list members.",
-        "operationId": "addEmailListMembers",
+        "operationId": "addAudienceMembers",
         "x-dairo-status": "live",
         "responses": {
           "200": {
@@ -5279,7 +5192,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmailListMembersResponse"
+                  "$ref": "#/components/schemas/AudienceMembersResponse"
                 }
               }
             }
@@ -5374,7 +5287,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EmailListMembersRequest"
+                "$ref": "#/components/schemas/AudienceMembersRequest"
               }
             }
           }
@@ -5384,10 +5297,10 @@
     "/v1/lists/{listId}/send": {
       "post": {
         "tags": [
-          "Email Lists"
+          "Audiences"
         ],
         "summary": "Send an email to an email list with SES-safe batching.",
-        "operationId": "sendEmailList",
+        "operationId": "sendToAudience",
         "x-dairo-status": "live",
         "responses": {
           "200": {
@@ -5395,7 +5308,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmailListSendResponse"
+                  "$ref": "#/components/schemas/AudienceSendResponse"
                 }
               }
             }
@@ -5490,7 +5403,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SendEmailRequest"
+                "$ref": "#/components/schemas/SendMessageRequest"
               }
             }
           }
@@ -5630,14 +5543,23 @@
             "schema": {
               "type": "string",
               "enum": [
-                "a2a"
+                "email",
+                "a2a",
+                "sms",
+                "whatsapp",
+                "telegram",
+                "slack",
+                "webchat",
+                "voice",
+                "push",
+                "api"
               ]
             },
-            "description": "Filter to the agent-to-agent (A2A) channel."
+            "description": "Filter to a single channel. \"email\" and \"a2a\" are live today; the remaining values are reserved for future channels (they filter to an empty list until wired). Unknown values are a 400."
           }
         ],
         "x-dairo-scopes": [
-          "mail:read"
+          "messages:read"
         ]
       },
       "post": {
@@ -5645,7 +5567,8 @@
           "Messages"
         ],
         "summary": "Send an email from a Dairo inbox.",
-        "operationId": "sendEmail",
+        "description": "Sends a single email from a Dairo inbox. An immediate send (no sendAt) performs the SES SendEmail synchronously and returns status 'sent' (with providerMessageId) — or a precise error at submit time (413 for an oversized attachment, 4xx/403 otherwise). A scheduled send (sendAt in the future) returns status 'scheduled' after passing every upfront gate. The response is never accepted as 'queued' here; 'queued' is reserved for the bulk list-broadcast endpoint.",
+        "operationId": "sendMessage",
         "x-dairo-status": "live",
         "responses": {
           "202": {
@@ -5653,7 +5576,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SendEmailResponse"
+                  "$ref": "#/components/schemas/SendMessageResponse"
                 }
               }
             }
@@ -5739,13 +5662,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SendEmailRequest"
+                "$ref": "#/components/schemas/SendMessageRequest"
               }
             }
           }
         },
         "x-dairo-scopes": [
-          "mail:send"
+          "messages:send"
         ]
       }
     },
@@ -5754,7 +5677,7 @@
         "tags": [
           "Messages"
         ],
-        "summary": "Get one message by ID.",
+        "summary": "Get one message (inbound, a2a, or a folded outbound send) by ID.",
         "operationId": "getMessage",
         "x-dairo-status": "live",
         "responses": {
@@ -5850,8 +5773,209 @@
           }
         ],
         "x-dairo-scopes": [
-          "mail:read"
-        ]
+          "messages:read"
+        ],
+        "description": "Resolves a single message by id across the unified messages surface: the messages table (inbound / a2a) first, then the outbound send ledger. Returns the message with its channel and channelMetadata."
+      }
+    },
+    "/v1/notifications/preferences": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Get notification email preferences.",
+        "description": "Returns the caller's per-category notification email preferences. Each notification belongs to a category (account, billing, usage, security, product); for each category the response carries an emailEnabled flag. A category with no stored preference defaults to emailEnabled=true (opted in), so a brand-new account receives notifications without any setup. The notification worker reads exactly these preferences before sending, so disabling a category here mutes that whole class of notification email. Requires the account:read scope.",
+        "operationId": "getNotificationPreferences",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "account:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferencesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Update notification email preferences.",
+        "description": "Partially updates the caller's per-category notification email preferences. Pass a preferences map of category -> emailEnabled, e.g. {\"billing\": false, \"usage\": true}; only the named categories change and the rest are untouched. Unknown category keys are rejected so a typo can't silently no-op. Updating a preference is a privileged control-plane write, so it requires the account:write scope (a read-only key cannot mute a user's security notifications). Returns the full resolved preference set after the update.",
+        "operationId": "updateNotificationPreferences",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "account:write"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationPreferencesUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferencesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/templates": {
@@ -6833,7 +6957,7 @@
           }
         ],
         "x-dairo-scopes": [
-          "mail:read"
+          "messages:read"
         ]
       }
     },
@@ -6938,7 +7062,7 @@
           }
         ],
         "x-dairo-scopes": [
-          "mail:read"
+          "messages:read"
         ]
       }
     },
@@ -7345,6 +7469,494 @@
         ]
       }
     },
+    "/v1/webhooks/{webhook}/ping": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Send a test (ping) event to a webhook.",
+        "description": "Delivers a synthetic ping event to the webhook endpoint so you can confirm reachability and signature handling without waiting for real traffic. Rate-limited. Requires the webhooks:write scope.",
+        "operationId": "pingWebhook",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "webhook",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "webhooks:write"
+        ]
+      }
+    },
+    "/v1/webhooks/{webhook}/pause": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Pause a webhook subscription.",
+        "description": "Stops delivery to this webhook (status -> paused) without deleting it. Future events are not delivered until you resume it. Requires the webhooks:write scope.",
+        "operationId": "pauseWebhook",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "webhook",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "webhooks:write"
+        ]
+      }
+    },
+    "/v1/webhooks/{webhook}/resume": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Resume a paused webhook subscription.",
+        "description": "Re-activates a paused webhook (status -> active) so it receives matching events again. Requires the webhooks:write scope.",
+        "operationId": "resumeWebhook",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "webhook",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "webhooks:write"
+        ]
+      }
+    },
+    "/v1/webhooks/{webhook}/deliveries": {
+      "get": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "List a webhook's recent delivery attempts.",
+        "description": "Returns the recent delivery log for one webhook endpoint: each attempt's event, HTTP status, and outcome, so you can diagnose failing deliveries and pick one to redrive. Requires the webhooks:read scope.",
+        "operationId": "listWebhookDeliveries",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "webhook",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "webhooks:read"
+        ]
+      }
+    },
+    "/v1/webhooks/{webhook}/deliveries/{delivery}/redrive": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Redrive a single failed webhook delivery.",
+        "description": "Re-attempts delivery of one previously-failed delivery to the webhook endpoint, reconstructing the byte-identical event (same event id, so consumer-side dedupe stays exact). Rate-limited. Requires the webhooks:write scope.",
+        "operationId": "redriveWebhookDelivery",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "webhook",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "delivery",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "webhooks:write"
+        ]
+      }
+    },
     "/v1/whoami": {
       "get": {
         "tags": [
@@ -7436,7 +8048,7 @@
           "Attachments"
         ],
         "summary": "Create a branded, shareable Dairo download link for an attachment.",
-        "description": "Returns a short-lived branded download URL plus a human share-page URL for the attachment, signed by Dairo's file-link service. Same response shape as the /url endpoint; the link variant always uses the branded Dairo file-link host. Requires the mail:read scope.",
+        "description": "Returns a short-lived branded download URL plus a human share-page URL for the attachment, signed by Dairo's file-link service. Same response shape as the /url endpoint; the link variant always uses the branded Dairo file-link host. Requires the messages:read scope.",
         "operationId": "getAttachmentBrandedLink",
         "x-dairo-status": "live",
         "responses": {
@@ -7544,7 +8156,7 @@
           }
         ],
         "x-dairo-scopes": [
-          "mail:read"
+          "messages:read"
         ]
       }
     },
@@ -7636,241 +8248,6 @@
               "type": "string"
             }
           }
-        ]
-      }
-    },
-    "/v1/a2a/messages": {
-      "get": {
-        "tags": [
-          "A2A Mail"
-        ],
-        "summary": "List the caller's A2A (agent-to-agent) hop receipts.",
-        "description": "Keyset-paginated, forward-ordered list of the cross-tenant A2A hops the caller was party to, from either end of the delivery (sender or recipient view). Also reachable via GET /v1/messages?channel=a2a. Requires the mail:read scope.",
-        "operationId": "listA2aMessages",
-        "x-dairo-status": "live",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/A2aMessagePage"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "description": "Maximum hops to return (1-100, default 50).",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "description": "Opaque forward keyset cursor from a previous page's pagination.nextCursor. Also accepted as 'since'.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "inboxId",
-            "in": "query",
-            "required": false,
-            "description": "Restrict to hops where this inbox is either the sender or recipient inbox of the hop.",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "x-dairo-scopes": [
-          "mail:read"
-        ]
-      }
-    },
-    "/v1/a2a/messages/{messageId}": {
-      "get": {
-        "tags": [
-          "A2A Mail"
-        ],
-        "summary": "Get one A2A (agent-to-agent) hop receipt by ID.",
-        "description": "Returns a single cross-tenant A2A hop receipt, including provenance and delivery status, from the caller's end of the hop. Also reachable via GET /v1/messages/{messageId} when the id is an A2A hop. Requires the mail:read scope.",
-        "operationId": "getA2aMessage",
-        "x-dairo-status": "live",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/A2aMessageResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "messageId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "x-dairo-scopes": [
-          "mail:read"
         ]
       }
     },
@@ -9731,6 +10108,434 @@
         }
       }
     },
+    "/v1/buckets/{bucketId}/objects/{objectId}/share-links": {
+      "post": {
+        "tags": [
+          "Buckets"
+        ],
+        "summary": "Create a secure share link over a stored object.",
+        "description": "Mint a stateful secure share link (optional password, one-time/use cap, expiry) over an object you own. Returns the /s/ and /d/ URLs. The object must have passed its malware scan. Every open is logged for analytics; revoke any time.",
+        "operationId": "createShareLink",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "buckets:write"
+        ],
+        "parameters": [
+          {
+            "name": "bucketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bucket identifier (buk_*)."
+          },
+          {
+            "name": "objectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Storage object identifier."
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShareLinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareLink"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Buckets"
+        ],
+        "summary": "List the secure share links over a stored object.",
+        "operationId": "listShareLinks",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "buckets:read"
+        ],
+        "parameters": [
+          {
+            "name": "bucketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bucket identifier (buk_*)."
+          },
+          {
+            "name": "objectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Storage object identifier."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareLinkListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/share-links/{shareLinkId}": {
+      "delete": {
+        "tags": [
+          "Buckets"
+        ],
+        "summary": "Revoke a secure share link.",
+        "description": "Instantly revoke a share link. After this, every open of its /s/ or /d/ link returns 410 Gone. Idempotent.",
+        "operationId": "revokeShareLink",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "buckets:write"
+        ],
+        "parameters": [
+          {
+            "name": "shareLinkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Share-link identifier (shr_*)."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/share-links/{shareLinkId}/opens": {
+      "get": {
+        "tags": [
+          "Buckets"
+        ],
+        "summary": "List the open analytics for a secure share link.",
+        "operationId": "listShareLinkOpens",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "buckets:read"
+        ],
+        "parameters": [
+          {
+            "name": "shareLinkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Share-link identifier (shr_*)."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "description": "Max open rows (1-200, default 50)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareLinkOpensResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/buckets/{bucketId}/objects/batch-delete": {
       "post": {
         "tags": [
@@ -9858,7 +10663,7 @@
         "operationId": "batchDeleteMessages",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
-          "mail:read"
+          "messages:read"
         ],
         "requestBody": {
           "required": true,
@@ -9944,24 +10749,178 @@
         }
       }
     },
+    "/v1/dashboard/organizations": {
+      "get": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "List the organizations the authenticated dashboard user belongs to, with their role in each.",
+        "description": "Dashboard (JWT) surface. Returns every workspace the caller is a member of plus their role — the org switcher list. Honors the X-Dairo-Org active-org selector header on the dashboard surface generally; this list endpoint itself is membership-derived and not org-scoped.",
+        "operationId": "listDashboardOrganizations",
+        "x-dairo-status": "internal",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ActiveOrgHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "Create a new organization (workspace) owned by the authenticated dashboard user.",
+        "description": "Dashboard (JWT) surface. Mints a new workspace and seeds the caller's owner membership (the explicit counterpart of the signup trigger). The caller becomes the owner of the new org.",
+        "operationId": "createDashboardOrganization",
+        "x-dairo-status": "internal",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ActiveOrgHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrganizationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/messages/{messageId}/cancel": {
       "post": {
         "tags": [
-          "Outbound"
+          "Messages"
         ],
         "summary": "Cancel a scheduled outbound email.",
-        "description": "Cancels a scheduled outbound email before it fires, by emailId. Only works while the email is still status scheduled; returns 409 if it has already been sent, queued, or canceled. Requires the mail:send scope.",
-        "operationId": "cancelOutboundEmail",
+        "description": "Cancels a scheduled outbound email before it fires, by emailId. Only works while the email is still status scheduled; returns 409 if it has already been sent, queued, or canceled. Requires the messages:send scope.",
+        "operationId": "cancelOutboundMessage",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
-          "mail:send"
+          "messages:send"
         ],
         "parameters": [
           {
             "name": "messageId",
             "in": "path",
             "required": true,
-            "description": "The message id to cancel.",
+            "description": "The outbound email id to cancel.",
             "schema": {
               "type": "string"
             }
@@ -9973,7 +10932,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CancelOutboundEmailResponse"
+                  "$ref": "#/components/schemas/CancelOutboundMessageResponse"
                 }
               }
             }
@@ -10064,13 +11023,13 @@
     "/v1/messages/{messageId}/events": {
       "get": {
         "tags": [
-          "Outbound"
+          "Messages"
         ],
         "summary": "List outbound delivery events, bounces, and complaints.",
         "operationId": "listOutboundEvents",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
-          "mail:read"
+          "messages:read"
         ],
         "parameters": [
           {
@@ -10207,126 +11166,18 @@
         "schema": {
           "type": "string"
         }
+      },
+      "ActiveOrgHeader": {
+        "name": "X-Dairo-Org",
+        "in": "header",
+        "required": false,
+        "description": "Active-organization selector. The workspace id the dashboard request acts in; the backend validates membership and falls back to the caller's default/only org when absent or invalid.",
+        "schema": {
+          "type": "string"
+        }
       }
     },
     "schemas": {
-      "A2aMessage": {
-        "type": "object",
-        "required": [
-          "id",
-          "direction",
-          "outboundEmailId",
-          "senderInboxId",
-          "recipientInboxId",
-          "recipientAddress",
-          "signed",
-          "deliveryStatus",
-          "createdAt"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "direction": {
-            "type": "string",
-            "enum": [
-              "sent",
-              "received"
-            ],
-            "description": "Which end of the cross-tenant hop the caller is reading: 'sent' (caller is the sender) or 'received' (caller is the recipient)."
-          },
-          "outboundEmailId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "senderInboxId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "agentId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The sending agent passport UUID, when the send was attributed."
-          },
-          "recipientInboxId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "recipientMessageId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid",
-            "description": "The delivered inbound message id in the recipient's inbox."
-          },
-          "recipientAddress": {
-            "type": "string"
-          },
-          "provenance": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The signed X-Dairo-Provenance header value the recipient can re-verify via /v1/verify. Null when the hop was delivered unsigned."
-          },
-          "signed": {
-            "type": "boolean"
-          },
-          "deliveryStatus": {
-            "type": "string",
-            "enum": [
-              "delivered",
-              "failed"
-            ]
-          },
-          "error": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "A2aMessagePage": {
-        "type": "object",
-        "required": [
-          "messages",
-          "pagination"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/A2aMessage"
-            }
-          },
-          "pagination": {
-            "$ref": "#/components/schemas/Pagination"
-          }
-        }
-      },
-      "A2aMessageResponse": {
-        "type": "object",
-        "required": [
-          "message"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "message": {
-            "$ref": "#/components/schemas/A2aMessage"
-          }
-        }
-      },
       "AgentBindRequest": {
         "type": "object",
         "description": "Provide an apiKeyId and/or inboxId to bind to this agent.",
@@ -10816,6 +11667,20 @@
           },
           "manifest": {
             "$ref": "#/components/schemas/AuditExportManifest"
+          },
+          "pagination": {
+            "type": "object",
+            "description": "Keyset pagination for draining history past the 5000-row page cap.",
+            "properties": {
+              "nextCursor": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64",
+                "description": "Head chainSeq of this page when more rows remain; pass back as ?after=<cursor>. null when this page is the tail."
+              }
+            }
           }
         }
       },
@@ -11155,15 +12020,15 @@
           }
         }
       },
-      "CancelOutboundEmailResponse": {
+      "CancelOutboundMessageResponse": {
         "type": "object",
         "required": [
-          "email"
+          "message"
         ],
         "additionalProperties": false,
         "properties": {
-          "email": {
-            "$ref": "#/components/schemas/OutboundEmail"
+          "message": {
+            "$ref": "#/components/schemas/OutboundMessage"
           }
         }
       },
@@ -11182,8 +12047,8 @@
             "items": {
               "type": "string",
               "enum": [
-                "mail:send",
-                "mail:read",
+                "messages:send",
+                "messages:read",
                 "domains:write",
                 "webhooks:write",
                 "keys:write"
@@ -11340,9 +12205,29 @@
           "events": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "message.received",
+                "message.quarantined",
+                "message.sent",
+                "message.delivered",
+                "message.bounced",
+                "message.complained",
+                "budget.tripped",
+                "compliance.erasure.completed",
+                "subprocessor.changed",
+                "object.scanned",
+                "share_link.opened",
+                "letter.status_changed",
+                "domain.verified"
+              ],
+              "description": "A subscribable event type. webhook.ping is NOT valid here — it is a synthetic connectivity-test action delivered by POST /v1/webhooks/{id}/ping, not a subscribable event."
             },
             "minItems": 1
+          },
+          "label": {
+            "type": "string",
+            "description": "Optional human label for the endpoint. Surfaced read-only and used as the primary match field by prefix-scoped test cleanup."
           }
         },
         "additionalProperties": false
@@ -11363,120 +12248,6 @@
           }
         },
         "additionalProperties": false
-      },
-      "DedicatedIp": {
-        "type": "object",
-        "required": [
-          "id",
-          "poolName",
-          "scalingMode",
-          "status",
-          "configSet",
-          "createdAt"
-        ],
-        "additionalProperties": false,
-        "description": "A managed dedicated-IP pool. Dairo provisions SES managed dedicated IP pools (AWS owns IP sizing and per-ISP warmup), so dedicated sending is modeled as a pool rather than individual addresses.",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "poolName": {
-            "type": "string",
-            "description": "The SES managed dedicated IP pool name allocated for your account.",
-            "example": "dairo-ded-7f2a9c"
-          },
-          "scalingMode": {
-            "type": "string",
-            "description": "The SES dedicated IP pool scaling mode. Dairo uses managed pools.",
-            "example": "managed"
-          },
-          "status": {
-            "type": "string",
-            "description": "Lifecycle state of the pool.",
-            "enum": [
-              "pending",
-              "active",
-              "deleting",
-              "failed"
-            ],
-            "example": "pending"
-          },
-          "configSet": {
-            "type": "string",
-            "description": "The SES configuration set the pool is associated with.",
-            "example": "dairo-ded-7f2a9c"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "When the dedicated IP pool was provisioned (UTC)."
-          },
-          "warmup": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/DedicatedIpWarmup"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Live warmup status, or null when the live SES/CloudWatch read is unavailable."
-          }
-        }
-      },
-      "DedicatedIpListResponse": {
-        "type": "object",
-        "required": [
-          "pools"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "pools": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DedicatedIp"
-            }
-          }
-        }
-      },
-      "DedicatedIpWarmup": {
-        "type": "object",
-        "additionalProperties": false,
-        "description": "Live managed-warmup status for the pool, blended from SES per-IP warmup and CloudWatch reputation metrics. The whole object is null when the live read is unavailable.",
-        "properties": {
-          "ipCount": {
-            "type": "integer",
-            "description": "Number of dedicated IPs currently allocated to the pool."
-          },
-          "warmingIps": {
-            "type": "integer",
-            "description": "How many of the pool's IPs are still warming up."
-          },
-          "warmedIps": {
-            "type": "integer",
-            "description": "How many of the pool's IPs have completed warmup."
-          },
-          "warmupPercent": {
-            "type": "integer",
-            "description": "Approximate overall warmup progress for the pool, 0-100.",
-            "example": 40
-          },
-          "dedicatedSendingPercent": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "CloudWatch ApproximateDedicatedSendingPercentage. Null when unavailable."
-          },
-          "available24HourSend": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "CloudWatch Available24HourSend. Null when unavailable."
-          }
-        }
       },
       "DeleteResponse": {
         "type": "object",
@@ -11647,7 +12418,7 @@
         },
         "additionalProperties": false
       },
-      "EmailList": {
+      "Audience": {
         "type": "object",
         "required": [
           "id",
@@ -11689,7 +12460,7 @@
           }
         }
       },
-      "EmailListCreateRequest": {
+      "AudienceCreateRequest": {
         "type": "object",
         "required": [
           "name"
@@ -11704,7 +12475,7 @@
           }
         }
       },
-      "EmailListDeleteResponse": {
+      "AudienceDeleteResponse": {
         "type": "object",
         "required": [
           "deleted",
@@ -11720,7 +12491,7 @@
           }
         }
       },
-      "EmailListDetailResponse": {
+      "AudienceDetailResponse": {
         "type": "object",
         "required": [
           "list",
@@ -11728,31 +12499,31 @@
         ],
         "properties": {
           "list": {
-            "$ref": "#/components/schemas/EmailList"
+            "$ref": "#/components/schemas/Audience"
           },
           "members": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/EmailListMember"
+              "$ref": "#/components/schemas/AudienceMember"
             }
           }
         }
       },
-      "EmailListListResponse": {
+      "AudienceListResponse": {
         "type": "object",
         "required": [
-          "lists"
+          "audiences"
         ],
         "properties": {
-          "lists": {
+          "audiences": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/EmailList"
+              "$ref": "#/components/schemas/Audience"
             }
           }
         }
       },
-      "EmailListMember": {
+      "AudienceMember": {
         "type": "object",
         "required": [
           "id",
@@ -11803,7 +12574,7 @@
           }
         }
       },
-      "EmailListMembersRequest": {
+      "AudienceMembersRequest": {
         "type": "object",
         "required": [
           "members"
@@ -11835,7 +12606,7 @@
           }
         }
       },
-      "EmailListMembersResponse": {
+      "AudienceMembersResponse": {
         "type": "object",
         "required": [
           "listId",
@@ -11851,25 +12622,25 @@
           }
         }
       },
-      "EmailListResponse": {
+      "AudienceResponse": {
         "type": "object",
         "required": [
           "list"
         ],
         "properties": {
           "list": {
-            "$ref": "#/components/schemas/EmailList"
+            "$ref": "#/components/schemas/Audience"
           }
         }
       },
-      "EmailListSendResponse": {
+      "AudienceSendResponse": {
         "type": "object",
         "required": [
           "listId",
           "listName",
           "recipientCount",
           "batchCount",
-          "emails"
+          "messages"
         ],
         "properties": {
           "listId": {
@@ -11885,15 +12656,15 @@
           "batchCount": {
             "type": "integer"
           },
-          "emails": {
+          "messages": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SendEmailResponse"
+              "$ref": "#/components/schemas/SendMessageResponse"
             }
           }
         }
       },
-      "EmailRecipients": {
+      "Recipients": {
         "oneOf": [
           {
             "type": "string",
@@ -12120,20 +12891,97 @@
         },
         "additionalProperties": false
       },
+      "CascadeConfirmationError": {
+        "type": "object",
+        "description": "The error object returned when deleting a domain that still owns inboxes without `cascade=true`. `code` is `cascade_confirmation_required`; `details` carries the cascade preview.",
+        "required": [
+          "message",
+          "code",
+          "details"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "cascade_confirmation_required"
+            ]
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "param": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "details": {
+            "type": "object",
+            "required": [
+              "requiresCascadeConfirmation",
+              "inboxes",
+              "messages"
+            ],
+            "properties": {
+              "requiresCascadeConfirmation": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "inboxes": {
+                "type": "integer",
+                "description": "Exact number of inboxes a cascade delete would remove."
+              },
+              "messages": {
+                "type": "integer",
+                "description": "Exact number of email messages a cascade delete would remove."
+              }
+            }
+          }
+        }
+      },
+      "CascadeConfirmationErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/CascadeConfirmationError"
+          }
+        },
+        "additionalProperties": false
+      },
       "EventLedgerPage": {
         "type": "object",
         "required": [
-          "events",
+          "object",
+          "data",
           "pagination",
           "gaps"
         ],
         "additionalProperties": false,
         "properties": {
-          "events": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ],
+            "description": "Always \"list\" — the unified list envelope discriminator."
+          },
+          "data": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/LedgerEvent"
-            }
+            },
+            "description": "The ledger events for this page, each with seq/partitionKey join keys. (This is the array named `data`, not `events`.)"
           },
           "pagination": {
             "$ref": "#/components/schemas/Pagination"
@@ -12143,7 +12991,7 @@
             "items": {
               "$ref": "#/components/schemas/LedgerGap"
             },
-            "description": "Per-partition seq gaps detected within the returned window."
+            "description": "Per-partition seq gaps detected within this page's window. An empty array means no gap was detected in the returned window — detection is window-local (only the seq range present on this page), not whole-history."
           }
         }
       },
@@ -12277,14 +13125,23 @@
             "format": "uuid"
           },
           "address": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "email"
           },
           "localPart": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "domain": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "domainStatus": {
             "type": [
@@ -12332,7 +13189,12 @@
             "format": "date-time"
           },
           "channel": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "email",
+              "a2a"
+            ],
+            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, …) are not yet wired."
           }
         },
         "additionalProperties": false
@@ -12549,7 +13411,7 @@
             ],
             "description": "Loop-wide idempotency key threaded from the originating send onto every status event and the matched inbound reply. Null when the event did not originate from an idempotent send."
           },
-          "outboundEmailId": {
+          "outboundMessageId": {
             "type": [
               "string",
               "null"
@@ -12857,18 +13719,22 @@
       },
       "LetterFileRef": {
         "type": "object",
-        "required": [
-          "attachmentId"
-        ],
+        "description": "Reuse a PDF already stored in Dairo as the letter — no re-upload. Provide EXACTLY ONE of `attachmentId` (an email attachment) or `objectId` (a storage object from the buckets API). Providing both, or neither, is a 400.",
         "properties": {
           "attachmentId": {
-            "type": "string"
+            "type": "string",
+            "description": "An email attachment id to reuse as the letter PDF."
           },
           "messageId": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Optional message id the attachment belongs to (informational)."
+          },
+          "objectId": {
+            "type": "string",
+            "description": "A storage object id (from POST /v1/buckets/{bucketId}/objects upload + finalize) to reuse as the letter PDF. Must have passed its malware scan (clean/skipped)."
           }
         }
       },
@@ -13176,13 +14042,20 @@
             "description": "Outcome of the Schema-Inbox extraction stage for this message. Null when extraction did not run."
           },
           "channel": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "email",
+              "a2a"
+            ],
+            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, …) are not yet wired."
           },
           "channelMetadata": {
             "type": [
               "object",
               "null"
-            ]
+            ],
+            "additionalProperties": true,
+            "description": "Channel-specific metadata bag (per-channel extension point). Inbound email: {sesMessageId, spfVerdict, dkimVerdict, dmarcVerdict, …}. A2A: {receiptId, provenance, provenanceVerified}. A folded outbound send: {providerMessageId, provider, lastEventType, lastEventAt, bouncedAt, complainedAt}."
           }
         },
         "additionalProperties": false
@@ -13296,7 +14169,85 @@
         },
         "additionalProperties": false
       },
-      "OutboundEmail": {
+      "NotificationPreference": {
+        "type": "object",
+        "required": [
+          "category",
+          "emailEnabled"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "account",
+              "billing",
+              "usage",
+              "security",
+              "product"
+            ],
+            "description": "The notification category this preference applies to."
+          },
+          "emailEnabled": {
+            "type": "boolean",
+            "description": "Whether the account receives email notifications in this category. Defaults to true when no preference has been set."
+          }
+        }
+      },
+      "NotificationPreferencesResponse": {
+        "type": "object",
+        "required": [
+          "object",
+          "preferences"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "notification_preferences"
+            ]
+          },
+          "preferences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationPreference"
+            },
+            "description": "One entry per notification category, with its resolved emailEnabled flag."
+          }
+        }
+      },
+      "NotificationPreferencesUpdateRequest": {
+        "type": "object",
+        "required": [
+          "preferences"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "preferences": {
+            "type": "object",
+            "description": "A partial map of category -> emailEnabled. At least one known category is required; unknown category keys are rejected.",
+            "additionalProperties": false,
+            "properties": {
+              "account": {
+                "type": "boolean"
+              },
+              "billing": {
+                "type": "boolean"
+              },
+              "usage": {
+                "type": "boolean"
+              },
+              "security": {
+                "type": "boolean"
+              },
+              "product": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "OutboundMessage": {
         "type": "object",
         "required": [
           "id"
@@ -13399,36 +14350,36 @@
           }
         }
       },
-      "OutboundEmailDetailResponse": {
+      "OutboundMessageDetailResponse": {
         "type": "object",
         "required": [
-          "email",
+          "message",
           "events"
         ],
         "additionalProperties": false,
         "properties": {
-          "email": {
-            "$ref": "#/components/schemas/OutboundEmail"
-          },
           "events": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/OutboundEvent"
             }
+          },
+          "message": {
+            "$ref": "#/components/schemas/OutboundMessage"
           }
         }
       },
-      "OutboundEmailListResponse": {
+      "OutboundMessageListResponse": {
         "type": "object",
         "required": [
-          "outboundEmails"
+          "outboundMessages"
         ],
         "additionalProperties": false,
         "properties": {
-          "outboundEmails": {
+          "outboundMessages": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/OutboundEmail"
+              "$ref": "#/components/schemas/OutboundMessage"
             }
           }
         }
@@ -13444,7 +14395,7 @@
           "eventId": {
             "type": "string"
           },
-          "emailId": {
+          "messageId": {
             "type": [
               "string",
               "null"
@@ -13574,12 +14525,12 @@
         "type": "object",
         "description": "Metadata-only outbound webhook payload data. emailId is the Dairo join key; recipient identifies the affected address; providerMessageId is the SES/AWS correlation ID. Body, HTML, raw MIME, and attachment content are never included.",
         "required": [
-          "emailId",
+          "messageId",
           "direction",
           "status"
         ],
         "properties": {
-          "emailId": {
+          "messageId": {
             "type": "string",
             "format": "uuid"
           },
@@ -13788,7 +14739,7 @@
           }
         }
       },
-      "ReactEmailRenderInput": {
+      "ReactRenderInput": {
         "type": "object",
         "required": [
           "source"
@@ -13903,21 +14854,43 @@
           }
         }
       },
-      "SendEmailAttachment": {
+      "SendMessageAttachment": {
         "type": "object",
-        "required": [
-          "filename",
-          "contentBase64"
+        "description": "An outbound attachment. Provide EITHER inline bytes (contentBase64) OR a storage reference (objectId) — exactly one, never both. Inline attachments require filename and are capped at 8 MiB decoded (API Gateway JSON/base64 envelope). A storage-reference attachment names a Dairo storage object you own (the objectId returned by a bucket upload's finalize, or any owned storage object); Dairo fetches its bytes server-side and native-attaches up to 24 MiB, deriving filename and contentType from the object unless you override them here. Over 24 MiB the send fails with a 413 (create a share link and place it in the body yourself; Dairo never auto-edits the body).",
+        "oneOf": [
+          {
+            "required": [
+              "filename",
+              "contentBase64"
+            ],
+            "not": {
+              "required": [
+                "objectId"
+              ]
+            }
+          },
+          {
+            "required": [
+              "objectId"
+            ],
+            "not": {
+              "required": [
+                "contentBase64"
+              ]
+            }
+          }
         ],
         "properties": {
           "filename": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 120
+            "maxLength": 120,
+            "description": "Required for an inline (contentBase64) attachment. Optional for a storage-reference (objectId) attachment, where it overrides the object's stored filename; when omitted the object's filename is used."
           },
           "contentType": {
             "type": "string",
             "default": "application/octet-stream",
+            "description": "Optional. For a storage-reference (objectId) attachment, overrides the object's stored content type; when omitted the object's content type is used.",
             "examples": [
               "application/pdf"
             ]
@@ -13925,7 +14898,11 @@
           "contentBase64": {
             "type": "string",
             "contentEncoding": "base64",
-            "description": "Base64-encoded attachment bytes. Dairo inline attachment delivery is capped at 8 MiB decoded total to stay below API Gateway JSON/base64 envelope limits and SES v2 40 MB message limits."
+            "description": "Base64-encoded inline attachment bytes. Mutually exclusive with objectId. Dairo inline attachment delivery is capped at 8 MiB decoded total to stay below API Gateway JSON/base64 envelope limits and SES v2 40 MB message limits. For larger files, upload to a Dairo bucket and reference it via objectId (native-attached up to 24 MiB)."
+          },
+          "objectId": {
+            "type": "string",
+            "description": "Storage-reference attachment: the id of a Dairo storage object you own. Mutually exclusive with contentBase64. Dairo resolves the object with an ownership check, fetches its bytes server-side, and native-attaches up to 24 MiB; over that the send fails with a 413 (no share link is auto-added). filename and contentType are derived from the object unless overridden here."
           },
           "delivery": {
             "type": "string",
@@ -13940,7 +14917,7 @@
         },
         "additionalProperties": false
       },
-      "SendEmailRequest": {
+      "SendMessageRequest": {
         "type": "object",
         "required": [
           "inboxId",
@@ -13951,13 +14928,13 @@
             "type": "string"
           },
           "to": {
-            "$ref": "#/components/schemas/EmailRecipients"
+            "$ref": "#/components/schemas/Recipients"
           },
           "cc": {
-            "$ref": "#/components/schemas/EmailRecipients"
+            "$ref": "#/components/schemas/Recipients"
           },
           "bcc": {
-            "$ref": "#/components/schemas/EmailRecipients"
+            "$ref": "#/components/schemas/Recipients"
           },
           "subject": {
             "type": "string",
@@ -13978,15 +14955,15 @@
             "type": "array",
             "description": "Outbound send attachments. 'attachment' and safe 'auto' sends are inline; current inline API limit is 10 files, 8 MiB per file, 8 MiB total decoded bytes. 'link' is explicit and must be backed by a pre-created Dairo share link placed deliberately in text/html by the caller.",
             "items": {
-              "$ref": "#/components/schemas/SendEmailAttachment"
+              "$ref": "#/components/schemas/SendMessageAttachment"
             },
             "maxItems": 10
           },
           "react": {
-            "$ref": "#/components/schemas/ReactEmailRenderInput"
+            "$ref": "#/components/schemas/ReactRenderInput"
           },
           "template": {
-            "$ref": "#/components/schemas/SendEmailTemplateRef"
+            "$ref": "#/components/schemas/MessageTemplateRef"
           },
           "sendAt": {
             "type": [
@@ -13997,7 +14974,36 @@
             "description": "RFC 3339 timestamp WITH an explicit timezone offset to schedule the send for a future time (max 30 days ahead). Omit to send immediately. A scheduled email starts with status scheduled and can be stopped via POST /v1/outbound-emails/{emailId}/cancel before it fires."
           },
           "channel": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "email",
+              "a2a"
+            ],
+            "description": "Optional explicit delivery channel. \"email\" forces SES even when every recipient is a Dairo inbox; \"a2a\" requires every recipient to be a Dairo inbox (400 otherwise) and cannot combine with sendAt. Absent = auto (a2a when all recipients are internal, else email). Unknown values are a 400."
+          },
+          "replyTo": {
+            "type": "string",
+            "format": "email",
+            "description": "Optional single Reply-To address, set verbatim as the MIME Reply-To header."
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Optional custom MIME headers ({name: value}). Spoofable/provenance headers are dropped server-side; malformed names or CR/LF are rejected."
+          },
+          "tags": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Optional SES message tags ({name: value}), validated against SES tag constraints."
+          },
+          "ignoreComplaints": {
+            "type": "boolean",
+            "default": false,
+            "description": "Override complaint suppression for recipients that previously complained."
           }
         },
         "anyOf": [
@@ -14024,7 +15030,7 @@
         ],
         "additionalProperties": false
       },
-      "SendEmailResponse": {
+      "SendMessageResponse": {
         "type": "object",
         "required": [
           "id",
@@ -14040,10 +15046,11 @@
             "type": "string",
             "enum": [
               "sent",
+              "scheduled",
               "failed",
               "queued"
             ],
-            "description": "queued when accepted for async processing; sent/failed after worker processing."
+            "description": "A single immediate send (POST /v1/emails without sendAt) is performed synchronously and returns 'sent' (with providerMessageId) or 'failed' — it is never accepted as 'queued' only to fail later on something knowable at submit time (oversized attachment, unverified sender, etc.). A scheduled send (sendAt in the future) returns 'scheduled'. 'queued' is returned ONLY for a bulk list broadcast (POST /v1/lists/{id}/send), whose batches are delivered asynchronously by the worker fleet."
           },
           "providerMessageId": {
             "type": [
@@ -14062,32 +15069,37 @@
             "type": "array",
             "description": "Warning-only delivery guidance. Complaint suppressions do not block sending; agents should surface these warnings before further contact.",
             "items": {
-              "$ref": "#/components/schemas/SendEmailWarning"
+              "$ref": "#/components/schemas/SendMessageWarning"
             }
           },
-          "deliveryChannel": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "email",
+              "a2a"
+            ],
+            "description": "The channel this send transited: \"email\" (SES) or \"a2a\" (internal Dairo-to-Dairo, delivered as a receipt, providerMessageId 'a2a_…')."
+          },
+          "channelMetadata": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true,
+            "description": "Channel-specific delivery metadata. For a2a: {receiptId, provenance, provenanceVerified}. For email: provider send metadata."
+          },
+          "scheduledAt": {
             "type": [
               "string",
               "null"
             ],
-            "enum": [
-              "smtp",
-              "a2a",
-              null
-            ],
-            "description": "The transport used. 'a2a' marks an internal Dairo-to-Dairo delivery (A2A Mail) that skipped SES; 'smtp' (or absent) is the normal SES path."
-          },
-          "a2a": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "True when every recipient was a Dairo-managed inbox and the send was delivered internally via A2A Mail (status 'sent', providerMessageId 'a2a_...')."
+            "format": "date-time",
+            "description": "When a scheduled send will fire (RFC3339); present only when status is \"scheduled\"."
           }
         },
         "additionalProperties": false
       },
-      "SendEmailTemplateRef": {
+      "MessageTemplateRef": {
         "type": "object",
         "description": "Send by referencing a stored template instead of an inline body. Mutually exclusive with text, html, and react: combining a template with any inline body is a 400. The referenced version is resolved and pinned at request time; supplied variables are validated against that version's variable schema (a bad variable is a synchronous 400). When the version declares a subject template it is used unless an explicit subject is provided on the request.",
         "required": [
@@ -14112,7 +15124,7 @@
         },
         "additionalProperties": false
       },
-      "SendEmailWarning": {
+      "SendMessageWarning": {
         "type": "object",
         "required": [
           "recipient",
@@ -14134,7 +15146,7 @@
             "type": "string",
             "example": "Recipient previously complained; do not contact again unless you are sure."
           },
-          "sourceEmailId": {
+          "sourceMessageId": {
             "type": [
               "string",
               "null"
@@ -14610,7 +15622,8 @@
           "messageCount",
           "lastMessagePreview",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "channel"
         ],
         "properties": {
           "id": {
@@ -14651,6 +15664,14 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "email",
+              "a2a"
+            ],
+            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, …) are not yet wired."
           }
         },
         "additionalProperties": false
@@ -14945,12 +15966,27 @@
               "type": "string",
               "enum": [
                 "message.received",
-                "email.sent",
-                "email.delivered",
-                "email.bounced",
-                "email.complained"
+                "message.quarantined",
+                "message.sent",
+                "message.delivered",
+                "message.bounced",
+                "message.complained",
+                "budget.tripped",
+                "compliance.erasure.completed",
+                "subprocessor.changed",
+                "object.scanned",
+                "share_link.opened",
+                "letter.status_changed",
+                "domain.verified"
               ]
             }
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional human label for the endpoint, or null when unlabeled."
           },
           "status": {
             "type": "string",
@@ -15053,6 +16089,16 @@
           },
           "storage": {
             "$ref": "#/components/schemas/WhoamiStorage"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/ActiveOrganization"
+          },
+          "organizations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Organization"
+            },
+            "description": "Every organization the account is a member of (the org switcher list)."
           }
         }
       },
@@ -15190,6 +16236,90 @@
         },
         "additionalProperties": false
       },
+      "BatchDeleteBucketObjectsRequest": {
+        "type": "object",
+        "required": [
+          "objectIds"
+        ],
+        "properties": {
+          "objectIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 1000,
+            "description": "The storage object ids to delete (1-1000)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "BatchDeleteMessagesRequest": {
+        "type": "object",
+        "required": [
+          "messageIds"
+        ],
+        "properties": {
+          "messageIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 1000,
+            "description": "The message ids to delete (1-1000)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "BatchDeleteResult": {
+        "type": "object",
+        "required": [
+          "object",
+          "deleted",
+          "failed"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "batch_delete_result"
+            ]
+          },
+          "deleted": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The ids that were successfully deleted."
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "error"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The id that could not be deleted."
+                },
+                "error": {
+                  "type": "string",
+                  "description": "Why this id was skipped (e.g. not found / not owned)."
+                }
+              },
+              "additionalProperties": false
+            },
+            "description": "Per-id failures; never aborts the rest of the batch."
+          }
+        },
+        "additionalProperties": false
+      },
       "BucketObject": {
         "type": "object",
         "required": [
@@ -15197,6 +16327,7 @@
           "id",
           "filename",
           "bytes",
+          "scanStatus",
           "createdAt"
         ],
         "properties": {
@@ -15222,6 +16353,17 @@
           "bytes": {
             "type": "integer",
             "minimum": 0
+          },
+          "scanStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "clean",
+              "infected",
+              "failed",
+              "skipped"
+            ],
+            "description": "Async malware-scan verdict (W2.2). Objects start 'pending' (owner-only, not publicly served) and become 'clean' or 'infected'/'failed' once the scanner runs. Public links (/d/, /s/) and native attach require 'clean' (or trusted 'skipped')."
           },
           "createdAt": {
             "type": "string",
@@ -15438,89 +16580,305 @@
           }
         }
       },
-      "BatchDeleteBucketObjectsRequest": {
+      "CreateShareLinkRequest": {
         "type": "object",
-        "required": [
-          "objectIds"
-        ],
+        "description": "Options for a secure share link over a stored object.",
         "properties": {
-          "objectIds": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "minItems": 1,
-            "maxItems": 1000,
-            "description": "The storage object ids to delete (1-1000)."
+          "password": {
+            "type": "string",
+            "description": "Optional password the recipient must enter on the /s/ page."
+          },
+          "maxUses": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Optional use cap. 1 = one-time (the /d/ download returns 410 Gone after the first use)."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional absolute expiry (RFC3339)."
           }
         },
         "additionalProperties": false
       },
-      "BatchDeleteMessagesRequest": {
+      "ShareLink": {
         "type": "object",
-        "required": [
-          "messageIds"
-        ],
+        "description": "A secure (stateful) share link over a stored object.",
         "properties": {
-          "messageIds": {
+          "object": {
+            "type": "string",
+            "example": "share_link"
+          },
+          "id": {
+            "type": "string",
+            "description": "Share-link id (shr_*)."
+          },
+          "objectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shareUrl": {
+            "type": "string",
+            "description": "Branded /s/ share page URL (returned only at create time)."
+          },
+          "downloadUrl": {
+            "type": "string",
+            "description": "Branded /d/ download URL (returned only at create time)."
+          },
+          "hasPassword": {
+            "type": "boolean"
+          },
+          "maxUses": {
+            "type": "integer",
+            "nullable": true
+          },
+          "oneTime": {
+            "type": "boolean"
+          },
+          "usesCount": {
+            "type": "integer"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "revoked": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ShareLinkListResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "list"
+          },
+          "data": {
             "type": "array",
             "items": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "minItems": 1,
-            "maxItems": 1000,
-            "description": "The message ids to delete (1-1000)."
+              "$ref": "#/components/schemas/ShareLink"
+            }
           }
-        },
-        "additionalProperties": false
+        }
       },
-      "BatchDeleteResult": {
+      "ShareLinkOpensResponse": {
+        "type": "object",
+        "description": "Open analytics for one secure share link.",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "share_link_opens"
+          },
+          "shareLinkId": {
+            "type": "string"
+          },
+          "objectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "servedOpens": {
+                "type": "integer",
+                "description": "Authoritative served-download count (counts against maxUses)."
+              },
+              "loggedOpensReturned": {
+                "type": "integer"
+              },
+              "servedInWindow": {
+                "type": "integer"
+              },
+              "maxUses": {
+                "type": "integer",
+                "nullable": true
+              },
+              "revoked": {
+                "type": "boolean"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              }
+            }
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "openedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "clientIp": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "userAgent": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "served",
+                    "password_required",
+                    "password_invalid"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "Organization": {
+        "type": "object",
+        "description": "An organization (workspace) the account belongs to, with the caller's role.",
+        "required": [
+          "id",
+          "role"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "vanitySlug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "owner",
+              "admin",
+              "member",
+              null
+            ]
+          }
+        }
+      },
+      "ActiveOrganization": {
+        "type": "object",
+        "description": "The resolved ACTIVE organization for the request and the caller's role in it.",
+        "required": [
+          "id",
+          "role"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "OrganizationListResponse": {
         "type": "object",
         "required": [
           "object",
-          "deleted",
-          "failed"
+          "organizations"
         ],
         "properties": {
           "object": {
             "type": "string",
             "enum": [
-              "batch_delete_result"
+              "list"
             ]
           },
-          "deleted": {
+          "organizations": {
             "type": "array",
             "items": {
-              "type": "string"
-            },
-            "description": "The ids that were successfully deleted."
-          },
-          "failed": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "id",
-                "error"
-              ],
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "description": "The id that could not be deleted."
-                },
-                "error": {
-                  "type": "string",
-                  "description": "Why this id was skipped (e.g. not found / not owned)."
-                }
-              },
-              "additionalProperties": false
-            },
-            "description": "Per-id failures; never aborts the rest of the batch."
+              "$ref": "#/components/schemas/Organization"
+            }
           }
-        },
-        "additionalProperties": false
+        }
+      },
+      "CreateOrganizationRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "Display name for the new organization."
+          }
+        }
+      },
+      "OrganizationResponse": {
+        "type": "object",
+        "required": [
+          "object",
+          "id",
+          "name",
+          "slug",
+          "role"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "organization"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "vanitySlug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": "string"
+          }
+        }
       }
     }
   }

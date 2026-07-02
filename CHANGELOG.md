@@ -93,27 +93,27 @@ All notable Dairo CLI changes are tracked here.
   `/v1/email-lists`, `/v1/a2a/*`, and `/v1/compliance/*` are old/replaced
   migration references only.
 - Scheduled send: `dairo send --send-at <RFC3339>` stages a future send. The
-  `SendEmailRequest` gains `sendAt` and `SendEmailResponse` gains `scheduledAt`
+  `SendMessageRequest` gains `sendAt` and `SendMessageResponse` gains `scheduledAt`
   (status `scheduled`).
 - Cancel a scheduled send: `dairo outbound cancel <id>` →
-  `POST /v1/emails/{id}/cancel` (`mail:send`); returns the canceled
+  `POST /v1/emails/{id}/cancel` (`messages:send`); returns the canceled
   email or a conflict if it is no longer scheduled. The outbound-email model
   gains `scheduled`/`canceled` statuses and `scheduledAt`/`canceledAt` fields.
 - Audit logs: `dairo audit-logs list [--limit N] [--cursor C]` →
-  `GET /v1/audit-logs` (`mail:read`), returning
+  `GET /v1/audit-logs` (`messages:read`), returning
   `{ logs: [...], pagination: { nextCursor } }`.
 - API-key IP allowlist: `dairo api-key create --allowed-ip <ip-or-cidr>` (repeat
   for multiple). `CreateApiKeyRequest` gains `allowedIps`; the API-key object
   (create, list, whoami) gains `allowedIps`.
 - Dedicated IPs: `dairo dedicated-ips status` → `GET /v1/dedicated-ips`
-  (`mail:read`), returning the dedicated IP pool status.
+  (`messages:read`), returning the dedicated IP pool status.
 - Templates: `dairo templates list|create|get|update|delete|versions|version|publish`
-  over `/v1/templates` (+ `/{id}/versions[/{version}]`). Reads use `mail:read`;
-  `create`/`update` (PATCH)/`delete`/`publish` use `mail:send`. `create`/`publish`
+  over `/v1/templates` (+ `/{id}/versions[/{version}]`). Reads use `messages:read`;
+  `create`/`update` (PATCH)/`delete`/`publish` use `messages:send`. `create`/`publish`
   read the React-email source inline (`--source`) or from a file
   (`--source-file`); `--variables` takes a JSON-object schema; `get` accepts
   `--version`, `publish` accepts `--no-promote` (publish a draft).
-- Events ledger: `dairo events list` → `GET /v1/events` (`mail:read`) with
+- Events ledger: `dairo events list` → `GET /v1/events` (`messages:read`) with
   `--limit/--cursor/--inbox-id/--type/--wait/--tail`; `dairo events replay` →
   `POST /v1/events/replay` (`webhooks:write`) re-delivers a slice to your
   webhooks given exactly one lower bound (`--since`, `--since-seq` + `--inbox-id`,
@@ -136,10 +136,10 @@ All notable Dairo CLI changes are tracked here.
   `/v1/erasure-jobs` (`compliance:read`/`compliance:write`).
 - A2A mail: `dairo a2a list [--limit --cursor --inbox-id]` →
   `GET /v1/messages?channel=a2a` and `dairo a2a get <id>` → `GET /v1/messages/{id}`
-  (`mail:read`), the cross-tenant agent-to-agent hop receipts.
+  (`messages:read`), the cross-tenant agent-to-agent hop receipts.
 - Added `dairo outbound` commands: `list`, `get <id>`, `events`, `bounces`,
   `complaints` — backed by the public `/v1/emails`,
-  `/v1/emails/{id}`, and `/v1/emails/{id}/events` routes (`mail:read`).
+  `/v1/emails/{id}`, and `/v1/emails/{id}/events` routes (`messages:read`).
   Surfaces delivery/bounce/complaint outcomes after an async `queued` send.
 - `dairo attachments share` now calls the branded `/v1/attachments/{id}/link`
   route (returns a Dairo `shareUrl`) instead of the raw signed-S3 `/url` route.

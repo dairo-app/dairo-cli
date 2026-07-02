@@ -2,46 +2,8 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 81,
+  "operationCount": 78,
   "operations": [
-    {
-      "method": "GET",
-      "operationId": "listA2aMessages",
-      "parameters": [
-        {
-          "in": "query",
-          "name": "limit"
-        },
-        {
-          "in": "query",
-          "name": "cursor"
-        },
-        {
-          "in": "query",
-          "name": "inboxId"
-        }
-      ],
-      "path": "/v1/a2a/messages",
-      "scopes": [
-        "mail:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getA2aMessage",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "messageId"
-        }
-      ],
-      "path": "/v1/a2a/messages/{messageId}",
-      "scopes": [
-        "mail:read"
-      ],
-      "contractSource": "openapi"
-    },
     {
       "method": "GET",
       "operationId": "getResidency",
@@ -176,7 +138,7 @@
       ],
       "path": "/v1/attachments/{attachmentId}/download",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -195,7 +157,7 @@
       ],
       "path": "/v1/attachments/{attachmentId}/link",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -214,7 +176,7 @@
       ],
       "path": "/v1/attachments/{attachmentId}/url",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -434,16 +396,6 @@
     },
     {
       "method": "GET",
-      "operationId": "listDedicatedIps",
-      "parameters": [],
-      "path": "/v1/dedicated-ips",
-      "scopes": [
-        "dedicated-ips:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
       "operationId": "listDomains",
       "parameters": [],
       "path": "/v1/domains",
@@ -496,19 +448,19 @@
     },
     {
       "method": "POST",
-      "operationId": "sendEmail",
+      "operationId": "sendMessage",
       "parameters": [
         {}
       ],
       "path": "/v1/messages",
       "scopes": [
-        "mail:send"
+        "messages:send"
       ],
       "contractSource": "openapi"
     },
     {
       "method": "POST",
-      "operationId": "cancelOutboundEmail",
+      "operationId": "cancelOutboundMessage",
       "parameters": [
         {
           "in": "path",
@@ -517,7 +469,7 @@
       ],
       "path": "/v1/messages/{messageId}/cancel",
       "scopes": [
-        "mail:send"
+        "messages:send"
       ],
       "contractSource": "openapi"
     },
@@ -536,7 +488,7 @@
       ],
       "path": "/v1/messages/{messageId}/events",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -861,7 +813,7 @@
     },
     {
       "method": "GET",
-      "operationId": "listEmailLists",
+      "operationId": "listAudiences",
       "parameters": [],
       "path": "/v1/lists",
       "scopes": [
@@ -871,7 +823,7 @@
     },
     {
       "method": "POST",
-      "operationId": "createEmailList",
+      "operationId": "createAudience",
       "parameters": [
         {}
       ],
@@ -883,7 +835,7 @@
     },
     {
       "method": "DELETE",
-      "operationId": "deleteEmailList",
+      "operationId": "deleteAudience",
       "parameters": [
         {
           "in": "path",
@@ -898,7 +850,7 @@
     },
     {
       "method": "GET",
-      "operationId": "getEmailList",
+      "operationId": "getAudience",
       "parameters": [
         {
           "in": "path",
@@ -913,7 +865,7 @@
     },
     {
       "method": "POST",
-      "operationId": "addEmailListMembers",
+      "operationId": "addAudienceMembers",
       "parameters": [
         {
           "in": "path",
@@ -928,7 +880,7 @@
     },
     {
       "method": "POST",
-      "operationId": "sendEmailList",
+      "operationId": "sendToAudience",
       "parameters": [
         {
           "in": "path",
@@ -979,7 +931,7 @@
       ],
       "path": "/v1/messages",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -989,7 +941,7 @@
       "parameters": [],
       "path": "/v1/messages/batch-delete",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ]
     },
     {
@@ -1003,7 +955,7 @@
       ],
       "path": "/v1/messages/{messageId}",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -1140,7 +1092,7 @@
       ],
       "path": "/v1/threads",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -1155,7 +1107,7 @@
       ],
       "path": "/v1/threads/{threadId}",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },

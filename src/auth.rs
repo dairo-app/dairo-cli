@@ -679,8 +679,8 @@ mod tests {
     #[test]
     fn normalizes_space_and_comma_separated_scopes() {
         assert_eq!(
-            normalize_scope_arg("mail:read, mail:send  webhooks:write"),
-            vec!["mail:read", "mail:send", "webhooks:write"]
+            normalize_scope_arg("messages:read, messages:send  webhooks:write"),
+            vec!["messages:read", "messages:send", "webhooks:write"]
         );
         assert_eq!(normalize_scope_arg("admin"), vec!["admin"]);
         assert_eq!(normalize_scope_arg("a a a"), vec!["a"]);
@@ -695,7 +695,7 @@ mod tests {
             "dairo-mcp-abc",
             "http://127.0.0.1:54321/callback",
             "challenge123",
-            "mail:read mail:send",
+            "messages:read messages:send",
             "state-xyz",
         )
         .unwrap();
@@ -725,7 +725,7 @@ mod tests {
         );
         assert_eq!(
             pairs.get("scope").map(String::as_str),
-            Some("mail:read mail:send")
+            Some("messages:read messages:send")
         );
         assert_eq!(pairs.get("state").map(String::as_str), Some("state-xyz"));
     }
@@ -769,9 +769,9 @@ mod tests {
     fn token_response_splits_scope_field() {
         let token = TokenResponse {
             access_token: "secret".to_string(),
-            scope: Some("mail:read webhooks:write".to_string()),
+            scope: Some("messages:read webhooks:write".to_string()),
         };
-        assert_eq!(token.scopes(), vec!["mail:read", "webhooks:write"]);
+        assert_eq!(token.scopes(), vec!["messages:read", "webhooks:write"]);
 
         let none = TokenResponse {
             access_token: "secret".to_string(),

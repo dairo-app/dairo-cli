@@ -5,8 +5,8 @@ use crate::mcp_install::McpInstallReport;
 
 use crate::api::{
     ApiKey, AttachmentDownloadUrlResponse, BatchDeleteResult, CreateApiKeyResponse,
-    CreateWebhookResponse, Domain, EmailList, EmailListDetailResponse, EmailListImportResponse,
-    EmailListSendResponse, Inbox, LedgerEvent, Message, SendEmailResponse, SendEmailWarning,
+    CreateWebhookResponse, Domain, Audience, AudienceDetailResponse, AudienceImportResponse,
+    AudienceSendResponse, Inbox, LedgerEvent, Message, SendMessageResponse, SendMessageWarning,
     Thread, Webhook, WhoamiResponse,
 };
 
@@ -254,13 +254,13 @@ pub fn print_inbox(inbox: &Inbox, format: OutputFormat) -> Result<()> {
     Ok(())
 }
 
-pub fn print_send_result(response: &SendEmailResponse, format: OutputFormat) -> Result<()> {
+pub fn print_send_result(response: &SendMessageResponse, format: OutputFormat) -> Result<()> {
     if format == OutputFormat::Json {
         println!("{}", serde_json::to_string_pretty(response)?);
         return Ok(());
     }
 
-    println!("Email {}: {}", response.status, response.id);
+    println!("Message {}: {}", response.status, response.id);
     if let Some(error) = &response.error {
         println!("Error: {error}");
     }
@@ -268,13 +268,13 @@ pub fn print_send_result(response: &SendEmailResponse, format: OutputFormat) -> 
     Ok(())
 }
 
-pub fn print_email_lists(lists: &[EmailList], format: OutputFormat) -> Result<()> {
+pub fn print_audiences(lists: &[Audience], format: OutputFormat) -> Result<()> {
     if format == OutputFormat::Json {
         println!("{}", serde_json::to_string_pretty(lists)?);
         return Ok(());
     }
     if lists.is_empty() {
-        println!("No email lists found.");
+        println!("No audiences found.");
         return Ok(());
     }
     println!("{:<38} {:<28} {:<10} MEMBERS", "ID", "NAME", "STATUS");
@@ -290,8 +290,8 @@ pub fn print_email_lists(lists: &[EmailList], format: OutputFormat) -> Result<()
     Ok(())
 }
 
-pub fn print_email_list_detail(
-    response: &EmailListDetailResponse,
+pub fn print_audience_detail(
+    response: &AudienceDetailResponse,
     format: OutputFormat,
 ) -> Result<()> {
     if format == OutputFormat::Json {
@@ -316,8 +316,8 @@ pub fn print_email_list_detail(
     Ok(())
 }
 
-pub fn print_email_list_import(
-    response: &EmailListImportResponse,
+pub fn print_audience_import(
+    response: &AudienceImportResponse,
     format: OutputFormat,
 ) -> Result<()> {
     if format == OutputFormat::Json {
@@ -331,7 +331,7 @@ pub fn print_email_list_import(
     Ok(())
 }
 
-pub fn print_email_list_send(response: &EmailListSendResponse, format: OutputFormat) -> Result<()> {
+pub fn print_audience_send(response: &AudienceSendResponse, format: OutputFormat) -> Result<()> {
     if format == OutputFormat::Json {
         println!("{}", serde_json::to_string_pretty(response)?);
         return Ok(());
@@ -340,14 +340,14 @@ pub fn print_email_list_send(response: &EmailListSendResponse, format: OutputFor
         "Sent list '{}' to {} recipient(s) in {} batch(es).",
         response.list_name, response.recipient_count, response.batch_count
     );
-    for email in &response.emails {
-        println!("  - {}: {}", email.status, email.id);
-        print_send_warnings(&email.warnings);
+    for message in &response.messages {
+        println!("  - {}: {}", message.status, message.id);
+        print_send_warnings(&message.warnings);
     }
     Ok(())
 }
 
-fn print_send_warnings(warnings: &[SendEmailWarning]) {
+fn print_send_warnings(warnings: &[SendMessageWarning]) {
     if warnings.is_empty() {
         return;
     }
@@ -367,8 +367,8 @@ fn print_send_warnings(warnings: &[SendEmailWarning]) {
         if is_complaint_warning(warning) {
             println!("    Suggestion: do not contact this recipient again unless you are sure. Review outbound delivery events in Dairo before sending follow-up mail.");
         }
-        if let Some(source_email_id) = &warning.source_outbound_email_id {
-            println!("    source email id: {source_email_id}");
+        if let Some(source_message_id) = &warning.source_outbound_message_id {
+            println!("    source message id: {source_message_id}");
         }
         if let Some(provider_message_id) = &warning.provider_message_id {
             println!("    provider message id: {provider_message_id}");
@@ -379,7 +379,7 @@ fn print_send_warnings(warnings: &[SendEmailWarning]) {
     }
 }
 
-fn is_complaint_warning(warning: &SendEmailWarning) -> bool {
+fn is_complaint_warning(warning: &SendMessageWarning) -> bool {
     warning
         .reason
         .as_deref()

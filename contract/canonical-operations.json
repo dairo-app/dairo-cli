@@ -2,47 +2,9 @@
   "name": "dairo-public-api-canonical-openapi-contract",
   "description": "Derived from the canonical dairo.openapi.json. Regenerate via scripts/gen-canonical-operations.py; do not hand-edit.",
   "openapiVersion": "3.1.0",
-  "specVersion": "0.1.0",
-  "operationCount": 93,
+  "specVersion": "1.0.0",
+  "operationCount": 103,
   "operations": [
-    {
-      "method": "GET",
-      "operationId": "listA2aMessages",
-      "parameters": [
-        {
-          "in": "query",
-          "name": "limit"
-        },
-        {
-          "in": "query",
-          "name": "cursor"
-        },
-        {
-          "in": "query",
-          "name": "inboxId"
-        }
-      ],
-      "path": "/v1/a2a/messages",
-      "scopes": [
-        "mail:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getA2aMessage",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "messageId"
-        }
-      ],
-      "path": "/v1/a2a/messages/{messageId}",
-      "scopes": [
-        "mail:read"
-      ],
-      "contractSource": "openapi"
-    },
     {
       "method": "GET",
       "operationId": "getResidency",
@@ -257,7 +219,7 @@
       ],
       "path": "/v1/attachments/{attachmentId}",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -272,7 +234,7 @@
       ],
       "path": "/v1/attachments/{attachmentId}/download",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -291,7 +253,7 @@
       ],
       "path": "/v1/attachments/{attachmentId}/link",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -310,7 +272,7 @@
       ],
       "path": "/v1/attachments/{attachmentId}/url",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -338,6 +300,10 @@
         {
           "in": "query",
           "name": "to"
+        },
+        {
+          "in": "query",
+          "name": "after"
         },
         {
           "in": "query",
@@ -524,6 +490,44 @@
     },
     {
       "method": "GET",
+      "operationId": "listShareLinks",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        },
+        {
+          "in": "path",
+          "name": "objectId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/objects/{objectId}/share-links",
+      "scopes": [
+        "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createShareLink",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        },
+        {
+          "in": "path",
+          "name": "objectId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/objects/{objectId}/share-links",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
       "operationId": "listBudgets",
       "parameters": [],
       "path": "/v1/budgets",
@@ -569,12 +573,22 @@
     },
     {
       "method": "GET",
-      "operationId": "listDedicatedIps",
-      "parameters": [],
-      "path": "/v1/dedicated-ips",
-      "scopes": [
-        "dedicated-ips:read"
+      "operationId": "listDashboardOrganizations",
+      "parameters": [
+        {}
       ],
+      "path": "/v1/dashboard/organizations",
+      "scopes": [],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createDashboardOrganization",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/dashboard/organizations",
+      "scopes": [],
       "contractSource": "openapi"
     },
     {
@@ -606,6 +620,10 @@
         {
           "in": "path",
           "name": "domain"
+        },
+        {
+          "in": "query",
+          "name": "cascade"
         }
       ],
       "path": "/v1/domains/{domain}",
@@ -980,7 +998,7 @@
     },
     {
       "method": "GET",
-      "operationId": "listEmailLists",
+      "operationId": "listAudiences",
       "parameters": [],
       "path": "/v1/lists",
       "scopes": [
@@ -990,7 +1008,7 @@
     },
     {
       "method": "POST",
-      "operationId": "createEmailList",
+      "operationId": "createAudience",
       "parameters": [
         {}
       ],
@@ -1002,7 +1020,7 @@
     },
     {
       "method": "DELETE",
-      "operationId": "deleteEmailList",
+      "operationId": "deleteAudience",
       "parameters": [
         {
           "in": "path",
@@ -1017,7 +1035,7 @@
     },
     {
       "method": "GET",
-      "operationId": "getEmailList",
+      "operationId": "getAudience",
       "parameters": [
         {
           "in": "path",
@@ -1032,7 +1050,7 @@
     },
     {
       "method": "POST",
-      "operationId": "addEmailListMembers",
+      "operationId": "addAudienceMembers",
       "parameters": [
         {
           "in": "path",
@@ -1047,7 +1065,7 @@
     },
     {
       "method": "POST",
-      "operationId": "sendEmailList",
+      "operationId": "sendToAudience",
       "parameters": [
         {
           "in": "path",
@@ -1102,19 +1120,19 @@
       ],
       "path": "/v1/messages",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
     {
       "method": "POST",
-      "operationId": "sendEmail",
+      "operationId": "sendMessage",
       "parameters": [
         {}
       ],
       "path": "/v1/messages",
       "scopes": [
-        "mail:send"
+        "messages:send"
       ],
       "contractSource": "openapi"
     },
@@ -1124,7 +1142,7 @@
       "parameters": [],
       "path": "/v1/messages/batch-delete",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -1139,13 +1157,13 @@
       ],
       "path": "/v1/messages/{messageId}",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
     {
       "method": "POST",
-      "operationId": "cancelOutboundEmail",
+      "operationId": "cancelOutboundMessage",
       "parameters": [
         {
           "in": "path",
@@ -1154,7 +1172,7 @@
       ],
       "path": "/v1/messages/{messageId}/cancel",
       "scopes": [
-        "mail:send"
+        "messages:send"
       ],
       "contractSource": "openapi"
     },
@@ -1170,7 +1188,61 @@
       ],
       "path": "/v1/messages/{messageId}/events",
       "scopes": [
-        "mail:read"
+        "messages:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getNotificationPreferences",
+      "parameters": [],
+      "path": "/v1/notifications/preferences",
+      "scopes": [
+        "account:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "updateNotificationPreferences",
+      "parameters": [],
+      "path": "/v1/notifications/preferences",
+      "scopes": [
+        "account:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "revokeShareLink",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "shareLinkId"
+        }
+      ],
+      "path": "/v1/share-links/{shareLinkId}",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listShareLinkOpens",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "shareLinkId"
+        },
+        {
+          "in": "query",
+          "name": "limit"
+        }
+      ],
+      "path": "/v1/share-links/{shareLinkId}/opens",
+      "scopes": [
+        "buckets:read"
       ],
       "contractSource": "openapi"
     },
@@ -1307,7 +1379,7 @@
       ],
       "path": "/v1/threads",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -1322,7 +1394,7 @@
       ],
       "path": "/v1/threads/{threadId}",
       "scopes": [
-        "mail:read"
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -1373,6 +1445,85 @@
         }
       ],
       "path": "/v1/webhooks/{webhook}",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listWebhookDeliveries",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/deliveries",
+      "scopes": [
+        "webhooks:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "redriveWebhookDelivery",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        },
+        {
+          "in": "path",
+          "name": "delivery"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/deliveries/{delivery}/redrive",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "pauseWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/pause",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "pingWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/ping",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "resumeWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/resume",
       "scopes": [
         "webhooks:write"
       ],

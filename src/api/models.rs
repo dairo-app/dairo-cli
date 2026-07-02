@@ -124,7 +124,7 @@ pub struct Inbox {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SendEmailRequest {
+pub struct SendMessageRequest {
     #[serde(rename = "inboxId")]
     pub inbox_id: String,
     pub to: Vec<String>,
@@ -138,9 +138,9 @@ pub struct SendEmailRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub react: Option<SendEmailReact>,
+    pub react: Option<SendMessageReact>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub attachments: Option<Vec<SendEmailAttachment>>,
+    pub attachments: Option<Vec<SendMessageAttachment>>,
     #[serde(rename = "idempotencyKey", skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,
     /// Optional scheduled-send time. RFC3339 with an explicit timezone offset
@@ -166,21 +166,21 @@ pub struct SendEmailRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<std::collections::BTreeMap<String, String>>,
     /// Optional delivery channel (defaults to the inbox's channel, `email`).
-    /// Part of the channel-agnostic send request (was `SendEmailRequest`, now
+    /// Part of the channel-agnostic send request (was `SendMessageRequest`, now
     /// the unified `SendMessageRequest`). Omitted entirely when unset.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channel: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SendEmailReact {
+pub struct SendMessageReact {
     pub source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub props: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SendEmailAttachment {
+pub struct SendMessageAttachment {
     pub filename: String,
     #[serde(rename = "contentType")]
     pub content_type: String,
@@ -191,7 +191,7 @@ pub struct SendEmailAttachment {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SendEmailResponse {
+pub struct SendMessageResponse {
     pub id: String,
     pub status: String,
     #[serde(rename = "providerMessageId")]
@@ -201,23 +201,23 @@ pub struct SendEmailResponse {
     #[serde(default, rename = "scheduledAt")]
     pub scheduled_at: Option<String>,
     #[serde(default)]
-    pub warnings: Vec<SendEmailWarning>,
+    pub warnings: Vec<SendMessageWarning>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CreateEmailListRequest {
+pub struct CreateAudienceRequest {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EmailListMembersRequest {
-    pub members: Vec<EmailListMemberInput>,
+pub struct AudienceMembersRequest {
+    pub members: Vec<AudienceMemberInput>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EmailListMemberInput {
+pub struct AudienceMemberInput {
     pub email: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -227,22 +227,22 @@ pub struct EmailListMemberInput {
 /// carried as a `members` field on it (the redesign dropped the `{ list, members }`
 /// wrapper). The list's own fields are flattened in alongside `members`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EmailListDetailResponse {
+pub struct AudienceDetailResponse {
     #[serde(flatten)]
-    pub list: EmailList,
+    pub list: Audience,
     #[serde(default)]
-    pub members: Vec<EmailListMember>,
+    pub members: Vec<AudienceMember>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EmailListImportResponse {
+pub struct AudienceImportResponse {
     #[serde(rename = "listId")]
     pub list_id: String,
     pub imported: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EmailListSendResponse {
+pub struct AudienceSendResponse {
     #[serde(rename = "listId")]
     pub list_id: String,
     #[serde(rename = "listName")]
@@ -251,11 +251,11 @@ pub struct EmailListSendResponse {
     pub recipient_count: usize,
     #[serde(rename = "batchCount")]
     pub batch_count: usize,
-    pub emails: Vec<SendEmailResponse>,
+    pub messages: Vec<SendMessageResponse>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EmailList {
+pub struct Audience {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
@@ -269,7 +269,7 @@ pub struct EmailList {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EmailListMember {
+pub struct AudienceMember {
     pub id: String,
     #[serde(rename = "listId")]
     pub list_id: String,
@@ -284,18 +284,17 @@ pub struct EmailListMember {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SendEmailWarning {
+pub struct SendMessageWarning {
     #[serde(default)]
     pub recipient: Option<String>,
     #[serde(default)]
     pub reason: Option<String>,
     #[serde(default)]
     pub message: Option<String>,
-    // The redesign renamed the source-send join key to `sourceEmailId`
-    // (camelCase of `source_email_id`); accept the old name as a fallback so a
-    // mixed-version response still maps.
-    #[serde(default, rename = "sourceEmailId", alias = "sourceOutboundEmailId")]
-    pub source_outbound_email_id: Option<String>,
+    // Source-send join key: the unified message id (`sourceMessageId`) that
+    // originally produced this warning, when known.
+    #[serde(default, rename = "sourceMessageId")]
+    pub source_outbound_message_id: Option<String>,
     #[serde(default, rename = "providerMessageId")]
     pub provider_message_id: Option<String>,
     #[serde(default, rename = "complaintFeedbackType")]
@@ -313,7 +312,7 @@ pub struct SendEmailWarning {
 // (`to`/`from`) and the print options carry the unified envelope's camelCase
 // field names. Optional fields are `skip_serializing_if = "Option::is_none"` so
 // an unset flag is omitted from the wire request entirely, exactly like
-// `SendEmailRequest`.
+// `SendMessageRequest`.
 
 /// `POST /v1/letters` request body. Exactly one of `pdf_base64` / `file`
 /// carries the PDF; the CLI enforces the exactly-one rule before the request
@@ -524,7 +523,7 @@ pub struct LetterListQuery {
 // initiate (returns a presigned PUT URL + required SSE headers), PUT the bytes
 // straight to S3, then finalize (HEADs for the true size and records the
 // ledger object). Optional request fields are omitted from the wire request
-// when unset, exactly like `SendEmailRequest`.
+// when unset, exactly like `SendMessageRequest`.
 
 /// `POST /v1/buckets` request body. `name` is the unique-per-user slug; the
 /// optional display name / description default server-side.
@@ -922,7 +921,7 @@ pub struct LedgerEvent {
     #[serde(default, rename = "idempotencyKey")]
     pub idempotency_key: Option<String>,
     #[serde(default, rename = "outboundEmailId")]
-    pub outbound_email_id: Option<String>,
+    pub outbound_message_id: Option<String>,
     #[serde(default, rename = "messageId")]
     pub message_id: Option<String>,
     #[serde(default, rename = "providerMessageId")]
@@ -980,7 +979,7 @@ pub struct Message {
     #[serde(default)]
     pub attachments: Vec<MessageAttachment>,
     /// Channel-specific metadata. For outbound (folded from the old
-    /// `OutboundEmail`) this carries `providerMessageId`, `provider`,
+    /// `OutboundMessage`) this carries `providerMessageId`, `provider`,
     /// `lastEventType`, `lastEventAt`, `bouncedAt`, `complainedAt`; for a2a it
     /// carries `receiptId`/`provenance`. Passed through verbatim.
     #[serde(default, rename = "channelMetadata")]

@@ -68,7 +68,7 @@ func main() {
 			http.Error(w, "invalid payload", http.StatusBadRequest)
 			return
 		}
-		result, err := client.SendEmail(context.Background(), dairo.SendEmailRequest{
+		result, err := client.SendMessage(context.Background(), dairo.SendMessageRequest{
 			InboxID: body.InboxID,
 			To:      body.To,
 			Subject: body.Subject,

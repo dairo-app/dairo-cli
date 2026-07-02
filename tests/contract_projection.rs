@@ -68,8 +68,6 @@ fn implemented_operations_are_an_honest_canonical_subset() {
         "cancelVerificationWait",
         "getAttachmentBrandedLink",
         "getMcpCatalog",
-        "listA2aMessages",
-        "getA2aMessage",
         // The `dairo bucket` command group must keep its backing operations
         // declared — these were added after the projection and were initially
         // missing, so they are pinned here to stop the surface drifting again.

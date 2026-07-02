@@ -258,32 +258,32 @@ impl ApiClient {
     }
 
     /// Sends (or schedules) an outbound message (`POST /v1/messages`, scope
-    /// `mail:send`; was `POST /v1/emails`). The channel-agnostic redesign folds
+    /// `messages:send`; was `POST /v1/emails`). The channel-agnostic redesign folds
     /// send onto the unified messages collection; the body is the send request
     /// plus an optional `channel` (default `email`). The response is the single
     /// send-result envelope.
-    pub async fn send(&self, body: &SendEmailRequest) -> Result<SendEmailResponse> {
+    pub async fn send(&self, body: &SendMessageRequest) -> Result<SendMessageResponse> {
         self.execute_json(self.build_request(Method::POST, &["v1", "messages"], Some(body))?)
             .await
     }
 
     /// Lists active lists (`GET /v1/lists`, scope `lists:read`; was
     /// `/v1/email-lists`).
-    pub async fn list_email_lists(&self) -> Result<ListEnvelope<EmailList>> {
+    pub async fn list_audiences(&self) -> Result<ListEnvelope<Audience>> {
         self.execute_json(self.build_request(Method::GET, &["v1", "lists"], None::<&()>)?)
             .await
     }
 
     /// Creates a list (`POST /v1/lists`, scope `lists:write`). Returns the single
     /// list object.
-    pub async fn create_email_list(&self, body: &CreateEmailListRequest) -> Result<EmailList> {
+    pub async fn create_audience(&self, body: &CreateAudienceRequest) -> Result<Audience> {
         self.execute_json(self.build_request(Method::POST, &["v1", "lists"], Some(body))?)
             .await
     }
 
     /// Gets a list plus its active members (`GET /v1/lists/{id}`, scope
     /// `lists:read`). The members are carried as a field on the single list object.
-    pub async fn get_email_list(&self, list_id: &str) -> Result<EmailListDetailResponse> {
+    pub async fn get_audience(&self, list_id: &str) -> Result<AudienceDetailResponse> {
         self.execute_json(self.build_request(
             Method::GET,
             &["v1", "lists", list_id],
@@ -293,7 +293,7 @@ impl ApiClient {
     }
 
     /// Archives a list (`DELETE /v1/lists/{id}`, scope `lists:write`). Returns 204.
-    pub async fn delete_email_list(&self, list_id: &str) -> Result<()> {
+    pub async fn delete_audience(&self, list_id: &str) -> Result<()> {
         self.execute_no_content(self.build_request(
             Method::DELETE,
             &["v1", "lists", list_id],
@@ -305,11 +305,11 @@ impl ApiClient {
     /// Upserts members via the canonical `POST /v1/lists/{id}/members` endpoint
     /// (<= 2000 members). The `/members/import` alias was removed in the redesign;
     /// both the manual add and CSV import now post here.
-    pub async fn add_email_list_members(
+    pub async fn add_audience_members(
         &self,
         list_id: &str,
-        body: &EmailListMembersRequest,
-    ) -> Result<EmailListImportResponse> {
+        body: &AudienceMembersRequest,
+    ) -> Result<AudienceImportResponse> {
         self.execute_json(self.build_request(
             Method::POST,
             &["v1", "lists", list_id, "members"],
@@ -318,11 +318,11 @@ impl ApiClient {
         .await
     }
 
-    pub async fn send_email_list(
+    pub async fn send_audience(
         &self,
         list_id: &str,
-        body: &SendEmailRequest,
-    ) -> Result<EmailListSendResponse> {
+        body: &SendMessageRequest,
+    ) -> Result<AudienceSendResponse> {
         self.execute_json(self.build_request(
             Method::POST,
             &["v1", "lists", list_id, "send"],
@@ -413,7 +413,7 @@ impl ApiClient {
     }
 
     /// Lists messages with keyset pagination (`GET /v1/messages`, scope
-    /// `mail:read`). Returns the unified list envelope. Passing `channel=a2a`
+    /// `messages:read`). Returns the unified list envelope. Passing `channel=a2a`
     /// folds in the former `/v1/a2a/messages` agent-to-agent surface.
     pub async fn list_messages(&self, query: &MessageListQuery) -> Result<ListEnvelope<Message>> {
         let mut request = self.build_request(Method::GET, &["v1", "messages"], None::<&()>)?;
@@ -422,7 +422,7 @@ impl ApiClient {
     }
 
     /// Gets a single message including its full bodies (`GET /v1/messages/{id}`,
-    /// scope `mail:read`). The redesign returns the flat message object.
+    /// scope `messages:read`). The redesign returns the flat message object.
     pub async fn get_message(&self, message_id: &str) -> Result<Message> {
         self.execute_json(self.build_request(
             Method::GET,
@@ -433,7 +433,7 @@ impl ApiClient {
     }
 
     /// Bulk-deletes up to 1000 mailbox messages in a single call (`POST
-    /// /v1/messages/batch-delete`, scope `mail:read`). Removes the message rows
+    /// /v1/messages/batch-delete`, scope `messages:read`). Removes the message rows
     /// and their stored bytes. Ownership is enforced per id; a bad/foreign/unknown
     /// id is reported in `failed` and never aborts the batch. Returns the
     /// partial-success `batch_delete_result` envelope.
@@ -509,7 +509,7 @@ impl ApiClient {
     }
 
     /// Lists threads with keyset pagination (`GET /v1/threads`, scope
-    /// `mail:read`). Returns the unified list envelope.
+    /// `messages:read`). Returns the unified list envelope.
     pub async fn list_threads(&self, query: &ThreadListQuery) -> Result<ListEnvelope<Thread>> {
         let mut request = self.build_request(Method::GET, &["v1", "threads"], None::<&()>)?;
         apply_thread_query(request.url_mut(), query);
@@ -517,7 +517,7 @@ impl ApiClient {
     }
 
     /// Gets a thread plus its messages (`GET /v1/threads/{id}`, scope
-    /// `mail:read`). The redesign flattens the thread object with `messages` as a
+    /// `messages:read`). The redesign flattens the thread object with `messages` as a
     /// field on it.
     pub async fn get_thread(&self, thread_id: &str) -> Result<ThreadResponse> {
         self.execute_json(self.build_request(
@@ -529,7 +529,7 @@ impl ApiClient {
     }
 
     /// Lists outbound messages, most recent first (`GET
-    /// /v1/messages?direction=outbound`, scope `mail:read`). The channel-agnostic
+    /// /v1/messages?direction=outbound`, scope `messages:read`). The channel-agnostic
     /// redesign folds the former `GET /v1/emails` outbound list into the unified
     /// messages collection filtered to the outbound direction. Passes through the
     /// unified list envelope verbatim.
@@ -546,32 +546,32 @@ impl ApiClient {
     }
 
     /// Gets one outbound message plus its delivery-event timeline
-    /// (`GET /v1/messages/{id}`, scope `mail:read`; was `GET /v1/emails/{id}`).
+    /// (`GET /v1/messages/{id}`, scope `messages:read`; was `GET /v1/emails/{id}`).
     /// An outbound id resolves here too under the unified message resolver.
-    pub async fn get_outbound_email(&self, email_id: &str) -> Result<serde_json::Value> {
+    pub async fn get_outbound_email(&self, message_id: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::GET,
-            &["v1", "messages", email_id],
+            &["v1", "messages", message_id],
             None::<&()>,
         )?)
         .await
     }
 
     /// Cancels a scheduled outbound message (`POST /v1/messages/{id}/cancel`,
-    /// scope `mail:send`; was `POST /v1/emails/{id}/cancel`). Returns the canceled
+    /// scope `messages:send`; was `POST /v1/emails/{id}/cancel`). Returns the canceled
     /// message (`status: "canceled"`), or surfaces the backend's `409 Conflict`
     /// if it is no longer scheduled.
-    pub async fn cancel_outbound_email(&self, email_id: &str) -> Result<serde_json::Value> {
+    pub async fn cancel_outbound_email(&self, message_id: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(
             Method::POST,
-            &["v1", "messages", email_id, "cancel"],
+            &["v1", "messages", message_id, "cancel"],
             None::<&()>,
         )?)
         .await
     }
 
     /// Lists the user's audit-log rows, newest first, with keyset pagination.
-    /// Scope: `mail:read`. Returns
+    /// Scope: `messages:read`. Returns
     /// `{ "logs": [...], "pagination": { "nextCursor": ... } }`.
     pub async fn list_audit_logs(&self, query: &AuditLogQuery) -> Result<serde_json::Value> {
         let mut request = self.build_request(Method::GET, &["v1", "audit-logs"], None::<&()>)?;
@@ -587,7 +587,7 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
-    /// Returns the tenant's dedicated IP pool status. Scope: `mail:read`. Returns
+    /// Returns the tenant's dedicated IP pool status. Scope: `messages:read`. Returns
     /// `{ "pools": [...] }`.
     pub async fn list_dedicated_ips(&self) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(Method::GET, &["v1", "dedicated-ips"], None::<&()>)?)
@@ -595,7 +595,7 @@ impl ApiClient {
     }
 
     /// Reads a keyset-paginated slice of the durable event ledger
-    /// (`GET /v1/events`). Scope: `mail:read`. This is the substrate `dairo
+    /// (`GET /v1/events`). Scope: `messages:read`. This is the substrate `dairo
     /// listen` rides: each call returns events oldest-first in `(createdAt, id)`
     /// order plus a `nextCursor` to resume from.
     ///
@@ -618,18 +618,18 @@ impl ApiClient {
     }
 
     /// Lists the delivery-event timeline for one outbound message
-    /// (`GET /v1/messages/{id}/events`, scope `mail:read`; was
+    /// (`GET /v1/messages/{id}/events`, scope `messages:read`; was
     /// `GET /v1/emails/{id}/events`). The redesign folds the former flat
-    /// `/v1/outbound-events?emailId=` reader into this per-message sub-resource,
+    /// `/v1/outbound-events?messageId=` reader into this per-message sub-resource,
     /// so a message id is now required.
     pub async fn list_outbound_events(
         &self,
-        email_id: &str,
+        message_id: &str,
         limit: Option<u32>,
     ) -> Result<serde_json::Value> {
         let mut request = self.build_request(
             Method::GET,
-            &["v1", "messages", email_id, "events"],
+            &["v1", "messages", message_id, "events"],
             None::<&()>,
         )?;
         if let Some(limit) = limit {
@@ -644,7 +644,7 @@ impl ApiClient {
     // --- Templates (templates.rs) -----------------------------------------
     // Named container + immutable, append-only versions. Reads use
     // `templates:read`; create/patch/delete/version-publish use `templates:write`
-    // (de-overloaded off mail:read/mail:send). Bodies carry free-form
+    // (de-overloaded off messages:read/messages:send). Bodies carry free-form
     // `source`/`variables`, so requests are assembled as `serde_json::Value` and
     // responses pass through verbatim — matching the outbound/audit-logs
     // precedent.
@@ -821,7 +821,7 @@ impl ApiClient {
     }
 
     // --- Budgets (budgets.rs) ---------------------------------------------
-    // Reads reuse `mail:read`; setting a cap (PUT) requires `keys:write`. The
+    // Reads reuse `messages:read`; setting a cap (PUT) requires `keys:write`. The
     // `get` resolver takes a scope (`account`, or a key/agent `scopeId`); `set`
     // is an idempotent upsert keyed on `(scope, scopeId)`.
 
@@ -911,7 +911,7 @@ impl ApiClient {
     // `channel=a2a` (REDESIGN §9 rows 14-15).
 
     /// Lists agent-to-agent hop receipts with keyset pagination
-    /// (`GET /v1/messages?channel=a2a`, scope `mail:read`; was
+    /// (`GET /v1/messages?channel=a2a`, scope `messages:read`; was
     /// `/v1/a2a/messages`).
     pub async fn list_a2a_messages(&self, query: &A2aMessageQuery) -> Result<serde_json::Value> {
         let mut request = self.build_request(Method::GET, &["v1", "messages"], None::<&()>)?;
@@ -931,7 +931,7 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
-    /// Gets a single A2A hop receipt (`GET /v1/messages/{id}`, scope `mail:read`;
+    /// Gets a single A2A hop receipt (`GET /v1/messages/{id}`, scope `messages:read`;
     /// was `/v1/a2a/messages/{id}` — an a2a id resolves here too).
     pub async fn get_a2a_message(&self, id: &str) -> Result<serde_json::Value> {
         self.execute_json(self.build_request(Method::GET, &["v1", "messages", id], None::<&()>)?)
@@ -1971,7 +1971,7 @@ mod tests {
     }
 
     #[test]
-    fn email_list_delete_targets_list_resource() {
+    fn audience_delete_targets_list_resource() {
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
         let request = client
             .build_request(Method::DELETE, &["v1", "lists", "list_123"], None::<&()>)
@@ -2002,7 +2002,7 @@ mod tests {
 
     #[test]
     fn serializes_send_body_with_openapi_names() {
-        let body = SendEmailRequest {
+        let body = SendMessageRequest {
             inbox_id: "018f".to_string(),
             to: vec!["max@example.com".to_string()],
             cc: None,
@@ -2011,7 +2011,7 @@ mod tests {
             text: Some("Body".to_string()),
             html: None,
             react: None,
-            attachments: Some(vec![SendEmailAttachment {
+            attachments: Some(vec![SendMessageAttachment {
                 filename: "invoice.pdf".to_string(),
                 content_type: "application/pdf".to_string(),
                 content_base64: "JVBERi0xLjQ=".to_string(),
@@ -2041,7 +2041,7 @@ mod tests {
 
     #[test]
     fn serializes_send_body_with_hosted_react_source() {
-        let body = SendEmailRequest {
+        let body = SendMessageRequest {
             inbox_id: "018f".to_string(),
             to: vec!["max@example.com".to_string()],
             cc: None,
@@ -2049,7 +2049,7 @@ mod tests {
             subject: "Hello".to_string(),
             text: None,
             html: None,
-            react: Some(SendEmailReact {
+            react: Some(SendMessageReact {
                 source: "export default function Email(props) { return <p>{props.name}</p>; }"
                     .to_string(),
                 props: Some(serde_json::Map::from_iter([(
@@ -2080,7 +2080,7 @@ mod tests {
 
     #[test]
     fn serializes_send_body_with_send_at_for_scheduling() {
-        let body = SendEmailRequest {
+        let body = SendMessageRequest {
             inbox_id: "018f".to_string(),
             to: vec!["max@example.com".to_string()],
             cc: None,
@@ -2106,7 +2106,7 @@ mod tests {
 
     #[test]
     fn omits_send_at_when_sending_immediately() {
-        let body = SendEmailRequest {
+        let body = SendMessageRequest {
             inbox_id: "018f".to_string(),
             to: vec!["max@example.com".to_string()],
             cc: None,
@@ -2140,7 +2140,7 @@ mod tests {
         headers.insert("X-Campaign".to_string(), "spring".to_string());
         let mut tags = std::collections::BTreeMap::new();
         tags.insert("env".to_string(), "prod".to_string());
-        let body = SendEmailRequest {
+        let body = SendMessageRequest {
             inbox_id: "018f".to_string(),
             to: vec!["max@example.com".to_string()],
             cc: None,
@@ -2168,7 +2168,7 @@ mod tests {
 
     #[test]
     fn send_response_deserializes_scheduled_status_with_scheduled_at() {
-        let response: SendEmailResponse = serde_json::from_str(
+        let response: SendMessageResponse = serde_json::from_str(
             r#"{
                 "id": "email_123",
                 "status": "scheduled",
@@ -2190,7 +2190,7 @@ mod tests {
     fn serializes_create_api_key_body_with_allowed_ips() {
         let body = CreateApiKeyRequest {
             name: "CI".to_string(),
-            scopes: vec!["mail:send".to_string()],
+            scopes: vec!["messages:send".to_string()],
             allowed_ips: Some(vec![
                 "203.0.113.0/24".to_string(),
                 "198.51.100.7".to_string(),
@@ -2205,7 +2205,7 @@ mod tests {
     fn omits_allowed_ips_when_unset() {
         let body = CreateApiKeyRequest {
             name: "CI".to_string(),
-            scopes: vec!["mail:send".to_string()],
+            scopes: vec!["messages:send".to_string()],
             allowed_ips: None,
         };
         let value = serde_json::to_value(body).unwrap();
@@ -2225,7 +2225,7 @@ mod tests {
                     "name": "scoped",
                     "prefix": "dairo_test_a",
                     "environment": "test",
-                    "scopes": ["mail:send"],
+                    "scopes": ["messages:send"],
                     "allowedIps": ["203.0.113.0/24"],
                     "status": "active",
                     "createdAt": "2026-06-01T00:00:00Z",
@@ -2237,7 +2237,7 @@ mod tests {
                     "name": "open",
                     "prefix": "dairo_test_b",
                     "environment": "test",
-                    "scopes": ["mail:read"],
+                    "scopes": ["messages:read"],
                     "status": "active",
                     "createdAt": "2026-06-01T00:00:00Z",
                     "lastUsedAt": null
@@ -2285,7 +2285,7 @@ mod tests {
 
     #[test]
     fn send_response_accepts_legacy_payload_without_warnings() {
-        let response: SendEmailResponse = serde_json::from_str(
+        let response: SendMessageResponse = serde_json::from_str(
             r#"{
                 "id": "email_123",
                 "status": "queued",
@@ -2301,7 +2301,7 @@ mod tests {
 
     #[test]
     fn send_response_deserializes_complaint_warning_metadata() {
-        let response: SendEmailResponse = serde_json::from_str(
+        let response: SendMessageResponse = serde_json::from_str(
             r#"{
                 "id": "email_123",
                 "status": "queued",
@@ -2312,7 +2312,7 @@ mod tests {
                         "recipient": "max@example.com",
                         "reason": "complaint",
                         "message": "Recipient previously complained; do not contact again unless you are sure.",
-                        "sourceOutboundEmailId": "email_old",
+                        "sourceMessageId": "email_old",
                         "providerMessageId": "ses_old",
                         "complaintFeedbackType": "abuse",
                         "complaintUserAgent": "AnyMailbox/1.0",
@@ -2327,7 +2327,7 @@ mod tests {
         assert_eq!(warning.recipient.as_deref(), Some("max@example.com"));
         assert_eq!(warning.reason.as_deref(), Some("complaint"));
         assert_eq!(
-            warning.source_outbound_email_id.as_deref(),
+            warning.source_outbound_message_id.as_deref(),
             Some("email_old")
         );
         assert_eq!(warning.provider_message_id.as_deref(), Some("ses_old"));
@@ -2782,7 +2782,7 @@ mod tests {
                 id: "key_123".to_string(),
                 name: "CI".to_string(),
                 prefix: "dairo_test_abc".to_string(),
-                scopes: vec!["mail:send".to_string()],
+                scopes: vec!["messages:send".to_string()],
                 allowed_ips: Vec::new(),
                 status: "active".to_string(),
                 created_at: "2026-01-01T00:00:00Z".to_string(),

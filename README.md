@@ -153,7 +153,7 @@ dairo inbox create billing --domain example.com
 
 Send an email. At least one non-empty `--to` recipient is required, along with at least one body option: `--text`, `--html`, or `--react-source`. Inline attachments use `--attachment`; `--attachment-delivery` accepts `attachment`, `link`, or `auto`. `attachment` sends files inline. `auto` sends inline only when the files fit Dairo's safe inline limit. `link` is explicit but currently cannot upload a new local file because the CLI has no standalone file upload/link API contract yet, so it fails with guided instructions instead of pretending to send or editing the email body. Dairo never auto-inserts links into `--text` or `--html`.
 
-Complaint suppression is enforced before Dairo queues the send. If a recipient previously complained, the CLI shows an actionable error and does not send by default. Override only deliberately with `--ignore-complaints`; API/MCP callers use `ignoreComplaints=true`. Use `--json` where supported to preserve raw warning/error metadata such as `recipient`, `sourceOutboundEmailId`, `providerMessageId`, `complaintFeedbackType`, `complaintUserAgent`, and `lastEventAt` when returned by the backend.
+Complaint suppression is enforced before Dairo queues the send. If a recipient previously complained, the CLI shows an actionable error and does not send by default. Override only deliberately with `--ignore-complaints`; API/MCP callers use `ignoreComplaints=true`. Use `--json` where supported to preserve raw warning/error metadata such as `recipient`, `sourceMessageId`, `providerMessageId`, `complaintFeedbackType`, `complaintUserAgent`, and `lastEventAt` when returned by the backend.
 
 For link-style delivery today, create or reuse a persisted email attachment link with `dairo attachments share <attachment-id> --expiry-hours <1-168>`, place the printed URL exactly where you want it in `--text`/`--html`, then send without the local file attachment. Use `--attachment-link-expiry-hours <1-168>` on `send` to make the guided `link`/oversize message use the same expiry window you intend to request once standalone local file links exist.
 
@@ -178,7 +178,7 @@ dairo send \
   --react-props '{"name":"Jane"}'
 ```
 
-Schedule a send for a future time with `--send-at` (RFC3339 with an explicit timezone offset). The response status is `scheduled` with a `scheduledAt` timestamp; the message is staged and fires at the requested time. Cancel a scheduled send before it fires with `dairo outbound cancel <emailId>` (this fails if the email is no longer scheduled).
+Schedule a send for a future time with `--send-at` (RFC3339 with an explicit timezone offset). The response status is `scheduled` with a `scheduledAt` timestamp; the message is staged and fires at the requested time. Cancel a scheduled send before it fires with `dairo outbound cancel <messageId>` (this fails if the email is no longer scheduled).
 
 ```sh
 dairo send \
@@ -188,7 +188,7 @@ dairo send \
   --text "Sent on schedule." \
   --send-at 2026-06-11T09:00:00Z
 
-dairo outbound cancel <emailId>           # cancel a still-scheduled send
+dairo outbound cancel <messageId>           # cancel a still-scheduled send
 ```
 
 ### Webhooks
@@ -299,8 +299,8 @@ List and create API keys:
 dairo api-key list
 dairo api-key create \
   --name CI \
-  --scope mail:send \
-  --scope mail:read
+  --scope messages:send \
+  --scope messages:read
 ```
 
 The create command prints a one-time API key secret. Store it immediately.
@@ -310,7 +310,7 @@ Restrict a key to specific source IPs or CIDR ranges with one or more `--allowed
 ```sh
 dairo api-key create \
   --name "prod worker" \
-  --scope mail:send \
+  --scope messages:send \
   --allowed-ip 203.0.113.0/24 \
   --allowed-ip 198.51.100.7
 ```
@@ -329,7 +329,7 @@ Install Dairo MCP for agents with one command. It saves the token through stdin,
 printf '%s' "$DAIRO_API_KEY" | dairo auth token set && dairo mcp install --client auto
 ```
 
-`--client auto` configures Hermes, Codex, Cursor, and a project `.mcp.json` for Claude. You can target one client with `--client hermes`, `--client codex`, `--client cursor`, or `--client claude`. The remote endpoint is `https://api.dairo.app/mcp` and exposes agent-first tools like `dairo.whoami`, `dairo.send.email`, `dairo.list.outbound.events`, and `dairo.send.email.list`.
+`--client auto` configures Hermes, Codex, Cursor, and a project `.mcp.json` for Claude. You can target one client with `--client hermes`, `--client codex`, `--client cursor`, or `--client claude`. The remote endpoint is `https://api.dairo.app/mcp` and exposes agent-first tools like `dairo.whoami`, `dairo.send`, `dairo.list.outbound.events`, and `dairo.send.audience`.
 
 ### Messages
 
