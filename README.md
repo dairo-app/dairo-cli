@@ -418,7 +418,7 @@ Human output remains table/text oriented. One-time secrets from webhook/API-key 
 
 ## Documentation
 
-Full API and CLI documentation is available at [dairo.app](https://dairo.app).
+Full API and CLI documentation is available at [docs.dairo.app](https://docs.dairo.app).
 
 ## License
 
