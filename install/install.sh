@@ -29,6 +29,19 @@ source_command() {
   printf 'source "%s"\n' "$profile"
 }
 
+print_manual_path_steps() {
+  profile="$1"
+  line="$2"
+  reload="$3"
+  profile_dir="$(dirname "$profile")"
+
+  if [ "$profile_dir" != "$HOME" ]; then
+    printf '  mkdir -p "%s"\n' "$profile_dir"
+  fi
+  printf "  echo '%s' >> \"%s\"\n" "$line" "$profile"
+  printf '  %s\n' "$reload"
+}
+
 add_to_path_prompt() {
   case ":$PATH:" in
     *":$INSTALL_DIR:"*) return 0 ;;
@@ -37,7 +50,6 @@ add_to_path_prompt() {
   profile="$(shell_profile)"
   line="$(path_line)"
   reload="$(source_command "$profile")"
-  manual_cmd="mkdir -p \"$(dirname "$profile")\" && printf '\\n%s' '$line' >> \"$profile\" && $reload"
 
   if [ -t 1 ] && ( : >/dev/tty ) 2>/dev/null; then
     {
@@ -61,11 +73,13 @@ add_to_path_prompt() {
         printf 'Or open a new terminal.\n'
         ;;
       *)
-        printf 'No problem. You can add Dairo later with:\n  %s\n' "$manual_cmd"
+        printf 'No problem. You can add Dairo later with:\n'
+        print_manual_path_steps "$profile" "$line" "$reload"
         ;;
     esac
   else
-    printf 'Add Dairo to your terminal later with:\n  %s\n' "$manual_cmd"
+    printf 'Add Dairo to your terminal later with:\n'
+    print_manual_path_steps "$profile" "$line" "$reload"
   fi
 }
 
