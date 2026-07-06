@@ -148,7 +148,7 @@ fn decode_hex(input: &str) -> Option<Vec<u8>> {
 mod tests {
     use super::*;
 
-    const SECRET: &str = "whsec_0123456789abcdef0123456789abcdef";
+    const SECRET: &str = "dairo_webhook_test_secret";
 
     fn fresh_ts() -> String {
         unix_now().to_string()
