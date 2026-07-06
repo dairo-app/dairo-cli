@@ -295,8 +295,7 @@ pub enum Command {
     ///
     /// Downloads the latest release for this platform, verifies its checksum,
     /// checks the downloaded binary's version, and replaces the current
-    /// executable. Also available as `upgrade` and `self-update`.
-    #[command(alias = "upgrade", alias = "self-update")]
+    /// executable.
     Update(UpdateArgs),
 }
 
@@ -2894,13 +2893,11 @@ mod tests {
             Command::Update(UpdateArgs { force: false })
         ));
         assert!(matches!(
-            Cli::parse_from(["dairo", "upgrade", "--force"]).command,
+            Cli::parse_from(["dairo", "update", "--force"]).command,
             Command::Update(UpdateArgs { force: true })
         ));
-        assert!(matches!(
-            Cli::parse_from(["dairo", "self-update"]).command,
-            Command::Update(UpdateArgs { force: false })
-        ));
+        assert!(Cli::try_parse_from(["dairo", "upgrade"]).is_err());
+        assert!(Cli::try_parse_from(["dairo", "self-update"]).is_err());
         match Cli::parse_from(["dairo", "completion", "zsh"]).command {
             Command::Completion { shell } => assert_eq!(shell, CompletionShell::Zsh),
             _ => panic!("expected completion command"),

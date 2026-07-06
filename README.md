@@ -43,10 +43,9 @@ Update an installed CLI in place:
 dairo update
 ```
 
-`dairo upgrade` and `dairo self-update` are aliases. The updater downloads the
-native release archive for your platform, verifies it against `checksums.txt`,
-checks the downloaded binary's version, and only then replaces the current
-executable.
+The updater downloads the native release archive for your platform, verifies it
+against `checksums.txt`, checks the downloaded binary's version, and only then
+replaces the current executable.
 
 ## Quick start
 
