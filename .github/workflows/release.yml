@@ -50,7 +50,7 @@ jobs:
             exe: dairo.exe
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -65,7 +65,7 @@ jobs:
           mkdir -p dist/binaries/${{ matrix.target }}
           cp target/${{ matrix.target }}/release/${{ matrix.exe }} dist/binaries/${{ matrix.target }}/${{ matrix.exe }}
           if [ "${{ runner.os }}" != "Windows" ]; then chmod +x dist/binaries/${{ matrix.target }}/${{ matrix.exe }}; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.target }}
           path: dist/binaries/${{ matrix.target }}
@@ -79,10 +79,10 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       tag: ${{ steps.meta.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: binary-*
           path: dist/downloaded
@@ -137,7 +137,7 @@ jobs:
           cp install/install.sh dist/release/dairo-install.sh
           cp install/install.ps1 dist/release/dairo-install.ps1
           (cd dist/release && shasum -a 256 dairo-* > checksums.txt)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-assets
           path: dist/release/*
@@ -149,7 +149,7 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_RELEASE_NOTES_SERVICE_ACCOUNT }}
           token_format: access_token
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
       - name: Generate release notes
@@ -185,13 +185,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
           scope: '@dairo'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: binary-*
           path: dist/downloaded
@@ -215,7 +215,7 @@ jobs:
           for dir in dist/npm/*; do
             (cd "$dir" && npm pack --pack-destination ../../npm-tarballs)
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: npm-packages
           path: dist/npm-tarballs/*.tgz
@@ -239,8 +239,8 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' || inputs.update_homebrew }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: release-assets
           path: dist/release
