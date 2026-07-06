@@ -164,12 +164,13 @@ jobs:
         run: node scripts/generate-release-notes.mjs
       - id: release-app-token
         name: Create dairo-bot release token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: dairo-app
           repositories: dairo-cli
+          permission-contents: write
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ steps.release-app-token.outputs.token }}
