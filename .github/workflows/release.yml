@@ -179,11 +179,10 @@ jobs:
           TAG='${{ steps.meta.outputs.tag }}'
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/release/* --clobber
-            gh release edit "$TAG" --title "Dairo CLI $TAG" --notes-file release-notes.md --target "$GITHUB_SHA"
+            gh release edit "$TAG" --title "Dairo CLI $TAG" --notes-file release-notes.md
           else
             gh release create "$TAG" dist/release/* \
               --title "Dairo CLI $TAG" \
-              --target "$GITHUB_SHA" \
               --notes-file release-notes.md
           fi
 
