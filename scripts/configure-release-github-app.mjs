@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 const codeArg = process.argv.find((arg) => arg.startsWith("--code="));
 const code = codeArg?.slice("--code=".length) || process.env.GITHUB_APP_MANIFEST_CODE;
 
@@ -41,32 +37,18 @@ if (!app.id || !app.pem) {
   throw new Error("GitHub did not return both app id and private key.");
 }
 
-const keyDir = mkdtempSync(join(tmpdir(), "dairo-release-app-"));
-const keyPath = join(keyDir, "private-key.pem");
-
-try {
-  writeFileSync(keyPath, app.pem, { mode: 0o600 });
-  run("gh", [
-    "variable",
-    "set",
-    "RELEASE_APP_ID",
-    "--repo",
-    "dairo-app/dairo-cli",
-    "--body",
-    String(app.id),
-  ]);
-  run("gh", [
-    "secret",
-    "set",
-    "RELEASE_APP_PRIVATE_KEY",
-    "--repo",
-    "dairo-app/dairo-cli",
-    "--body-file",
-    keyPath,
-  ]);
-} finally {
-  rmSync(keyDir, { recursive: true, force: true });
-}
+run("gh", [
+  "variable",
+  "set",
+  "RELEASE_APP_ID",
+  "--repo",
+  "dairo-app/dairo-cli",
+  "--body",
+  String(app.id),
+]);
+run("gh", ["secret", "set", "RELEASE_APP_PRIVATE_KEY", "--repo", "dairo-app/dairo-cli"], {
+  input: app.pem,
+});
 
 console.log(`Configured dairo-bot app id ${app.id} for dairo-app/dairo-cli.`);
 console.log("Install the app on dairo-app/dairo-cli before running the release workflow.");
