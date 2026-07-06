@@ -1,0 +1,19 @@
+{
+  "name": "dairo-bot",
+  "url": "https://dairo.app",
+  "description": "Dairo release automation bot.",
+  "public": false,
+  "redirect_url": "https://github.com/dairo-app/dairo-cli",
+  "callback_urls": [
+    "https://github.com/dairo-app/dairo-cli"
+  ],
+  "hook_attributes": {
+    "url": "https://dairo.app/github/webhooks",
+    "active": false
+  },
+  "default_permissions": {
+    "contents": "write",
+    "metadata": "read"
+  },
+  "default_events": []
+}

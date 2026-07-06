@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Create dairo-bot GitHub App</title>
+  </head>
+  <body>
+    <form action="https://github.com/organizations/dairo-app/settings/apps/new" method="post">
+      <input id="manifest" name="manifest" type="hidden">
+      <button type="submit">Create dairo-bot</button>
+    </form>
+    <script>
+      document.getElementById("manifest").value = JSON.stringify({
+        name: "dairo-bot",
+        url: "https://dairo.app",
+        description: "Dairo release automation bot.",
+        public: false,
+        redirect_url: "https://github.com/dairo-app/dairo-cli",
+        callback_urls: ["https://github.com/dairo-app/dairo-cli"],
+        hook_attributes: {
+          url: "https://dairo.app/github/webhooks",
+          active: false
+        },
+        default_permissions: {
+          contents: "write",
+          metadata: "read"
+        },
+        default_events: []
+      });
+    </script>
+  </body>
+</html>
