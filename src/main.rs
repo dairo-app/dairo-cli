@@ -139,9 +139,9 @@ async fn run(cli: Cli) -> Result<()> {
             );
             Ok(())
         }
-        // `update` only talks to the public GitHub releases API (or degrades
-        // gracefully offline); it never needs a Dairo token.
-        Command::Update => update::run(OutputFormat::from_json_flag(cli.json)).await,
+        // `update` only talks to public release/download endpoints and never
+        // needs a Dairo token.
+        Command::Update(args) => update::run(args, OutputFormat::from_json_flag(cli.json)).await,
         // `doctor` must run even when no token is configured (that is one of the
         // things it diagnoses), so it resolves config itself and degrades
         // gracefully rather than going through the key-required generic arm.
@@ -717,7 +717,7 @@ async fn run(cli: Cli) -> Result<()> {
                 Command::Doctor => {
                     unreachable!("doctor is handled before API client construction")
                 }
-                Command::Update => {
+                Command::Update(_) => {
                     unreachable!("update is handled before API client construction")
                 }
             }

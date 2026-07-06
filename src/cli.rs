@@ -57,7 +57,7 @@ Agents and governance:
 Tooling:
   mcp            Install Dairo MCP for coding agents
   completion     Generate shell completions
-  update         Check for a newer CLI release
+  update         Update the CLI in place
 
 Examples:
   dairo login                                       # sign in
@@ -291,12 +291,20 @@ pub enum Command {
         /// Target shell.
         shell: CompletionShell,
     },
-    /// Check whether a newer Dairo CLI release is available.
+    /// Update the Dairo CLI in place.
     ///
-    /// Best-effort: queries the GitHub releases `latest` API and prints the
-    /// current vs latest version plus upgrade instructions. It never replaces the
-    /// running binary, and degrades gracefully when offline.
-    Update,
+    /// Downloads the latest release for this platform, verifies its checksum,
+    /// checks the downloaded binary's version, and replaces the current
+    /// executable. Also available as `upgrade` and `self-update`.
+    #[command(alias = "upgrade", alias = "self-update")]
+    Update(UpdateArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct UpdateArgs {
+    /// Reinstall the latest release even when it is not newer than this binary.
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// Shells `dairo completion` can emit a script for, mirroring
@@ -2883,7 +2891,15 @@ mod tests {
         ));
         assert!(matches!(
             Cli::parse_from(["dairo", "update"]).command,
-            Command::Update
+            Command::Update(UpdateArgs { force: false })
+        ));
+        assert!(matches!(
+            Cli::parse_from(["dairo", "upgrade", "--force"]).command,
+            Command::Update(UpdateArgs { force: true })
+        ));
+        assert!(matches!(
+            Cli::parse_from(["dairo", "self-update"]).command,
+            Command::Update(UpdateArgs { force: false })
         ));
         match Cli::parse_from(["dairo", "completion", "zsh"]).command {
             Command::Completion { shell } => assert_eq!(shell, CompletionShell::Zsh),
