@@ -6,6 +6,69 @@ VERSION="${DAIRO_CLI_VERSION:-latest}"
 INSTALL_DIR="${DAIRO_INSTALL_DIR:-$HOME/.dairo/bin}"
 BASE_URL="${DAIRO_DOWNLOAD_BASE_URL:-https://dairo.app/downloads/cli}"
 
+shell_profile() {
+  shell_name="$(basename "${SHELL:-}")"
+  case "$shell_name" in
+    zsh) printf '%s\n' "$HOME/.zshrc" ;;
+    bash) printf '%s\n' "$HOME/.bashrc" ;;
+    fish) printf '%s\n' "$HOME/.config/fish/config.fish" ;;
+    *) printf '%s\n' "$HOME/.profile" ;;
+  esac
+}
+
+path_line() {
+  shell_name="$(basename "${SHELL:-}")"
+  case "$shell_name" in
+    fish) printf 'fish_add_path "%s"\n' "$INSTALL_DIR" ;;
+    *) printf 'export PATH="%s:$PATH"\n' "$INSTALL_DIR" ;;
+  esac
+}
+
+source_command() {
+  profile="$1"
+  printf 'source "%s"\n' "$profile"
+}
+
+add_to_path_prompt() {
+  case ":$PATH:" in
+    *":$INSTALL_DIR:"*) return 0 ;;
+  esac
+
+  profile="$(shell_profile)"
+  line="$(path_line)"
+  reload="$(source_command "$profile")"
+  manual_cmd="mkdir -p \"$(dirname "$profile")\" && printf '\\n%s' '$line' >> \"$profile\" && $reload"
+
+  if [ -t 1 ] && ( : >/dev/tty ) 2>/dev/null; then
+    {
+      printf '\nMake Dairo easier to run?\n\n'
+      printf 'This lets you type `dairo` anywhere in Terminal instead of using:\n'
+      printf '  %s/dairo\n\n' "$INSTALL_DIR"
+      printf 'Add Dairo to your terminal path? [y/N] '
+    } >/dev/tty
+
+    IFS= read -r answer </dev/tty || answer=""
+    case "$answer" in
+      y|Y|yes|YES|Yes)
+        mkdir -p "$(dirname "$profile")"
+        if [ -f "$profile" ] && grep -F "$line" "$profile" >/dev/null 2>&1; then
+          printf 'Dairo is already listed in %s.\n' "$profile"
+        else
+          printf '\n%s' "$line" >> "$profile"
+          printf 'Added Dairo to %s.\n' "$profile"
+        fi
+        printf 'To use `dairo` in this terminal, run:\n  %s\n' "$reload"
+        printf 'Or open a new terminal.\n'
+        ;;
+      *)
+        printf 'No problem. You can add Dairo later with:\n  %s\n' "$manual_cmd"
+        ;;
+    esac
+  else
+    printf 'Add Dairo to your terminal later with:\n  %s\n' "$manual_cmd"
+  fi
+}
+
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 arch="$(uname -m)"
 case "$os" in
@@ -64,8 +127,5 @@ mkdir -p "$INSTALL_DIR"
 install -m 0755 "$tmp/dairo" "$INSTALL_DIR/dairo"
 
 echo "Dairo CLI installed to $INSTALL_DIR/dairo"
-case ":$PATH:" in
-  *":$INSTALL_DIR:"*) ;;
-  *) echo "Add this to your shell profile: export PATH=\"$INSTALL_DIR:\$PATH\"" ;;
-esac
+add_to_path_prompt
 "$INSTALL_DIR/dairo" --version
