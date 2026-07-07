@@ -87,6 +87,8 @@ function renderList(items) {
     .join("\n");
 }
 
+// Notes lead with what changed — install/upgrade lives in a collapsed
+// details block at the bottom, and empty sections are omitted entirely.
 function renderNotes(data) {
   const notes = {
     highlights: normalizeList(data?.highlights),
@@ -103,60 +105,42 @@ function renderNotes(data) {
     ["Security", notes.security],
   ].filter(([, items]) => items.length);
 
-  const changeBlocks = sections.length
-    ? sections.flatMap(([title, items]) => [`### ${title}`, "", renderList(items), ""])
-    : ["Maintenance release: internal build and release-pipeline work only, no user-facing changes.", ""];
+  const body = [];
+  if (notes.highlights.length) {
+    body.push(renderList(notes.highlights), "");
+  }
+  if (sections.length) {
+    for (const [title, items] of sections) {
+      body.push(`## ${title}`, "", renderList(items), "");
+    }
+  } else if (!notes.highlights.length) {
+    body.push(
+      "Maintenance release — internal build and release-pipeline work only, no changes to CLI behavior.",
+      "",
+    );
+  }
 
-  const highlightBlock = notes.highlights.length
-    ? renderList(notes.highlights)
-    : "- Maintenance release with no user-facing changes.";
+  const compare = previous
+    ? `[Full changelog](https://github.com/dairo-app/dairo-cli/compare/${previous}...${releaseLabel})`
+    : `[Commits](https://github.com/dairo-app/dairo-cli/commits/${releaseLabel})`;
 
   return [
-    `# Dairo CLI ${releaseLabel}`,
+    ...body,
+    "<details>",
+    "<summary>Install &amp; upgrade</summary>",
     "",
-    "Official Dairo CLI release for macOS, Linux, and Windows.",
+    "| | |",
+    "|---|---|",
+    "| Homebrew | `brew install dairo-app/tap/dairo` |",
+    "| npm | `npm install -g @dairo-app/cli` or `npx dairo-cli` |",
+    "| macOS / Linux | `curl -fsSL https://dairo.app/install.sh \\| sh` |",
+    "| Windows | `irm https://dairo.app/install.ps1 \\| iex` |",
     "",
-    "## Install",
+    "Already installed? Run `dairo update` (Homebrew: `brew upgrade dairo`), then verify with `dairo --version`.",
     "",
-    "macOS and Linux:",
+    "</details>",
     "",
-    "```sh",
-    "curl -fsSL https://dairo.app/install.sh | sh",
-    "```",
-    "",
-    "Windows PowerShell:",
-    "",
-    "```powershell",
-    "irm https://dairo.app/install.ps1 | iex",
-    "```",
-    "",
-    "Homebrew:",
-    "",
-    "```sh",
-    "brew install dairo-app/tap/dairo",
-    "```",
-    "",
-    "Already installed? `dairo update` (or `brew upgrade dairo`). Verify with `dairo --version` and `dairo doctor`.",
-    "",
-    "## Highlights",
-    "",
-    highlightBlock,
-    "",
-    "## What Changed",
-    "",
-    ...changeBlocks,
-    "## Compatibility",
-    "",
-    "- Supports macOS, Linux, and Windows on the published architectures.",
-    `- CLI version: \`${releaseLabel}\``,
-    "- API compatibility: current Dairo API.",
-    "",
-    "## Support",
-    "",
-    "- Docs: https://docs.dairo.app",
-    "- Issues: https://github.com/dairo-app/dairo-cli/issues",
-    "",
-    "Built and released by the Dairo team.",
+    `[Docs](https://docs.dairo.app) · [Report an issue](https://github.com/dairo-app/dairo-cli/issues) · ${compare}`,
     "",
   ].join("\n");
 }
@@ -179,7 +163,10 @@ async function generateWithVertex() {
     "Use only the provided git data. Do not invent features.",
     "Only include changes a CLI user would notice: new or changed commands and flags, behavior, output, installation, or self-update.",
     "Internal-only work (CI workflows, release pipeline, refactors, tests, docs tooling) must NOT appear in highlights, added, changed, or fixed. If every change in the range is internal, return empty arrays for all fields.",
-    "Keep each bullet concise and written for someone running the CLI.",
+    "Voice: factual and terse, no marketing language (never 'comprehensive', 'featuring', 'welcome', 'official release'), no exclamation marks.",
+    "Bullets are sentence fragments starting with the subject, e.g. '`dairo send` accepts --channel.' — never start a bullet with 'Added', 'Fixed', or 'Changed'; the section heading already says that.",
+    "Highlights: at most 2, and only for changes worth calling out above the sections; for small or routine releases return an empty highlights array — never restate the only change.",
+    "Never describe the release as an initial or first release unless the previous tag is none.",
     "Mention breaking changes under changed, prefixed with 'Breaking:'.",
     "Use security only for fixes that affect users: credential handling, TLS, permissions of files the CLI writes, or vulnerable dependency upgrades in the shipped binary.",
     "",
