@@ -2,6 +2,16 @@
 
 All notable Dairo CLI changes are tracked here.
 
+## 0.0.8 - 2026-07-07
+
+### Added
+
+- npm distribution: `npm install -g @dairo-app/cli` or `npx dairo-cli`
+  (launcher + per-platform native binary packages). Publishing runs from CI
+  via npm trusted publishing (OIDC) with automatic provenance — no npm tokens
+  exist. The bare `dairo` name is blocked by npm's typosquat guard
+  (similarity to existing packages); it can only be granted by npm support.
+
 ## 0.0.7 - 2026-07-07
 
 ### Changed
