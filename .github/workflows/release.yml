@@ -225,9 +225,18 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          # Trusted publishing (OIDC) needs npm >= 11.5.1; node 24 ships it.
+          node-version: 24
           registry-url: https://registry.npmjs.org
           scope: '@dairo-app'
+      - name: Require an OIDC-capable npm
+        run: |
+          set -euo pipefail
+          npm_version="$(npm --version)"
+          if [ "$(printf '%s\n11.5.1\n' "$npm_version" | sort -V | head -1)" != "11.5.1" ]; then
+            echo "::error::npm $npm_version is too old for trusted publishing (need >= 11.5.1)." >&2
+            exit 1
+          fi
       - uses: actions/download-artifact@v8
         with:
           pattern: binary-*
@@ -256,20 +265,17 @@ jobs:
         with:
           name: npm-packages
           path: dist/npm-tarballs/*.tgz
-      # Launch gate: set the NPM_PUBLISH repo variable to 'true' (and the
-      # NPM_TOKEN secret) to publish on tag pushes. Once publishing is
-      # requested, a missing token is a hard failure.
+      # Launch gate: set the NPM_PUBLISH repo variable to 'true' to publish on
+      # tag pushes. Auth is trusted publishing (OIDC via id-token: write) — no
+      # npm token exists; every package must have this repo + workflow
+      # registered as a trusted publisher on npmjs.com, and provenance is
+      # attested automatically.
       - name: Publish npm packages
         if: ${{ (github.event_name == 'push' && vars.NPM_PUBLISH == 'true') || (github.event_name == 'workflow_dispatch' && inputs.publish_npm) }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           set -euo pipefail
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::error::npm publishing was requested but the NPM_TOKEN secret is not configured." >&2
-            exit 1
-          fi
           for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli dairo; do
             if [ "$pkg" = "dairo" ]; then
               name="dairo"
@@ -280,7 +286,7 @@ jobs:
               echo "$name@$VERSION is already published; leaving it untouched."
               continue
             fi
-            npm publish "dist/npm/$pkg" --access public --provenance
+            npm publish "dist/npm/$pkg" --access public
           done
 
   homebrew:
