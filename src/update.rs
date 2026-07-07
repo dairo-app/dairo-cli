@@ -60,6 +60,25 @@ pub async fn run(args: UpdateArgs, format: OutputFormat) -> Result<()> {
 }
 
 async fn run_update(force: bool, format: OutputFormat) -> Result<UpdateOutcome> {
+    if let Some(installed_path) = current_exe_path() {
+        if is_homebrew_cellar_path(&installed_path) {
+            if format != OutputFormat::Json {
+                println!("Current version: {CURRENT_VERSION}");
+                println!("Dairo was installed with Homebrew.");
+                println!("Update with:");
+                println!("  brew update && brew upgrade dairo");
+            }
+            return Ok(UpdateOutcome {
+                current: CURRENT_VERSION.to_string(),
+                latest: CURRENT_VERSION.to_string(),
+                updated: false,
+                asset: None,
+                installed_path: Some(installed_path),
+                reason: Some("managed_by_homebrew"),
+            });
+        }
+    }
+
     let client = http_client()?;
     let release = fetch_latest_release(&client).await?;
     let current = normalized_version(CURRENT_VERSION)?;
@@ -117,7 +136,7 @@ async fn run_update(force: bool, format: OutputFormat) -> Result<UpdateOutcome> 
     self_replace::self_replace(&extracted).context(
         "failed to replace the current dairo binary; check permissions for the installed executable",
     )?;
-    let installed_path = std::env::current_exe().ok();
+    let installed_path = current_exe_path();
 
     if format != OutputFormat::Json {
         println!("Dairo CLI updated to {}", release.version);
@@ -148,6 +167,22 @@ fn print_outcome(outcome: &UpdateOutcome, format: OutputFormat) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&payload)?);
     }
     Ok(())
+}
+
+fn current_exe_path() -> Option<PathBuf> {
+    std::env::current_exe().ok()
+}
+
+fn is_homebrew_cellar_path(path: &Path) -> bool {
+    let mut previous_was_cellar = false;
+    for component in path.components() {
+        let name = component.as_os_str();
+        if previous_was_cellar && name == OsStr::new("dairo") {
+            return true;
+        }
+        previous_was_cellar = name == OsStr::new("Cellar");
+    }
+    false
 }
 
 fn http_client() -> Result<reqwest::Client> {
@@ -420,5 +455,21 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  dairo-aarch64-
             normalized_version("0.0.1").unwrap(),
             normalized_version("v0.0.1").unwrap()
         );
+    }
+
+    #[test]
+    fn detects_homebrew_cellar_installs() {
+        assert!(is_homebrew_cellar_path(Path::new(
+            "/opt/homebrew/Cellar/dairo/0.0.3/bin/dairo"
+        )));
+        assert!(is_homebrew_cellar_path(Path::new(
+            "/home/linuxbrew/.linuxbrew/Cellar/dairo/0.0.3/bin/dairo"
+        )));
+        assert!(!is_homebrew_cellar_path(Path::new(
+            "/Users/luka/.dairo/bin/dairo"
+        )));
+        assert!(!is_homebrew_cellar_path(Path::new(
+            "/opt/homebrew/bin/dairo"
+        )));
     }
 }
