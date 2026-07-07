@@ -479,9 +479,7 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  dairo-aarch64-
         assert!(is_homebrew_cellar_path(Path::new(
             "/opt/homebrew/bin/dairo"
         )));
-        assert!(is_homebrew_cellar_path(Path::new(
-            "/usr/local/bin/dairo"
-        )));
+        assert!(is_homebrew_cellar_path(Path::new("/usr/local/bin/dairo")));
         assert!(is_homebrew_cellar_path(Path::new(
             "/home/linuxbrew/.linuxbrew/bin/dairo"
         )));

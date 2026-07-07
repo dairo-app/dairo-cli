@@ -40,6 +40,9 @@ function previousTag() {
 const previous = previousTag();
 const range = previous ? `${previous}..HEAD` : "HEAD";
 const commitLog = git(["log", "--pretty=format:%h %s", "--max-count=80", range]);
+// Commit bodies usually carry the user-facing detail that subjects compress
+// away; cap the total so a huge range cannot blow the prompt.
+const commitBodies = git(["log", "--pretty=format:%h %s%n%b", "--max-count=40", range]).slice(0, 12000);
 const diffStat = git(["diff", "--stat", range]);
 const nameStatus = git(["diff", "--name-status", range]);
 
@@ -78,10 +81,10 @@ function normalizeList(value) {
     .slice(0, 8);
 }
 
-function renderList(items, empty = "No notable changes.") {
-  const list = normalizeList(items);
-  if (!list.length) return `- ${empty}\n`;
-  return list.map((item) => `- ${item}`).join("\n") + "\n";
+function renderList(items) {
+  return normalizeList(items)
+    .map((item) => `- ${item}`)
+    .join("\n");
 }
 
 function renderNotes(data) {
@@ -92,6 +95,21 @@ function renderNotes(data) {
     fixed: normalizeList(data?.fixed),
     security: normalizeList(data?.security),
   };
+
+  const sections = [
+    ["Added", notes.added],
+    ["Changed", notes.changed],
+    ["Fixed", notes.fixed],
+    ["Security", notes.security],
+  ].filter(([, items]) => items.length);
+
+  const changeBlocks = sections.length
+    ? sections.flatMap(([title, items]) => [`### ${title}`, "", renderList(items), ""])
+    : ["Maintenance release: internal build and release-pipeline work only, no user-facing changes.", ""];
+
+  const highlightBlock = notes.highlights.length
+    ? renderList(notes.highlights)
+    : "- Maintenance release with no user-facing changes.";
 
   return [
     `# Dairo CLI ${releaseLabel}`,
@@ -112,35 +130,21 @@ function renderNotes(data) {
     "irm https://dairo.app/install.ps1 | iex",
     "```",
     "",
-    "Verify:",
+    "Homebrew:",
     "",
     "```sh",
-    "dairo --version",
-    "dairo doctor",
+    "brew install dairo-app/tap/dairo",
     "```",
+    "",
+    "Already installed? `dairo update` (or `brew upgrade dairo`). Verify with `dairo --version` and `dairo doctor`.",
     "",
     "## Highlights",
     "",
-    renderList(notes.highlights).trimEnd(),
+    highlightBlock,
     "",
     "## What Changed",
     "",
-    "### Added",
-    "",
-    renderList(notes.added).trimEnd(),
-    "",
-    "### Changed",
-    "",
-    renderList(notes.changed).trimEnd(),
-    "",
-    "### Fixed",
-    "",
-    renderList(notes.fixed).trimEnd(),
-    "",
-    "### Security",
-    "",
-    renderList(notes.security, "No security changes in this release.").trimEnd(),
-    "",
+    ...changeBlocks,
     "## Compatibility",
     "",
     "- Supports macOS, Linux, and Windows on the published architectures.",
@@ -171,16 +175,21 @@ async function generateWithVertex() {
   const endpoint = `https://${host}/v1/projects/${project}/locations/${location}/publishers/google/models/${model}:generateContent`;
   const prompt = [
     `Summarize Dairo CLI ${releaseLabel} changes as JSON for release notes.`,
+    "The audience is end users of the `dairo` command-line tool, not maintainers of this repository.",
     "Use only the provided git data. Do not invent features.",
-    "Prefer user-facing wording over internal implementation details.",
-    "Keep each bullet concise.",
-    "Mention breaking changes under changed.",
-    "Mention auth, secret handling, TLS, permissions, or dependency security fixes under security.",
+    "Only include changes a CLI user would notice: new or changed commands and flags, behavior, output, installation, or self-update.",
+    "Internal-only work (CI workflows, release pipeline, refactors, tests, docs tooling) must NOT appear in highlights, added, changed, or fixed. If every change in the range is internal, return empty arrays for all fields.",
+    "Keep each bullet concise and written for someone running the CLI.",
+    "Mention breaking changes under changed, prefixed with 'Breaking:'.",
+    "Use security only for fixes that affect users: credential handling, TLS, permissions of files the CLI writes, or vulnerable dependency upgrades in the shipped binary.",
     "",
     previous ? `Previous tag: ${previous}` : "Previous tag: none; this is the first release.",
     "",
     "Commit log:",
     commitLog || "(none)",
+    "",
+    "Commit messages with bodies:",
+    commitBodies || "(none)",
     "",
     "Diff stat:",
     diffStat || "(none)",

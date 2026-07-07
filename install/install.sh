@@ -1,10 +1,15 @@
 #!/usr/bin/env sh
 set -eu
 
-REPO="dairo-app/dairo-cli"
 VERSION="${DAIRO_CLI_VERSION:-latest}"
 INSTALL_DIR="${DAIRO_INSTALL_DIR:-$HOME/.dairo/bin}"
 BASE_URL="${DAIRO_DOWNLOAD_BASE_URL:-https://dairo.app/downloads/cli}"
+
+# Release tags are v-prefixed; accept both "0.1.0" and "v0.1.0".
+case "$VERSION" in
+  latest|v*) ;;
+  *) VERSION="v$VERSION" ;;
+esac
 
 shell_profile() {
   shell_name="$(basename "${SHELL:-}")"
@@ -105,9 +110,8 @@ case "$platform-$cpu" in
 esac
 
 asset="dairo-$target.tar.gz"
-version_path="$VERSION"
-url="$BASE_URL/$version_path/$asset"
-checksums_url="$BASE_URL/$version_path/checksums.txt"
+url="$BASE_URL/$VERSION/$asset"
+checksums_url="$BASE_URL/$VERSION/checksums.txt"
 
 tmp="$(mktemp -d)"
 cleanup() { rm -rf "$tmp"; }
@@ -115,11 +119,11 @@ trap cleanup EXIT
 
 echo "Downloading Dairo CLI $VERSION for $target..."
 if command -v curl >/dev/null 2>&1; then
-  curl -fsSL "$url" -o "$tmp/$asset"
-  curl -fsSL "$checksums_url" -o "$tmp/checksums.txt"
+  curl --proto '=https' --tlsv1.2 --retry 3 -fsSL "$url" -o "$tmp/$asset"
+  curl --proto '=https' --tlsv1.2 --retry 3 -fsSL "$checksums_url" -o "$tmp/checksums.txt"
 elif command -v wget >/dev/null 2>&1; then
-  wget -qO "$tmp/$asset" "$url"
-  wget -qO "$tmp/checksums.txt" "$checksums_url"
+  wget --https-only --tries=3 -qO "$tmp/$asset" "$url"
+  wget --https-only --tries=3 -qO "$tmp/checksums.txt" "$checksums_url"
 else
   echo "curl or wget is required" >&2
   exit 1
@@ -130,16 +134,30 @@ if [ -z "$expected" ]; then
   echo "Could not find checksum for $asset" >&2
   exit 1
 fi
-actual="$(shasum -a 256 "$tmp/$asset" | awk '{print $1}')"
+if command -v sha256sum >/dev/null 2>&1; then
+  actual="$(sha256sum "$tmp/$asset" | awk '{print $1}')"
+elif command -v shasum >/dev/null 2>&1; then
+  actual="$(shasum -a 256 "$tmp/$asset" | awk '{print $1}')"
+else
+  echo "sha256sum or shasum is required to verify the download" >&2
+  exit 1
+fi
 if [ "$actual" != "$expected" ]; then
   echo "Checksum mismatch for $asset" >&2
   exit 1
 fi
 
 tar -xzf "$tmp/$asset" -C "$tmp"
+
+# Prove the downloaded binary runs before touching any existing install.
+if ! "$tmp/dairo" --version >/dev/null 2>&1; then
+  echo "Downloaded dairo binary failed to run on this system; leaving any existing install untouched." >&2
+  exit 1
+fi
+
 mkdir -p "$INSTALL_DIR"
 install -m 0755 "$tmp/dairo" "$INSTALL_DIR/dairo"
 
-echo "Dairo CLI installed to $INSTALL_DIR/dairo"
+echo "Dairo CLI installed to $INSTALL_DIR/dairo (checksum verified)"
 add_to_path_prompt
 "$INSTALL_DIR/dairo" --version

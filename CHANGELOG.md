@@ -2,7 +2,37 @@
 
 All notable Dairo CLI changes are tracked here.
 
-## Unreleased
+## 0.0.7 - 2026-07-07
+
+### Changed
+
+- Release tags are now v-prefixed (`v0.0.7`). Bare versions keep working
+  everywhere a version is accepted: the installers and
+  `dairo.app/downloads/cli/{version}/` normalize `0.0.7` to `v0.0.7`.
+- Installer hardening: downloads pin HTTPS + TLS 1.2 with retries, checksum
+  verification works on systems with only `sha256sum` (minimal Linux) or only
+  `shasum` (macOS), and the downloaded binary must execute successfully before
+  it replaces an existing install. The Windows installer now persists the
+  install directory on the user PATH and enforces TLS 1.2 on Windows
+  PowerShell 5.1.
+- Release pipeline: missing publish credentials now fail the release instead
+  of silently skipping (npm publishing stays behind an explicit `NPM_PUBLISH`
+  launch gate until the npm org token exists), every built binary is smoke
+  tested (`--version` must match Cargo.toml) before upload, release notes
+  generation is mandatory, and workflow token permissions are scoped per job.
+
+## 0.0.2 - 0.0.6 - 2026-07-06/07
+
+- `dairo update`: in-place self-update with checksum verification; detects
+  Homebrew-managed installs (including bin shims) and defers to
+  `brew upgrade dairo` instead of overwriting them.
+- Installer: simplified PATH guidance with an interactive opt-in prompt.
+- Releases are published by the dairo bot GitHub App; the Homebrew tap
+  (`dairo-app/homebrew-tap`) is updated automatically on release.
+
+## 0.0.1 - 2026-07-06
+
+Everything below (previously tracked as Unreleased) shipped in 0.0.1.
 
 ### Channel-agnostic API rename (breaking)
 

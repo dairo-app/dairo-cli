@@ -1,10 +1,13 @@
 name: Release CLI
 
+# Release tags are always v-prefixed (vX.Y.Z). The tag version must match
+# Cargo.toml or the release job fails. npm publishing is launch-gated by the
+# NPM_PUBLISH repo variable (plus the NPM_TOKEN secret); everything else is
+# mandatory — a missing secret fails the release instead of silently skipping.
 on:
   push:
     tags:
       - 'v*.*.*'
-      - '*.*.*'
   workflow_dispatch:
     inputs:
       version:
@@ -12,19 +15,18 @@ on:
         required: false
         type: string
       publish_npm:
-        description: 'Publish npm packages when NPM_TOKEN is configured.'
+        description: 'Publish npm packages (requires NPM_TOKEN).'
         required: false
         default: false
         type: boolean
       update_homebrew:
-        description: 'Update dairo-app/homebrew-tap when HOMEBREW_TAP_TOKEN is configured.'
+        description: 'Update dairo-app/homebrew-tap (requires HOMEBREW_TAP_TOKEN).'
         required: false
         default: false
         type: boolean
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
   build:
@@ -65,6 +67,22 @@ jobs:
           mkdir -p dist/binaries/${{ matrix.target }}
           cp target/${{ matrix.target }}/release/${{ matrix.exe }} dist/binaries/${{ matrix.target }}/${{ matrix.exe }}
           if [ "${{ runner.os }}" != "Windows" ]; then chmod +x dist/binaries/${{ matrix.target }}/${{ matrix.exe }}; fi
+      # Every runner in the matrix is native for its target, so the staged
+      # binary must run and report the Cargo.toml version before we ship it.
+      - name: Smoke test binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo_version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          output="$(dist/binaries/${{ matrix.target }}/${{ matrix.exe }} --version)"
+          echo "$output"
+          case "$output" in
+            *"$cargo_version"*) ;;
+            *)
+              echo "::error::--version reported '$output', expected Cargo.toml version $cargo_version" >&2
+              exit 1
+              ;;
+          esac
       - uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.target }}
@@ -75,6 +93,9 @@ jobs:
     name: Create GitHub release artifacts
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       version: ${{ steps.meta.outputs.version }}
       tag: ${{ steps.meta.outputs.tag }}
@@ -96,13 +117,15 @@ jobs:
             cp -R "$dir"/* "dist/binaries/$target/"
           done
       - id: meta
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
             TAG="${GITHUB_REF_NAME}"
             VERSION="${TAG#v}"
-          elif [ -n "${{ inputs.version }}" ]; then
-            VERSION="${{ inputs.version }}"
+          elif [ -n "${INPUT_VERSION:-}" ]; then
+            VERSION="${INPUT_VERSION#v}"
             TAG="v$VERSION"
           else
             VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
@@ -122,7 +145,6 @@ jobs:
       - name: Create archives and checksums
         run: |
           set -euo pipefail
-          VERSION='${{ steps.meta.outputs.version }}'
           mkdir -p dist/release
           for target_dir in dist/binaries/*; do
             target="${target_dir##*/}"
@@ -143,7 +165,6 @@ jobs:
           path: dist/release/*
       - id: gcp-auth
         name: Authenticate to Google Cloud
-        if: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_RELEASE_NOTES_SERVICE_ACCOUNT != '' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -158,8 +179,8 @@ jobs:
           RELEASE_VERSION: ${{ steps.meta.outputs.version }}
           RELEASE_NOTES_FILE: release-notes.md
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-          GCP_LOCATION: ${{ vars.GCP_LOCATION || 'us-central1' }}
-          VERTEX_MODEL: ${{ vars.VERTEX_MODEL || 'gemini-2.5-flash' }}
+          GCP_LOCATION: ${{ vars.GCP_LOCATION || 'eu' }}
+          VERTEX_MODEL: ${{ vars.VERTEX_MODEL || 'gemini-3.5-flash' }}
           VERTEX_ACCESS_TOKEN: ${{ steps.gcp-auth.outputs.access_token }}
         run: node scripts/generate-release-notes.mjs
       - id: release-app-token
@@ -187,11 +208,12 @@ jobs:
           fi
 
   npm:
-    name: Build and optionally publish npm packages
+    name: Build npm packages
     needs: [build, release]
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -227,24 +249,35 @@ jobs:
         with:
           name: npm-packages
           path: dist/npm-tarballs/*.tgz
+      # Launch gate: set the NPM_PUBLISH repo variable to 'true' (and the
+      # NPM_TOKEN secret) to publish on tag pushes. Once publishing is
+      # requested, a missing token is a hard failure.
       - name: Publish npm packages
-        if: ${{ github.event_name == 'push' || inputs.publish_npm }}
+        if: ${{ (github.event_name == 'push' && vars.NPM_PUBLISH == 'true') || (github.event_name == 'workflow_dispatch' && inputs.publish_npm) }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
         run: |
           set -euo pipefail
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "NPM_TOKEN is not configured; skipping npm publish."
-            exit 0
+            echo "::error::npm publishing was requested but the NPM_TOKEN secret is not configured." >&2
+            exit 1
           fi
           for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli; do
-            npm publish "dist/npm/$pkg" --access public
+            name="@dairo/$pkg"
+            if [ "$(npm view "$name@$VERSION" version 2>/dev/null || true)" = "$VERSION" ]; then
+              echo "$name@$VERSION is already published; leaving it untouched."
+              continue
+            fi
+            npm publish "dist/npm/$pkg" --access public --provenance
           done
 
   homebrew:
     name: Update Homebrew tap
     needs: release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: ${{ github.event_name == 'push' || inputs.update_homebrew }}
     steps:
       - uses: actions/checkout@v7
@@ -260,8 +293,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "HOMEBREW_TAP_TOKEN is not configured; skipping Homebrew tap update."
-            exit 0
+            echo "::error::HOMEBREW_TAP_TOKEN is not configured; the Homebrew tap cannot be updated." >&2
+            exit 1
           fi
           gh repo clone dairo-app/homebrew-tap tap
           cd tap
@@ -271,5 +304,9 @@ jobs:
           git config user.name "dairo-release-bot"
           git config user.email "release-bot@dairo.app"
           git add Formula/dairo.rb
-          git commit -m "Update Dairo CLI to $TAG" || exit 0
-          git push
+          if git diff --cached --quiet; then
+            echo "Formula already up to date for $TAG."
+          else
+            git commit -m "Update Dairo CLI to $TAG"
+            git push
+          fi

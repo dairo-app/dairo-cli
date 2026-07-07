@@ -9,6 +9,12 @@ if (-not $Version) { $Version = "latest" }
 if (-not $InstallDir) { $InstallDir = Join-Path $env:USERPROFILE ".dairo\bin" }
 if (-not $BaseUrl) { $BaseUrl = "https://dairo.app/downloads/cli" }
 
+# Release tags are v-prefixed; accept both "0.1.0" and "v0.1.0".
+if ($Version -ne "latest" -and $Version -notmatch '^v') { $Version = "v$Version" }
+
+# Windows PowerShell 5.1 defaults can exclude TLS 1.2.
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
 $arch = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant()
 switch ($arch) {
   "x64" { $target = "x86_64-pc-windows-msvc" }
@@ -34,11 +40,20 @@ try {
   if ($actual -ne $expected) { throw "Checksum mismatch for $asset" }
 
   Expand-Archive -Path $archive -DestinationPath $tmp -Force
+
+  # Prove the downloaded binary runs before touching any existing install.
+  $staged = Join-Path $tmp "dairo.exe"
+  & $staged --version | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "Downloaded dairo.exe failed to run; leaving any existing install untouched." }
+
   New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-  Copy-Item -Force (Join-Path $tmp "dairo.exe") (Join-Path $InstallDir "dairo.exe")
-  Write-Host "Dairo CLI installed to $InstallDir\dairo.exe"
-  if (($env:PATH -split ';') -notcontains $InstallDir) {
-    Write-Host "Add this directory to PATH: $InstallDir"
+  Copy-Item -Force $staged (Join-Path $InstallDir "dairo.exe")
+  Write-Host "Dairo CLI installed to $InstallDir\dairo.exe (checksum verified)"
+
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  if (($userPath -split ';' | Where-Object { $_ }) -notcontains $InstallDir) {
+    [Environment]::SetEnvironmentVariable("Path", "$userPath;$InstallDir", "User")
+    Write-Host "Added $InstallDir to your user PATH. Open a new terminal to run 'dairo' anywhere."
   }
   & (Join-Path $InstallDir "dairo.exe") --version
 }
