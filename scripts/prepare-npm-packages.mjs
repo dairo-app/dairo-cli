@@ -46,7 +46,9 @@ for (const platform of platforms) {
 }
 
 // The launcher ships twice with identical contents: `${npmScope}/cli` and the
-// bare `dairo` name, so both `npx dairo` and the scoped install work.
+// unscoped `dairo-cli` name (`npx dairo-cli`). The bare `dairo` name is
+// blocked by npm's typosquat guard (too similar to dagre/tjiro) and can only
+// be granted by npm support.
 const launcherScript = `#!/usr/bin/env node
 const { spawnSync } = require('node:child_process');
 const { existsSync } = require('node:fs');
@@ -71,7 +73,7 @@ let packageJson;
 try {
   packageJson = require.resolve(pkg + '/package.json');
 } catch (_) {
-  console.error('Dairo CLI native package ' + pkg + ' was not installed. Try: npm install -g dairo --include=optional');
+  console.error('Dairo CLI native package ' + pkg + ' was not installed. Try: npm install -g @dairo-app/cli --include=optional');
   process.exit(1);
 }
 
@@ -92,7 +94,7 @@ process.exit(result.status ?? 0);
 
 for (const launcher of [
   { dir: 'cli', name: `${npmScope}/cli` },
-  { dir: 'dairo', name: 'dairo' },
+  { dir: 'dairo-cli', name: 'dairo-cli' },
 ]) {
   const rootDir = join(packageRoot, launcher.dir);
   mkdirSync(join(rootDir, 'bin'), { recursive: true });

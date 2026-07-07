@@ -7,7 +7,7 @@ The official Dairo command-line interface.
 Dairo ships native binaries for macOS, Linux (arm64 and x64), and Windows (x64). The CLI requires outbound HTTPS access to the Dairo API at runtime.
 
 ```sh
-npm install -g dairo
+npm install -g @dairo-app/cli   # or: npx dairo-cli
 brew install dairo-app/tap/dairo
 curl -fsSL https://dairo.app/install.sh | sh
 ```

@@ -276,9 +276,9 @@ jobs:
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           set -euo pipefail
-          for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli dairo; do
-            if [ "$pkg" = "dairo" ]; then
-              name="dairo"
+          for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli dairo-cli; do
+            if [ "$pkg" = "dairo-cli" ]; then
+              name="dairo-cli"
             else
               name="@dairo-app/$pkg"
             fi
