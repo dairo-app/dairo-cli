@@ -116,6 +116,9 @@ jobs:
             mkdir -p "dist/binaries/$target"
             cp -R "$dir"/* "dist/binaries/$target/"
           done
+          # actions/download-artifact strips file modes; restore the execute
+          # bit so the published tarballs contain runnable binaries.
+          find dist/binaries -type f -name dairo -exec chmod 0755 {} +
       - id: meta
         env:
           INPUT_VERSION: ${{ inputs.version }}
@@ -154,6 +157,10 @@ jobs:
             else
               archive="dairo-${target}.tar.gz"
               tar -C "$target_dir" -czf "dist/release/$archive" dairo
+              if ! tar -tvzf "dist/release/$archive" | grep -q '^-rwx'; then
+                echo "::error::$archive contains a non-executable dairo binary" >&2
+                exit 1
+              fi
             fi
           done
           cp install/install.sh dist/release/dairo-install.sh
