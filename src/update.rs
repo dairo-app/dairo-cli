@@ -174,6 +174,14 @@ fn current_exe_path() -> Option<PathBuf> {
 }
 
 fn is_homebrew_cellar_path(path: &Path) -> bool {
+    let path_string = path.to_string_lossy();
+    if path_string == "/opt/homebrew/bin/dairo"
+        || path_string == "/usr/local/bin/dairo"
+        || path_string == "/home/linuxbrew/.linuxbrew/bin/dairo"
+    {
+        return true;
+    }
+
     let mut previous_was_cellar = false;
     for component in path.components() {
         let name = component.as_os_str();
@@ -468,8 +476,14 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  dairo-aarch64-
         assert!(!is_homebrew_cellar_path(Path::new(
             "/Users/luka/.dairo/bin/dairo"
         )));
-        assert!(!is_homebrew_cellar_path(Path::new(
+        assert!(is_homebrew_cellar_path(Path::new(
             "/opt/homebrew/bin/dairo"
+        )));
+        assert!(is_homebrew_cellar_path(Path::new(
+            "/usr/local/bin/dairo"
+        )));
+        assert!(is_homebrew_cellar_path(Path::new(
+            "/home/linuxbrew/.linuxbrew/bin/dairo"
         )));
     }
 }
