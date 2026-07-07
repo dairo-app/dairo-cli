@@ -136,6 +136,14 @@ asset="dairo-$target.tar.gz"
 url="$BASE_URL/$VERSION/$asset"
 checksums_url="$BASE_URL/$VERSION/checksums.txt"
 
+# Minimal container images (e.g. amazonlinux:2023) ship without tar/gzip.
+for tool in tar gzip; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "$tool is required to install Dairo CLI (e.g. dnf install -y tar gzip, or apt-get install -y $tool)" >&2
+    exit 1
+  fi
+done
+
 tmp="$(mktemp -d)"
 cleanup() { rm -rf "$tmp"; }
 trap cleanup EXIT
