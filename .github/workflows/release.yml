@@ -265,6 +265,7 @@ jobs:
           fi
           gh repo clone dairo-app/homebrew-tap tap
           cd tap
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/dairo-app/homebrew-tap.git"
           mkdir -p Formula
           python3 ../scripts/render-homebrew-formula.py "$VERSION" "$TAG" ../dist/release/checksums.txt > Formula/dairo.rb
           git config user.name "dairo-release-bot"
