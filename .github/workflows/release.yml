@@ -297,7 +297,10 @@ jobs:
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           set -euo pipefail
-          for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-linux-x64-musl cli-linux-arm64-musl cli-win32-x64 cli-win32-arm64 cli dairo-cli; do
+          # New packages (no trusted publisher yet) sit at the end of the
+          # list: their unavoidable manual first publish can then never
+          # block the packages that already publish via OIDC.
+          for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli dairo-cli cli-linux-x64-musl cli-linux-arm64-musl cli-win32-arm64; do
             if [ "$pkg" = "dairo-cli" ]; then
               name="dairo-cli"
             else
