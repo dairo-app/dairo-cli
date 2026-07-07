@@ -41,18 +41,36 @@ jobs:
           - os: macos-15-intel
             target: x86_64-apple-darwin
             exe: dairo
-          - os: ubuntu-latest
+          # gnu builds run on ubuntu-22.04 on purpose: the binary's glibc
+          # floor is the builder's glibc (2.35), which covers Ubuntu 22.04+,
+          # Debian 12+, and RHEL 9+. Older or glibc-less distros (Amazon
+          # Linux, Alpine) are served by the static musl builds.
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             exe: dairo
-          - os: ubuntu-24.04-arm
+          - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             exe: dairo
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            exe: dairo
+            setup: sudo apt-get update && sudo apt-get install -y musl-tools
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            exe: dairo
+            setup: sudo apt-get update && sudo apt-get install -y musl-tools
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            exe: dairo.exe
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
             exe: dairo.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+      - name: Install target toolchain prerequisites
+        if: ${{ matrix.setup }}
+        run: ${{ matrix.setup }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -279,7 +297,7 @@ jobs:
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           set -euo pipefail
-          for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli dairo-cli; do
+          for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-linux-x64-musl cli-linux-arm64-musl cli-win32-x64 cli-win32-arm64 cli dairo-cli; do
             if [ "$pkg" = "dairo-cli" ]; then
               name="dairo-cli"
             else

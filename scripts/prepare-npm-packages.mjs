@@ -10,12 +10,19 @@ const binaryRoot = resolve(process.env.DAIRO_BINARY_ROOT || join(repoRoot, 'dist
 const packageRoot = resolve(process.env.DAIRO_NPM_PACKAGE_ROOT || join(repoRoot, 'dist', 'npm'));
 const npmScope = process.env.DAIRO_NPM_SCOPE || '@dairo-app';
 
+// The gnu packages declare libc so npm skips them on musl systems (Alpine).
+// The musl packages are static binaries that run on any Linux, so they stay
+// libc-unconstrained: glibc systems install both flavors and the launcher
+// picks gnu when the runtime glibc is new enough, musl otherwise.
 const platforms = [
   { target: 'aarch64-apple-darwin', npm: 'cli-darwin-arm64', os: 'darwin', cpu: 'arm64', exe: 'dairo' },
   { target: 'x86_64-apple-darwin', npm: 'cli-darwin-x64', os: 'darwin', cpu: 'x64', exe: 'dairo' },
-  { target: 'x86_64-unknown-linux-gnu', npm: 'cli-linux-x64', os: 'linux', cpu: 'x64', exe: 'dairo' },
-  { target: 'aarch64-unknown-linux-gnu', npm: 'cli-linux-arm64', os: 'linux', cpu: 'arm64', exe: 'dairo' },
+  { target: 'x86_64-unknown-linux-gnu', npm: 'cli-linux-x64', os: 'linux', cpu: 'x64', libc: ['glibc'], exe: 'dairo' },
+  { target: 'aarch64-unknown-linux-gnu', npm: 'cli-linux-arm64', os: 'linux', cpu: 'arm64', libc: ['glibc'], exe: 'dairo' },
+  { target: 'x86_64-unknown-linux-musl', npm: 'cli-linux-x64-musl', os: 'linux', cpu: 'x64', exe: 'dairo' },
+  { target: 'aarch64-unknown-linux-musl', npm: 'cli-linux-arm64-musl', os: 'linux', cpu: 'arm64', exe: 'dairo' },
   { target: 'x86_64-pc-windows-msvc', npm: 'cli-win32-x64', os: 'win32', cpu: 'x64', exe: 'dairo.exe' },
+  { target: 'aarch64-pc-windows-msvc', npm: 'cli-win32-arm64', os: 'win32', cpu: 'arm64', exe: 'dairo.exe' },
 ];
 
 rmSync(packageRoot, { recursive: true, force: true });
@@ -40,6 +47,7 @@ for (const platform of platforms) {
     repository: { type: 'git', url: 'git+https://github.com/dairo-app/dairo-cli.git' },
     os: [platform.os],
     cpu: [platform.cpu],
+    ...(platform.libc ? { libc: platform.libc } : {}),
     files: ['bin'],
   }, null, 2) + '\n');
   writeFileSync(join(dir, 'README.md'), `# ${packageName}\n\nNative Dairo CLI binary for \`${platform.target}\`. Install \`${npmScope}/cli\` instead of this package directly.\n`);
@@ -57,12 +65,33 @@ const { join } = require('node:path');
 const platformPackages = {
   'darwin-arm64': '${npmScope}/cli-darwin-arm64',
   'darwin-x64': '${npmScope}/cli-darwin-x64',
-  'linux-x64': '${npmScope}/cli-linux-x64',
-  'linux-arm64': '${npmScope}/cli-linux-arm64',
+  'linux-x64-glibc': '${npmScope}/cli-linux-x64',
+  'linux-arm64-glibc': '${npmScope}/cli-linux-arm64',
+  'linux-x64-musl': '${npmScope}/cli-linux-x64-musl',
+  'linux-arm64-musl': '${npmScope}/cli-linux-arm64-musl',
   'win32-x64': '${npmScope}/cli-win32-x64',
+  'win32-arm64': '${npmScope}/cli-win32-arm64',
 };
 
-const key = process.platform + '-' + process.arch;
+// The gnu binaries are built against glibc 2.35 (ubuntu-22.04 builders).
+// On musl systems and on older-glibc distros (Amazon Linux, older Debian)
+// the static musl binary is the one that runs.
+const MIN_GLIBC = [2, 35];
+
+function linuxFlavor() {
+  let glibc = null;
+  try {
+    glibc = process.report.getReport().header.glibcVersionRuntime || null;
+  } catch (_) {}
+  if (!glibc) return 'musl';
+  const [major = 0, minor = 0] = glibc.split('.').map((n) => parseInt(n, 10) || 0);
+  if (major > MIN_GLIBC[0] || (major === MIN_GLIBC[0] && minor >= MIN_GLIBC[1])) return 'glibc';
+  return 'musl';
+}
+
+const key = process.platform === 'linux'
+  ? 'linux-' + process.arch + '-' + linuxFlavor()
+  : process.platform + '-' + process.arch;
 const pkg = platformPackages[key];
 if (!pkg) {
   console.error('Dairo CLI is not available for ' + key + '. Download manually from https://dairo.app/downloads/cli/latest/');

@@ -4,7 +4,7 @@ The official Dairo command-line interface.
 
 ## Installation
 
-Dairo ships native binaries for macOS, Linux (arm64 and x64), and Windows (x64). The CLI requires outbound HTTPS access to the Dairo API at runtime.
+Dairo ships native binaries for macOS (arm64, x64), Linux (arm64, x64 — glibc 2.35+ and static musl builds for Alpine/container distros), and Windows (x64, arm64). The installers and the npm launcher pick the right flavor automatically, including inside Docker containers and agent sandboxes. The CLI requires outbound HTTPS access to the Dairo API at runtime.
 
 ```sh
 npm install -g @dairo-app/cli   # or: npx dairo-cli

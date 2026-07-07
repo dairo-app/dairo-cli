@@ -366,33 +366,55 @@ fn verify_downloaded_binary_version(binary: &Path, expected: &str) -> Result<()>
 }
 
 fn platform_asset() -> Result<PlatformAsset> {
-    platform_asset_for(std::env::consts::OS, std::env::consts::ARCH)
+    // A musl build must self-update to the musl asset (and vice versa);
+    // the libc flavor is a compile-time property of this binary.
+    let env = if cfg!(target_env = "musl") {
+        "musl"
+    } else {
+        "gnu"
+    };
+    platform_asset_for(std::env::consts::OS, std::env::consts::ARCH, env)
 }
 
-fn platform_asset_for(os: &str, arch: &str) -> Result<PlatformAsset> {
-    match (os, arch) {
-        ("macos", "aarch64") => Ok(PlatformAsset {
+fn platform_asset_for(os: &str, arch: &str, env: &str) -> Result<PlatformAsset> {
+    match (os, arch, env) {
+        ("macos", "aarch64", _) => Ok(PlatformAsset {
             name: "dairo-aarch64-apple-darwin.tar.gz",
             binary_name: "dairo",
             kind: ArchiveKind::TarGz,
         }),
-        ("macos", "x86_64") => Ok(PlatformAsset {
+        ("macos", "x86_64", _) => Ok(PlatformAsset {
             name: "dairo-x86_64-apple-darwin.tar.gz",
             binary_name: "dairo",
             kind: ArchiveKind::TarGz,
         }),
-        ("linux", "aarch64") => Ok(PlatformAsset {
+        ("linux", "aarch64", "musl") => Ok(PlatformAsset {
+            name: "dairo-aarch64-unknown-linux-musl.tar.gz",
+            binary_name: "dairo",
+            kind: ArchiveKind::TarGz,
+        }),
+        ("linux", "aarch64", _) => Ok(PlatformAsset {
             name: "dairo-aarch64-unknown-linux-gnu.tar.gz",
             binary_name: "dairo",
             kind: ArchiveKind::TarGz,
         }),
-        ("linux", "x86_64") => Ok(PlatformAsset {
+        ("linux", "x86_64", "musl") => Ok(PlatformAsset {
+            name: "dairo-x86_64-unknown-linux-musl.tar.gz",
+            binary_name: "dairo",
+            kind: ArchiveKind::TarGz,
+        }),
+        ("linux", "x86_64", _) => Ok(PlatformAsset {
             name: "dairo-x86_64-unknown-linux-gnu.tar.gz",
             binary_name: "dairo",
             kind: ArchiveKind::TarGz,
         }),
-        ("windows", "x86_64") => Ok(PlatformAsset {
+        ("windows", "x86_64", _) => Ok(PlatformAsset {
             name: "dairo-x86_64-pc-windows-msvc.zip",
+            binary_name: "dairo.exe",
+            kind: ArchiveKind::Zip,
+        }),
+        ("windows", "aarch64", _) => Ok(PlatformAsset {
+            name: "dairo-aarch64-pc-windows-msvc.zip",
             binary_name: "dairo.exe",
             kind: ArchiveKind::Zip,
         }),
@@ -416,31 +438,45 @@ mod tests {
     #[test]
     fn selects_release_asset_for_supported_platforms() {
         assert_eq!(
-            platform_asset_for("macos", "aarch64").unwrap().name,
+            platform_asset_for("macos", "aarch64", "gnu").unwrap().name,
             "dairo-aarch64-apple-darwin.tar.gz"
         );
         assert_eq!(
-            platform_asset_for("macos", "x86_64").unwrap().name,
+            platform_asset_for("macos", "x86_64", "gnu").unwrap().name,
             "dairo-x86_64-apple-darwin.tar.gz"
         );
         assert_eq!(
-            platform_asset_for("linux", "aarch64").unwrap().name,
+            platform_asset_for("linux", "aarch64", "gnu").unwrap().name,
             "dairo-aarch64-unknown-linux-gnu.tar.gz"
         );
         assert_eq!(
-            platform_asset_for("linux", "x86_64").unwrap().name,
+            platform_asset_for("linux", "x86_64", "gnu").unwrap().name,
             "dairo-x86_64-unknown-linux-gnu.tar.gz"
         );
         assert_eq!(
-            platform_asset_for("windows", "x86_64").unwrap().name,
+            platform_asset_for("linux", "x86_64", "musl").unwrap().name,
+            "dairo-x86_64-unknown-linux-musl.tar.gz"
+        );
+        assert_eq!(
+            platform_asset_for("linux", "aarch64", "musl").unwrap().name,
+            "dairo-aarch64-unknown-linux-musl.tar.gz"
+        );
+        assert_eq!(
+            platform_asset_for("windows", "x86_64", "gnu").unwrap().name,
             "dairo-x86_64-pc-windows-msvc.zip"
+        );
+        assert_eq!(
+            platform_asset_for("windows", "aarch64", "gnu")
+                .unwrap()
+                .name,
+            "dairo-aarch64-pc-windows-msvc.zip"
         );
     }
 
     #[test]
     fn rejects_unsupported_platforms() {
-        assert!(platform_asset_for("windows", "aarch64").is_err());
-        assert!(platform_asset_for("freebsd", "x86_64").is_err());
+        assert!(platform_asset_for("freebsd", "x86_64", "gnu").is_err());
+        assert!(platform_asset_for("linux", "riscv64", "gnu").is_err());
     }
 
     #[test]

@@ -101,11 +101,34 @@ case "$arch" in
   *) echo "Dairo CLI is not available for architecture: $arch" >&2; exit 1 ;;
 esac
 
+# musl systems (Alpine, busybox-based containers) and distros whose glibc is
+# older than the 2.35 the gnu binaries are built against both get the static
+# musl build, which runs on any Linux.
+linux_flavor() {
+  if [ -e /lib/ld-musl-x86_64.so.1 ] || [ -e /lib/ld-musl-aarch64.so.1 ]; then
+    printf 'musl'
+    return
+  fi
+  glibc_version="$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $2}')"
+  if [ -z "$glibc_version" ]; then
+    printf 'musl'
+    return
+  fi
+  glibc_major="${glibc_version%%.*}"
+  glibc_rest="${glibc_version#*.}"
+  glibc_minor="${glibc_rest%%.*}"
+  if [ "$glibc_major" -gt 2 ] 2>/dev/null || { [ "$glibc_major" -eq 2 ] && [ "$glibc_minor" -ge 35 ]; } 2>/dev/null; then
+    printf 'gnu'
+  else
+    printf 'musl'
+  fi
+}
+
 case "$platform-$cpu" in
   darwin-arm64) target="aarch64-apple-darwin" ;;
   darwin-x64) target="x86_64-apple-darwin" ;;
-  linux-arm64) target="aarch64-unknown-linux-gnu" ;;
-  linux-x64) target="x86_64-unknown-linux-gnu" ;;
+  linux-arm64) target="aarch64-unknown-linux-$(linux_flavor)" ;;
+  linux-x64) target="x86_64-unknown-linux-$(linux_flavor)" ;;
   *) echo "Dairo CLI is not available for $platform-$cpu" >&2; exit 1 ;;
 esac
 
@@ -122,8 +145,14 @@ if command -v curl >/dev/null 2>&1; then
   curl --proto '=https' --tlsv1.2 --retry 3 -fsSL "$url" -o "$tmp/$asset"
   curl --proto '=https' --tlsv1.2 --retry 3 -fsSL "$checksums_url" -o "$tmp/checksums.txt"
 elif command -v wget >/dev/null 2>&1; then
-  wget --https-only --tries=3 -qO "$tmp/$asset" "$url"
-  wget --https-only --tries=3 -qO "$tmp/checksums.txt" "$checksums_url"
+  # busybox wget (Alpine base images) does not support the GNU wget flags.
+  if wget --help 2>&1 | grep -q -- --https-only; then
+    wget --https-only --tries=3 -qO "$tmp/$asset" "$url"
+    wget --https-only --tries=3 -qO "$tmp/checksums.txt" "$checksums_url"
+  else
+    wget -qO "$tmp/$asset" "$url"
+    wget -qO "$tmp/checksums.txt" "$checksums_url"
+  fi
 else
   echo "curl or wget is required" >&2
   exit 1

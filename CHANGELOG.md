@@ -2,6 +2,28 @@
 
 All notable Dairo CLI changes are tracked here.
 
+## 0.0.9 - 2026-07-07
+
+### Added
+
+- Static musl Linux builds (x64, arm64) so the CLI runs on Alpine and other
+  container/agent distros, plus native Windows arm64 builds. New release
+  assets `dairo-*-unknown-linux-musl.tar.gz` and
+  `dairo-aarch64-pc-windows-msvc.zip`; new npm packages
+  `@dairo-app/cli-linux-{x64,arm64}-musl` and `@dairo-app/cli-win32-arm64`.
+- install.sh detects musl and old-glibc systems (Amazon Linux, older Debian)
+  and serves the static musl build; it also works with busybox wget on
+  Alpine base images. The npm launcher does the same detection at runtime.
+- install.ps1 supports Windows on ARM.
+
+### Changed
+
+- Linux gnu binaries are now built against glibc 2.35 (was 2.39), so they
+  run on Ubuntu 22.04+, Debian 12+, and RHEL 9+ out of the box. Older
+  distros are served by the musl builds automatically.
+- The self-updater picks the matching libc flavor and supports Windows
+  arm64.
+
 ## 0.0.8 - 2026-07-07
 
 ### Added

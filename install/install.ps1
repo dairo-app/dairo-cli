@@ -18,6 +18,7 @@ if ($Version -ne "latest" -and $Version -notmatch '^v') { $Version = "v$Version"
 $arch = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant()
 switch ($arch) {
   "x64" { $target = "x86_64-pc-windows-msvc" }
+  "arm64" { $target = "aarch64-pc-windows-msvc" }
   default { throw "Dairo CLI is not available for Windows architecture: $arch" }
 }
 
