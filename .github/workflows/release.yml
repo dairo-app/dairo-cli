@@ -227,7 +227,7 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-          scope: '@dairo'
+          scope: '@dairo-app'
       - uses: actions/download-artifact@v8
         with:
           pattern: binary-*
@@ -270,8 +270,12 @@ jobs:
             echo "::error::npm publishing was requested but the NPM_TOKEN secret is not configured." >&2
             exit 1
           fi
-          for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli; do
-            name="@dairo/$pkg"
+          for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli dairo; do
+            if [ "$pkg" = "dairo" ]; then
+              name="dairo"
+            else
+              name="@dairo-app/$pkg"
+            fi
             if [ "$(npm view "$name@$VERSION" version 2>/dev/null || true)" = "$VERSION" ]; then
               echo "$name@$VERSION is already published; leaving it untouched."
               continue

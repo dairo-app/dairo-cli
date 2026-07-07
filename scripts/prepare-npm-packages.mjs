@@ -8,7 +8,7 @@ const repoRoot = resolve(__dirname, '..');
 const version = process.env.DAIRO_CLI_VERSION || readCargoVersion(join(repoRoot, 'Cargo.toml'));
 const binaryRoot = resolve(process.env.DAIRO_BINARY_ROOT || join(repoRoot, 'dist', 'binaries'));
 const packageRoot = resolve(process.env.DAIRO_NPM_PACKAGE_ROOT || join(repoRoot, 'dist', 'npm'));
-const npmScope = process.env.DAIRO_NPM_SCOPE || '@dairo';
+const npmScope = process.env.DAIRO_NPM_SCOPE || '@dairo-app';
 
 const platforms = [
   { target: 'aarch64-apple-darwin', npm: 'cli-darwin-arm64', os: 'darwin', cpu: 'arm64', exe: 'dairo' },
@@ -45,30 +45,19 @@ for (const platform of platforms) {
   writeFileSync(join(dir, 'README.md'), `# ${packageName}\n\nNative Dairo CLI binary for \`${platform.target}\`. Install \`${npmScope}/cli\` instead of this package directly.\n`);
 }
 
-const rootDir = join(packageRoot, 'cli');
-mkdirSync(join(rootDir, 'bin'), { recursive: true });
-writeFileSync(join(rootDir, 'package.json'), JSON.stringify({
-  name: `${npmScope}/cli`,
-  version,
-  description: 'Official Dairo command-line interface',
-  license: 'MIT',
-  repository: { type: 'git', url: 'git+https://github.com/dairo-app/dairo-cli.git' },
-  homepage: 'https://dairo.app',
-  bin: { dairo: './bin/dairo.js' },
-  files: ['bin', 'README.md'],
-  optionalDependencies,
-}, null, 2) + '\n');
-writeFileSync(join(rootDir, 'bin', 'dairo.js'), `#!/usr/bin/env node
+// The launcher ships twice with identical contents: `${npmScope}/cli` and the
+// bare `dairo` name, so both `npx dairo` and the scoped install work.
+const launcherScript = `#!/usr/bin/env node
 const { spawnSync } = require('node:child_process');
 const { existsSync } = require('node:fs');
 const { join } = require('node:path');
 
 const platformPackages = {
-  'darwin-arm64': '@dairo/cli-darwin-arm64',
-  'darwin-x64': '@dairo/cli-darwin-x64',
-  'linux-x64': '@dairo/cli-linux-x64',
-  'linux-arm64': '@dairo/cli-linux-arm64',
-  'win32-x64': '@dairo/cli-win32-x64',
+  'darwin-arm64': '${npmScope}/cli-darwin-arm64',
+  'darwin-x64': '${npmScope}/cli-darwin-x64',
+  'linux-x64': '${npmScope}/cli-linux-x64',
+  'linux-arm64': '${npmScope}/cli-linux-arm64',
+  'win32-x64': '${npmScope}/cli-win32-x64',
 };
 
 const key = process.platform + '-' + process.arch;
@@ -82,14 +71,14 @@ let packageJson;
 try {
   packageJson = require.resolve(pkg + '/package.json');
 } catch (_) {
-  console.error('Dairo CLI native package ' + pkg + ' was not installed. Try: npm install -g @dairo/cli --include=optional');
+  console.error('Dairo CLI native package ' + pkg + ' was not installed. Try: npm install -g dairo --include=optional');
   process.exit(1);
 }
 
 const exe = process.platform === 'win32' ? 'dairo.exe' : 'dairo';
 const binary = join(packageJson, '..', 'bin', exe);
 if (!existsSync(binary)) {
-  console.error('Dairo CLI binary is missing at ' + binary + '. Reinstall @dairo/cli.');
+  console.error('Dairo CLI binary is missing at ' + binary + '. Reinstall the dairo package.');
   process.exit(1);
 }
 
@@ -99,9 +88,29 @@ if (result.error) {
   process.exit(1);
 }
 process.exit(result.status ?? 0);
-`);
-chmodSync(join(rootDir, 'bin', 'dairo.js'), 0o755);
-writeFileSync(join(rootDir, 'README.md'), readFileSync(join(repoRoot, 'README.md'), 'utf8'));
+`;
+
+for (const launcher of [
+  { dir: 'cli', name: `${npmScope}/cli` },
+  { dir: 'dairo', name: 'dairo' },
+]) {
+  const rootDir = join(packageRoot, launcher.dir);
+  mkdirSync(join(rootDir, 'bin'), { recursive: true });
+  writeFileSync(join(rootDir, 'package.json'), JSON.stringify({
+    name: launcher.name,
+    version,
+    description: 'Official Dairo command-line interface',
+    license: 'MIT',
+    repository: { type: 'git', url: 'git+https://github.com/dairo-app/dairo-cli.git' },
+    homepage: 'https://dairo.app',
+    bin: { dairo: './bin/dairo.js' },
+    files: ['bin', 'README.md'],
+    optionalDependencies,
+  }, null, 2) + '\n');
+  writeFileSync(join(rootDir, 'bin', 'dairo.js'), launcherScript);
+  chmodSync(join(rootDir, 'bin', 'dairo.js'), 0o755);
+  writeFileSync(join(rootDir, 'README.md'), readFileSync(join(repoRoot, 'README.md'), 'utf8'));
+}
 console.log(`Prepared Dairo npm packages for ${version} in ${packageRoot}`);
 
 function readCargoVersion(path) {
