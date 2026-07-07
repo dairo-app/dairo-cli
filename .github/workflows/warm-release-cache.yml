@@ -1,0 +1,50 @@
+name: Warm release caches
+
+# Tag refs can only restore Actions caches created on their own ref or on
+# main, and main otherwise never builds the release targets — so release
+# builds were compiling every dependency cold on all five platforms. This
+# workflow builds the release targets on main whenever the dependency set
+# changes; the release workflow then restores these caches and only has to
+# compile the dairo crate itself.
+#
+# The job id MUST stay `build` and the cache key `release-<target>` — both
+# are part of Swatinem/rust-cache's cache key and must match release.yml.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - '.github/workflows/warm-release-cache.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Warm ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }}

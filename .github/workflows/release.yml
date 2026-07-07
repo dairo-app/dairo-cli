@@ -59,6 +59,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: release-${{ matrix.target }}
+          # Restore-only: tag-scoped caches can never be restored by future
+          # tags; warm-release-cache.yml maintains these caches on main.
+          save-if: "false"
       - run: cargo build --release --locked --target ${{ matrix.target }}
       - name: Stage binary
         shell: bash
