@@ -5601,7 +5601,7 @@
           }
         },
         "x-dairo-scopes": [
-          "lists:read"
+          "audiences:read"
         ]
       },
       "post": {
@@ -5694,7 +5694,7 @@
           }
         },
         "x-dairo-scopes": [
-          "lists:write"
+          "audiences:write"
         ],
         "requestBody": {
           "required": true,
@@ -5804,7 +5804,7 @@
           }
         },
         "x-dairo-scopes": [
-          "lists:read"
+          "audiences:read"
         ],
         "parameters": [
           {
@@ -5908,7 +5908,7 @@
           }
         },
         "x-dairo-scopes": [
-          "lists:write"
+          "audiences:write"
         ],
         "parameters": [
           {
@@ -6014,7 +6014,7 @@
           }
         },
         "x-dairo-scopes": [
-          "lists:write"
+          "audiences:write"
         ],
         "parameters": [
           {
@@ -6130,7 +6130,7 @@
           }
         },
         "x-dairo-scopes": [
-          "lists:write"
+          "audiences:write"
         ],
         "parameters": [
           {

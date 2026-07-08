@@ -98,7 +98,7 @@ is invisible to CI. See gap C1.
 
 Baseline: backend exposes ~34 `/v1` routes (per the hosted MCP catalog
 families: account, domains, inboxes, mail, attachments, outbound, audiences,
-webhooks, api_keys, audit, dedicated_ips) plus scopes `lists:read`/`lists:write`
+webhooks, api_keys, audit, dedicated_ips) plus scopes `audiences:read`/`audiences:write`
 and account-level usage metering (surfaced by `get_account_info`).
 
 Legend: `[ ]` not done · `[~]` partial · `[x]` done (listed for completeness).

@@ -282,7 +282,7 @@
       "parameters": [],
       "path": "/v1/audiences",
       "scopes": [
-        "lists:read"
+        "audiences:read"
       ],
       "contractSource": "openapi"
     },
@@ -294,7 +294,7 @@
       ],
       "path": "/v1/audiences",
       "scopes": [
-        "lists:write"
+        "audiences:write"
       ],
       "contractSource": "openapi"
     },
@@ -309,7 +309,7 @@
       ],
       "path": "/v1/audiences/{audienceId}",
       "scopes": [
-        "lists:write"
+        "audiences:write"
       ],
       "contractSource": "openapi"
     },
@@ -324,7 +324,7 @@
       ],
       "path": "/v1/audiences/{audienceId}",
       "scopes": [
-        "lists:read"
+        "audiences:read"
       ],
       "contractSource": "openapi"
     },
@@ -339,7 +339,7 @@
       ],
       "path": "/v1/audiences/{audienceId}/members",
       "scopes": [
-        "lists:write"
+        "audiences:write"
       ],
       "contractSource": "openapi"
     },
@@ -354,7 +354,7 @@
       ],
       "path": "/v1/audiences/{audienceId}/send",
       "scopes": [
-        "lists:write"
+        "audiences:write"
       ],
       "contractSource": "openapi"
     },
