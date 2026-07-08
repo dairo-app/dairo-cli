@@ -2,7 +2,7 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 113,
+  "operationCount": 123,
   "operations": [
     {
       "method": "GET",
@@ -1631,6 +1631,164 @@
       "path": "/v1/agents/{id}/reputation",
       "scopes": [
         "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchApiKey",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "apiKeyId"
+        }
+      ],
+      "path": "/v1/api-keys/{apiKeyId}",
+      "scopes": [
+        "keys:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAttachment",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "attachmentId"
+        }
+      ],
+      "path": "/v1/attachments/{attachmentId}",
+      "scopes": [
+        "messages:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "exportAuditLedger",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "from"
+        },
+        {
+          "in": "query",
+          "name": "to"
+        },
+        {
+          "in": "query",
+          "name": "after"
+        },
+        {
+          "in": "query",
+          "name": "format"
+        }
+      ],
+      "path": "/v1/audit-logs/export",
+      "scopes": [
+        "account:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchBucket",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listDashboardOrganizations",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/dashboard/organizations",
+      "scopes": [],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createDashboardOrganization",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/dashboard/organizations",
+      "scopes": [],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchInbox",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "inbox"
+        }
+      ],
+      "path": "/v1/inboxes/{inbox}",
+      "scopes": [
+        "inboxes:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getNotificationPreferences",
+      "parameters": [],
+      "path": "/v1/notifications/preferences",
+      "scopes": [
+        "account:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "updateNotificationPreferences",
+      "parameters": [],
+      "path": "/v1/notifications/preferences",
+      "scopes": [
+        "account:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listTelegramVoices",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "language"
+        },
+        {
+          "in": "query",
+          "name": "q"
+        },
+        {
+          "in": "query",
+          "name": "featured"
+        },
+        {
+          "in": "query",
+          "name": "limit"
+        },
+        {
+          "in": "query",
+          "name": "offset"
+        }
+      ],
+      "path": "/v1/telegram/voices",
+      "scopes": [
+        "__any__"
       ],
       "contractSource": "openapi"
     }

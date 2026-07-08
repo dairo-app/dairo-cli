@@ -815,6 +815,32 @@ pub struct AuditLogQuery {
     pub cursor: Option<String>,
 }
 
+/// Query for `GET /v1/audit-logs/export`, the tamper-evident hash-chained
+/// ledger export. All fields are optional filters: `from`/`to` bound the export
+/// window (RFC-3339 timestamps), `after` resumes strictly after a sequence
+/// number, and `format` selects `json` (default) or `ndjson`. Only the present
+/// fields are sent.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct AuditExportQuery {
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub after: Option<i64>,
+    pub format: Option<String>,
+}
+
+/// Query for `GET /v1/telegram/voices`, the public Telegram TTS voice catalog.
+/// `language` and `q` are free-text filters, `featured` restricts to the
+/// curated set, and `limit`/`offset` page the catalog (server clamps
+/// `limit` to 1..=100). Only the present fields are sent.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct TelegramVoicesQuery {
+    pub language: Option<String>,
+    pub q: Option<String>,
+    pub featured: bool,
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+}
+
 /// Query for `GET /v1/events`, the keyset-paginated read over the durable event
 /// ledger that `dairo listen` polls.
 ///

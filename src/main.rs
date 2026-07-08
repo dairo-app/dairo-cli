@@ -14,12 +14,13 @@ mod webhook;
 
 use anyhow::{Context, Result};
 use api::{
-    A2aMessageQuery, ApiClient, AudienceMemberInput, AudienceMembersRequest, AuditLogQuery,
-    BucketObjectListQuery, CreateApiKeyRequest, CreateAudienceRequest, CreateBucketRequest,
-    CreateDomainRequest, CreateInboxRequest, CreateLetterRequest, CreateWebhookRequest,
-    EventsQuery, LetterCreditor, LetterDebtor, LetterFileRef, LetterListQuery, LetterPayment,
-    LetterPriceRequest, LetterPrintOptions, MessageListQuery, PostalAddress, SendMessageAttachment,
-    SendMessageReact, SendMessageRequest, ThreadListQuery, VerifyAgentQuery,
+    A2aMessageQuery, ApiClient, AudienceMemberInput, AudienceMembersRequest, AuditExportQuery,
+    AuditLogQuery, BucketObjectListQuery, CreateApiKeyRequest, CreateAudienceRequest,
+    CreateBucketRequest, CreateDomainRequest, CreateInboxRequest, CreateLetterRequest,
+    CreateWebhookRequest, EventsQuery, LetterCreditor, LetterDebtor, LetterFileRef,
+    LetterListQuery, LetterPayment, LetterPriceRequest, LetterPrintOptions, MessageListQuery,
+    PostalAddress, SendMessageAttachment, SendMessageReact, SendMessageRequest,
+    TelegramVoicesQuery, ThreadListQuery, VerifyAgentQuery,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use clap::CommandFactory;
@@ -27,12 +28,13 @@ use clap::Parser;
 use cli::{
     A2aCommand, AgentCommand, ApiKeyCommand, AttachmentCommand, AttachmentDelivery,
     AudienceCommand, AuditLogCommand, AuthCommand, BucketCommand, BudgetCommand, Cli, Command,
-    ComplianceCommand, ContactCommand, ContactKind, DedicatedIpCommand, DomainCommand,
-    ErasureJobCommand, EventsCommand, InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode,
-    LetterBatchCommand, LetterCommand, LetterPaymentArgs, LetterPriceArgs, LetterPrintArgs,
-    LetterSendArgs, LetterTemplateCommand, LoginArgs, McpCommand, MessageCommand, OutboundCommand,
-    RecipientArgs, ReputationCommand, SenderArgs, ShareCommand, TemplateCommand, ThreadCommand,
-    VerificationWaitCommand, WebhookCommand,
+    ComplianceCommand, ContactCommand, ContactKind, DashboardCommand, DashboardOrgCommand,
+    DedicatedIpCommand, DomainCommand, ErasureJobCommand, EventsCommand, InboxCommand,
+    InboxSchemaCommand, InboxSchemaValidationMode, LetterBatchCommand, LetterCommand,
+    LetterPaymentArgs, LetterPriceArgs, LetterPrintArgs, LetterSendArgs, LetterTemplateCommand,
+    LoginArgs, McpCommand, MessageCommand, NotificationCommand, NotificationPrefCommand,
+    OutboundCommand, RecipientArgs, ReputationCommand, SenderArgs, ShareCommand, TelegramCommand,
+    TemplateCommand, ThreadCommand, VerificationWaitCommand, WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -192,6 +194,13 @@ async fn run(cli: Cli) -> Result<()> {
                         client.delete_domain(&domain).await?;
                         output::print_deleted("domain", format)
                     }
+                    DomainCommand::Update { domain } => {
+                        // Domains have no user-mutable field today; the PATCH
+                        // re-reads and returns the single affected domain, so no
+                        // body is sent.
+                        let response = client.patch_domain(&domain, None).await?;
+                        output::print_json(&response, format)
+                    }
                 },
                 Command::Inbox { command } => match command {
                     InboxCommand::List => {
@@ -212,6 +221,23 @@ async fn run(cli: Cli) -> Result<()> {
                     InboxCommand::Delete { inbox_id } => {
                         client.delete_inbox(&inbox_id).await?;
                         output::print_deleted("inbox", format)
+                    }
+                    InboxCommand::Update { inbox, agent, mode } => {
+                        let mut body = serde_json::Map::new();
+                        if let Some(agent) = agent {
+                            body.insert("agent".to_string(), json!(agent));
+                        }
+                        if let Some(mode) = mode {
+                            body.insert("mode".to_string(), json!(mode.as_str()));
+                        }
+                        anyhow::ensure!(
+                            !body.is_empty(),
+                            "inbox update requires --agent and/or --mode"
+                        );
+                        let response = client
+                            .patch_inbox(&inbox, &serde_json::Value::Object(body))
+                            .await?;
+                        output::print_json(&response, format)
                     }
                     InboxCommand::Schema { command } => {
                         run_inbox_schema(&client, command, format).await
@@ -319,6 +345,10 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                 },
                 Command::Attachment { command } => match command {
+                    AttachmentCommand::Get { attachment_id } => {
+                        let response = client.get_attachment(&attachment_id).await?;
+                        output::print_json(&response, format)
+                    }
                     AttachmentCommand::Url {
                         attachment_id,
                         expiry_hours,
@@ -467,6 +497,31 @@ async fn run(cli: Cli) -> Result<()> {
                     ApiKeyCommand::Revoke { api_key_id } => {
                         client.revoke_api_key(&api_key_id).await?;
                         output::print_deleted("API key", format)
+                    }
+                    ApiKeyCommand::Update {
+                        api_key_id,
+                        name,
+                        allowed_ips,
+                        clear_allowed_ips,
+                    } => {
+                        let mut body = serde_json::Map::new();
+                        if let Some(name) = name {
+                            body.insert("name".to_string(), json!(name));
+                        }
+                        if clear_allowed_ips {
+                            // An empty allowlist removes the IP restriction.
+                            body.insert("allowedIps".to_string(), json!([] as [String; 0]));
+                        } else if !allowed_ips.is_empty() {
+                            body.insert("allowedIps".to_string(), json!(allowed_ips));
+                        }
+                        anyhow::ensure!(
+                            !body.is_empty(),
+                            "api-key update requires --name, --allowed-ip, and/or --clear-allowed-ips"
+                        );
+                        let response = client
+                            .patch_api_key(&api_key_id, &serde_json::Value::Object(body))
+                            .await?;
+                        output::print_json(&response, format)
                     }
                 },
                 Command::Mcp { command } => match command {
@@ -625,6 +680,22 @@ async fn run(cli: Cli) -> Result<()> {
                     AuditLogCommand::List { limit, cursor } => {
                         let response = client
                             .list_audit_logs(&AuditLogQuery { limit, cursor })
+                            .await?;
+                        output::print_json(&response, format)
+                    }
+                    AuditLogCommand::Export {
+                        from,
+                        to,
+                        after,
+                        format: export_format,
+                    } => {
+                        let response = client
+                            .export_audit_ledger(&AuditExportQuery {
+                                from,
+                                to,
+                                after,
+                                format: export_format.map(|f| f.as_str().to_string()),
+                            })
                             .await?;
                         output::print_json(&response, format)
                     }
@@ -849,6 +920,80 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                     A2aCommand::Get { id } => {
                         let response = client.get_a2a_message(&id).await?;
+                        output::print_json(&response, format)
+                    }
+                },
+                Command::Dashboard { command } => match command {
+                    DashboardCommand::Organizations { command } => match command {
+                        DashboardOrgCommand::List => {
+                            let response = client.list_dashboard_organizations().await?;
+                            output::print_json(&response, format)
+                        }
+                        DashboardOrgCommand::Create { name } => {
+                            let body = json!({ "name": name });
+                            let response = client.create_dashboard_organization(&body).await?;
+                            output::print_json(&response, format)
+                        }
+                    },
+                },
+                Command::Notifications { command } => match command {
+                    NotificationCommand::Preferences { command } => match command {
+                        NotificationPrefCommand::Get => {
+                            let response = client.get_notification_preferences().await?;
+                            output::print_json(&response, format)
+                        }
+                        NotificationPrefCommand::Set {
+                            account,
+                            billing,
+                            usage,
+                            security,
+                            product,
+                        } => {
+                            let mut prefs = serde_json::Map::new();
+                            if let Some(v) = account {
+                                prefs.insert("account".to_string(), json!(v));
+                            }
+                            if let Some(v) = billing {
+                                prefs.insert("billing".to_string(), json!(v));
+                            }
+                            if let Some(v) = usage {
+                                prefs.insert("usage".to_string(), json!(v));
+                            }
+                            if let Some(v) = security {
+                                prefs.insert("security".to_string(), json!(v));
+                            }
+                            if let Some(v) = product {
+                                prefs.insert("product".to_string(), json!(v));
+                            }
+                            anyhow::ensure!(
+                                !prefs.is_empty(),
+                                "notifications preferences set requires at least one category flag \
+                                 (--account/--billing/--usage/--security/--product)"
+                            );
+                            let body = json!({ "preferences": prefs });
+                            let response =
+                                client.update_notification_preferences(&body).await?;
+                            output::print_json(&response, format)
+                        }
+                    },
+                },
+                Command::Telegram { command } => match command {
+                    TelegramCommand::Voices {
+                        language,
+                        q,
+                        featured,
+                        limit,
+                        offset,
+                    } => {
+                        let response = client
+                            .list_telegram_voices(&TelegramVoicesQuery {
+                                language,
+                                q,
+                                featured,
+                                limit,
+                                offset,
+                            })
+                            .await?;
                         output::print_json(&response, format)
                     }
                 },
@@ -1453,6 +1598,34 @@ async fn run_bucket(
         }
         BucketCommand::Get { bucket_id } => {
             let response = client.get_bucket(bucket_id.trim()).await?;
+            output::print_json(&response, format)
+        }
+        BucketCommand::Update {
+            bucket_id,
+            display_name,
+            description,
+            metadata,
+        } => {
+            let mut body = serde_json::Map::new();
+            if let Some(display_name) = display_name {
+                body.insert("displayName".to_string(), json!(display_name));
+            }
+            if let Some(description) = description {
+                body.insert("description".to_string(), json!(description));
+            }
+            if let Some(metadata) = metadata {
+                let value: serde_json::Value = serde_json::from_str(&metadata)
+                    .context("--metadata must be a valid JSON object")?;
+                anyhow::ensure!(value.is_object(), "--metadata must be a JSON object");
+                body.insert("metadata".to_string(), value);
+            }
+            anyhow::ensure!(
+                !body.is_empty(),
+                "bucket update requires --display-name, --description, and/or --metadata"
+            );
+            let response = client
+                .patch_bucket(bucket_id.trim(), &serde_json::Value::Object(body))
+                .await?;
             output::print_json(&response, format)
         }
         BucketCommand::Delete { bucket_id } => {

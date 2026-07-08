@@ -2001,6 +2001,200 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
+    // --- Patches (partial updates) ----------------------------------------
+    // Partial-update verbs whose bodies carry only the fields the caller wants
+    // to change. Bodies are assembled as `serde_json::Value` and the updated
+    // resource passes through verbatim, matching the webhook/template/contact
+    // update precedent.
+
+    /// Updates an API key's name and/or IP allowlist
+    /// (`PATCH /v1/api-keys/{apiKeyId}`, scope `keys:write`). Returns the
+    /// updated key object (never the secret).
+    pub async fn patch_api_key(
+        &self,
+        api_key_id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::PATCH,
+            &["v1", "api-keys", api_key_id],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Updates a bucket's display name, description, and/or metadata
+    /// (`PATCH /v1/buckets/{bucketId}`, scope `buckets:write`). Returns the
+    /// updated `bucket` envelope.
+    pub async fn patch_bucket(
+        &self,
+        bucket_id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::PATCH,
+            &["v1", "buckets", bucket_id],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Touches a domain and re-reads it (`PATCH /v1/domains/{domain}`, scope
+    /// `domains:write`). Domains have no user-mutable field today, so the body
+    /// is optional and any unknown fields are ignored server-side; the single
+    /// affected domain is returned.
+    pub async fn patch_domain(
+        &self,
+        domain: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::PATCH, &["v1", "domains", domain], body)?)
+            .await
+    }
+
+    /// Updates an inbox's agent and/or routing mode
+    /// (`PATCH /v1/inboxes/{inbox}`, scope `inboxes:write`). The path segment
+    /// accepts the inbox uuid or address. Returns the updated inbox object.
+    pub async fn patch_inbox(
+        &self,
+        inbox: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::PATCH,
+            &["v1", "inboxes", inbox],
+            Some(body),
+        )?)
+        .await
+    }
+
+    // --- Dashboard organizations ------------------------------------------
+    // Multi-org workspace management. These are dashboard-user endpoints (no
+    // scoped-key requirement); the optional `X-Dairo-Org` active-org header is
+    // omitted and the backend falls back to the caller's default/only org.
+
+    /// Lists the organizations (workspaces) the authenticated user belongs to,
+    /// with their role in each (`GET /v1/dashboard/organizations`).
+    pub async fn list_dashboard_organizations(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "dashboard", "organizations"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Creates a new organization (workspace) owned by the authenticated user
+    /// (`POST /v1/dashboard/organizations`).
+    pub async fn create_dashboard_organization(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "dashboard", "organizations"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    // --- Notification preferences -----------------------------------------
+
+    /// Reads the account's notification email preferences
+    /// (`GET /v1/notifications/preferences`, scope `account:read`).
+    pub async fn get_notification_preferences(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "notifications", "preferences"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Updates the account's notification email preferences
+    /// (`PATCH /v1/notifications/preferences`, scope `account:write`). The body
+    /// carries a partial `{ preferences: { category: bool, ... } }` map.
+    pub async fn update_notification_preferences(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::PATCH,
+            &["v1", "notifications", "preferences"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    // --- Telegram voice catalog -------------------------------------------
+
+    /// Browses the Telegram TTS voice catalog (`GET /v1/telegram/voices`). All
+    /// filters are optional; only the present ones are sent.
+    pub async fn list_telegram_voices(
+        &self,
+        query: &TelegramVoicesQuery,
+    ) -> Result<serde_json::Value> {
+        let mut request =
+            self.build_request(Method::GET, &["v1", "telegram", "voices"], None::<&()>)?;
+        {
+            let mut pairs = request.url_mut().query_pairs_mut();
+            if let Some(language) = &query.language {
+                pairs.append_pair("language", language);
+            }
+            if let Some(q) = &query.q {
+                pairs.append_pair("q", q);
+            }
+            if query.featured {
+                pairs.append_pair("featured", "true");
+            }
+            if let Some(limit) = query.limit {
+                pairs.append_pair("limit", &limit.to_string());
+            }
+            if let Some(offset) = query.offset {
+                pairs.append_pair("offset", &offset.to_string());
+            }
+        }
+        self.execute_json(request).await
+    }
+
+    // --- Attachment metadata + audit-log export ---------------------------
+
+    /// Reads one attachment's metadata (`GET /v1/attachments/{attachmentId}`,
+    /// scope `messages:read`). Unlike `/url` and `/download`, this returns the
+    /// stored `MessageAttachment` record without minting a signed link.
+    pub async fn get_attachment(&self, attachment_id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "attachments", attachment_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Exports the tamper-evident hash-chained audit ledger
+    /// (`GET /v1/audit-logs/export`, scope `account:read`). All filters are
+    /// optional; only the present ones are sent.
+    pub async fn export_audit_ledger(&self, query: &AuditExportQuery) -> Result<serde_json::Value> {
+        let mut request =
+            self.build_request(Method::GET, &["v1", "audit-logs", "export"], None::<&()>)?;
+        {
+            let mut pairs = request.url_mut().query_pairs_mut();
+            if let Some(from) = &query.from {
+                pairs.append_pair("from", from);
+            }
+            if let Some(to) = &query.to {
+                pairs.append_pair("to", to);
+            }
+            if let Some(after) = query.after {
+                pairs.append_pair("after", &after.to_string());
+            }
+            if let Some(format) = &query.format {
+                pairs.append_pair("format", format);
+            }
+        }
+        self.execute_json(request).await
+    }
+
     pub(crate) fn build_request<T: Serialize>(
         &self,
         method: Method,

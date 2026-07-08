@@ -27,6 +27,7 @@ Messaging:
   templates      Reusable message templates
   attachments    Download message attachments
   contacts       Channel-agnostic address book (people, agents, @me)
+  telegram       Browse the Telegram TTS voice catalog
 
 Realtime and webhooks:
   listen         Stream live events to your terminal (like `stripe listen`)
@@ -43,6 +44,8 @@ Storage:
 Account and access:
   domain         Manage sending domains
   api-key        Manage API keys
+  dashboard      Manage organizations (workspaces) you belong to
+  notifications  Notification email preferences
   auth           Manage stored credentials
   logout         Sign out and revoke the stored token
 
@@ -267,6 +270,24 @@ pub enum Command {
         #[command(subcommand)]
         command: A2aCommand,
     },
+    /// Manage dashboard organizations (workspaces) you belong to.
+    #[command(name = "dashboard")]
+    Dashboard {
+        #[command(subcommand)]
+        command: DashboardCommand,
+    },
+    /// View and update account notification email preferences.
+    #[command(name = "notifications", alias = "notification")]
+    Notifications {
+        #[command(subcommand)]
+        command: NotificationCommand,
+    },
+    /// Browse the Telegram TTS voice catalog.
+    #[command(name = "telegram")]
+    Telegram {
+        #[command(subcommand)]
+        command: TelegramCommand,
+    },
     /// Stream live events to your terminal (the Dairo `stripe listen`).
     ///
     /// Streams live inbound-email (and delivery) events to the terminal and,
@@ -349,6 +370,123 @@ pub enum AuditLogCommand {
         /// Opaque pagination cursor from a previous page's `nextCursor`.
         #[arg(long)]
         cursor: Option<String>,
+    },
+    /// Export the tamper-evident hash-chained audit ledger (scope `account:read`).
+    ///
+    /// Bounds the export with `--from`/`--to` (RFC-3339 timestamps), resumes
+    /// strictly after a sequence number with `--after`, and selects the wire
+    /// format with `--format json|ndjson`.
+    Export {
+        /// Only include entries at or after this RFC-3339 timestamp.
+        #[arg(long)]
+        from: Option<String>,
+        /// Only include entries at or before this RFC-3339 timestamp.
+        #[arg(long)]
+        to: Option<String>,
+        /// Resume strictly after this ledger sequence number.
+        #[arg(long)]
+        after: Option<i64>,
+        /// Export format.
+        #[arg(long, value_enum)]
+        format: Option<AuditExportFormat>,
+    },
+}
+
+/// Wire format for `dairo audit-logs export`. Maps to the contract's `format`
+/// query value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum AuditExportFormat {
+    Json,
+    Ndjson,
+}
+
+impl AuditExportFormat {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Json => "json",
+            Self::Ndjson => "ndjson",
+        }
+    }
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DashboardCommand {
+    /// List and create the organizations (workspaces) you belong to.
+    #[command(name = "organizations", alias = "orgs")]
+    Organizations {
+        #[command(subcommand)]
+        command: DashboardOrgCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DashboardOrgCommand {
+    /// List the organizations you belong to, with your role in each.
+    List,
+    /// Create a new organization (workspace) you own.
+    Create {
+        /// Display name for the new organization (max 80 chars).
+        #[arg(long)]
+        name: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum NotificationCommand {
+    /// View and update notification email preferences.
+    #[command(name = "preferences", alias = "prefs")]
+    Preferences {
+        #[command(subcommand)]
+        command: NotificationPrefCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum NotificationPrefCommand {
+    /// Show the resolved per-category notification email preferences.
+    Get,
+    /// Toggle one or more notification categories on/off (scope `account:write`).
+    ///
+    /// Pass at least one category flag with a boolean value, e.g.
+    /// `--billing false --security true`.
+    Set {
+        /// Account notifications on/off.
+        #[arg(long)]
+        account: Option<bool>,
+        /// Billing notifications on/off.
+        #[arg(long)]
+        billing: Option<bool>,
+        /// Usage notifications on/off.
+        #[arg(long)]
+        usage: Option<bool>,
+        /// Security notifications on/off.
+        #[arg(long)]
+        security: Option<bool>,
+        /// Product notifications on/off.
+        #[arg(long)]
+        product: Option<bool>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TelegramCommand {
+    /// Browse the Telegram TTS voice catalog.
+    Voices {
+        /// Filter by language (e.g. `en`, `de`).
+        #[arg(long)]
+        language: Option<String>,
+        /// Free-text search over voice names.
+        #[arg(long)]
+        q: Option<String>,
+        /// Restrict to the curated/featured voices.
+        #[arg(long)]
+        featured: bool,
+        /// Max voices to return (1..=100; server default 50).
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: Option<u32>,
+        /// Number of voices to skip for pagination.
+        #[arg(long)]
+        offset: Option<u32>,
     },
 }
 
@@ -810,6 +948,20 @@ pub enum BucketCommand {
     List,
     /// Get one bucket (scope `buckets:read`).
     Get { bucket_id: String },
+    /// Update a bucket's display name, description, and/or metadata
+    /// (scope `buckets:write`). Provide at least one field to change.
+    Update {
+        bucket_id: String,
+        /// New human-readable display name.
+        #[arg(long = "display-name")]
+        display_name: Option<String>,
+        /// New description.
+        #[arg(long)]
+        description: Option<String>,
+        /// Replacement metadata as a JSON object.
+        #[arg(long, value_name = "JSON")]
+        metadata: Option<String>,
+    },
     /// Archive a bucket and stop its objects counting toward storage
     /// (scope `buckets:write`). The protected default bucket cannot be deleted.
     Delete { bucket_id: String },
@@ -2119,6 +2271,11 @@ pub enum DomainCommand {
     Recheck { domain: String },
     /// Delete a domain by name.
     Delete { domain: String },
+    /// Touch a domain and re-read it (scope `domains:write`).
+    ///
+    /// Domains have no user-mutable field today (status/verification is
+    /// system-driven), so this re-reads and returns the single affected domain.
+    Update { domain: String },
 }
 
 #[derive(Debug, Subcommand)]
@@ -2133,6 +2290,19 @@ pub enum InboxCommand {
     },
     /// Delete an inbox by ID.
     Delete { inbox_id: String },
+    /// Update an inbox's agent and/or routing mode (scope `inboxes:write`).
+    ///
+    /// The `inbox` accepts the inbox uuid or address. Provide at least one of
+    /// `--agent` or `--mode`; an omitted field is left as-is.
+    Update {
+        inbox: String,
+        /// Reassign the inbox to this agent (by name).
+        #[arg(long)]
+        agent: Option<String>,
+        /// Change the routing mode.
+        #[arg(long, value_enum)]
+        mode: Option<InboxRoutingMode>,
+    },
     /// Manage the JSON extraction schema attached to an inbox.
     Schema {
         #[command(subcommand)]
@@ -2174,6 +2344,28 @@ pub enum InboxSchemaCommand {
 pub enum InboxSchemaValidationMode {
     Quarantine,
     Passthrough,
+}
+
+/// Routing mode for `dairo inbox update --mode`. Maps to the backend's
+/// `routing_mode` values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum InboxRoutingMode {
+    #[value(name = "receive-send")]
+    ReceiveSend,
+    #[value(name = "receive-only")]
+    ReceiveOnly,
+    #[value(name = "send-only")]
+    SendOnly,
+}
+
+impl InboxRoutingMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ReceiveSend => "receive_send",
+            Self::ReceiveOnly => "receive_only",
+            Self::SendOnly => "send_only",
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -2271,6 +2463,8 @@ pub enum MessageCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum AttachmentCommand {
+    /// Show one attachment's metadata (scope `messages:read`).
+    Get { attachment_id: String },
     /// Print short-lived branded URLs for an attachment.
     Url {
         attachment_id: String,
@@ -2438,6 +2632,23 @@ pub enum ApiKeyCommand {
     },
     /// Revoke an API key by ID.
     Revoke { api_key_id: String },
+    /// Update an API key's name and/or IP allowlist (scope `keys:write`).
+    ///
+    /// Provide at least one change. `--allowed-ip` (repeatable) replaces the
+    /// allowlist; `--clear-allowed-ips` removes it so the key works from any IP.
+    Update {
+        api_key_id: String,
+        /// New display name for the key.
+        #[arg(long)]
+        name: Option<String>,
+        /// Replace the allowlist with these source IPs / CIDR ranges. Repeat for
+        /// multiple entries.
+        #[arg(long = "allowed-ip", value_name = "IP_OR_CIDR")]
+        allowed_ips: Vec<String>,
+        /// Remove the IP allowlist entirely (allow the key from any IP).
+        #[arg(long = "clear-allowed-ips", conflicts_with = "allowed_ips")]
+        clear_allowed_ips: bool,
+    },
 }
 
 #[cfg(test)]
