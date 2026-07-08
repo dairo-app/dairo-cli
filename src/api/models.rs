@@ -218,7 +218,7 @@ pub struct AudienceMembersRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AudienceMemberInput {
-    pub email: String,
+    pub handle: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
 }
@@ -237,14 +237,14 @@ pub struct AudienceDetailResponse {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AudienceImportResponse {
     #[serde(rename = "audienceId")]
-    pub list_id: String,
+    pub audience_id: String,
     pub imported: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AudienceSendResponse {
     #[serde(rename = "audienceId")]
-    pub list_id: String,
+    pub audience_id: String,
     #[serde(rename = "listName")]
     pub list_name: String,
     #[serde(rename = "recipientCount")]
@@ -272,8 +272,8 @@ pub struct Audience {
 pub struct AudienceMember {
     pub id: String,
     #[serde(rename = "audienceId")]
-    pub list_id: String,
-    pub email: String,
+    pub audience_id: String,
+    pub handle: String,
     pub name: Option<String>,
     pub status: String,
     pub source: String,

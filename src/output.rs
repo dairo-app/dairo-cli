@@ -298,17 +298,17 @@ pub fn print_audience_detail(
         println!("{}", serde_json::to_string_pretty(response)?);
         return Ok(());
     }
-    println!("List: {} ({})", response.list.name, response.list.id);
+    println!("Audience: {} ({})", response.list.name, response.list.id);
     println!("Members: {}", response.members.len());
     if response.members.is_empty() {
-        println!("No members yet. Add one with `dairo lists add {}` or import CSV with `dairo lists import-csv {}`.", response.list.id, response.list.id);
+        println!("No members yet. Add one with `dairo audiences add {}` or import CSV with `dairo audiences import-csv {}`.", response.list.id, response.list.id);
         return Ok(());
     }
-    println!("{:<36} {:<28} STATUS", "EMAIL", "NAME");
+    println!("{:<36} {:<28} STATUS", "HANDLE", "NAME");
     for member in &response.members {
         println!(
             "{:<36} {:<28} {}",
-            member.email,
+            member.handle,
             member.name.as_deref().unwrap_or(""),
             member.status
         );
@@ -325,8 +325,8 @@ pub fn print_audience_import(
         return Ok(());
     }
     println!(
-        "Imported {} recipient(s) into list {}.",
-        response.imported, response.list_id
+        "Imported {} recipient(s) into audience {}.",
+        response.imported, response.audience_id
     );
     Ok(())
 }

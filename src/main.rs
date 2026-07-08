@@ -628,50 +628,50 @@ async fn run(cli: Cli) -> Result<()> {
                             .await?;
                         output::print_audiences(std::slice::from_ref(&list), format)
                     }
-                    AudienceCommand::Get { list_id } => {
-                        let response = client.get_audience(&list_id).await?;
+                    AudienceCommand::Get { audience_id } => {
+                        let response = client.get_audience(&audience_id).await?;
                         output::print_audience_detail(&response, format)
                     }
-                    AudienceCommand::Delete { list_id } => {
-                        client.delete_audience(&list_id).await?;
-                        output::print_deleted("email list", format)
+                    AudienceCommand::Delete { audience_id } => {
+                        client.delete_audience(&audience_id).await?;
+                        output::print_deleted("audience", format)
                     }
                     AudienceCommand::Add {
-                        list_id,
-                        email,
+                        audience_id,
+                        handle,
                         name,
                     } => {
                         let response = client
                             .add_audience_members(
-                                &list_id,
+                                &audience_id,
                                 &AudienceMembersRequest {
-                                    members: vec![AudienceMemberInput { email, name }],
+                                    members: vec![AudienceMemberInput { handle, name }],
                                 },
                             )
                             .await?;
                         output::print_audience_import(&response, format)
                     }
-                    AudienceCommand::ImportCsv { list_id, file } => {
+                    AudienceCommand::ImportCsv { audience_id, file } => {
                         let members = read_audience_csv(&file)?;
                         // The /members/import alias was removed in the redesign; the
                         // canonical /members endpoint upserts and accepts the same
                         // payload, so CSV import now posts there too.
                         let response = client
                             .add_audience_members(
-                                &list_id,
+                                &audience_id,
                                 &AudienceMembersRequest { members },
                             )
                             .await?;
                         output::print_audience_import(&response, format)
                     }
-                    AudienceCommand::Send { list_id, send } => {
+                    AudienceCommand::Send { audience_id, send } => {
                         let dry_run = send.dry_run;
                         let request = build_send_request(&client, send, false).await?;
                         if dry_run {
                             print_dry_run_request(&request)
                         } else {
                             let response =
-                                client.send_audience(&list_id, &request).await?;
+                                client.send_audience(&audience_id, &request).await?;
                             output::print_audience_send(&response, format)
                         }
                     }
@@ -891,10 +891,10 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_json(&response, format)
                     }
                     ErasureJobCommand::Create {
-                        subject_email,
+                        subject_handle,
                         inbox_id,
                     } => {
-                        let body = build_erasure_job_request(subject_email, inbox_id)?;
+                        let body = build_erasure_job_request(subject_handle, inbox_id)?;
                         let response = client.create_erasure_job(&body).await?;
                         output::print_json(&response, format)
                     }
@@ -2747,13 +2747,13 @@ fn build_set_budget_request(
 /// resource: provide exactly one of `subjectHandle` or `inboxId`. The CLI enforces
 /// the exactly-one rule client-side so a malformed request never goes out.
 fn build_erasure_job_request(
-    subject_email: Option<String>,
+    subject_handle: Option<String>,
     inbox_id: Option<String>,
 ) -> Result<serde_json::Value> {
-    let subject_email = subject_email.and_then(non_empty_trimmed);
+    let subject_handle = subject_handle.and_then(non_empty_trimmed);
     let inbox_id = inbox_id.and_then(non_empty_trimmed);
-    match (subject_email, inbox_id) {
-        (Some(subject_email), None) => Ok(json!({ "subjectHandle": subject_email })),
+    match (subject_handle, inbox_id) {
+        (Some(subject_handle), None) => Ok(json!({ "subjectHandle": subject_handle })),
         (None, Some(inbox_id)) => Ok(json!({ "inboxId": inbox_id })),
         (Some(_), Some(_)) => {
             anyhow::bail!("erasure-jobs create takes exactly one of --subject-email or --inbox-id")
@@ -2786,17 +2786,26 @@ fn read_audience_csv(path: &Path) -> Result<Vec<AudienceMemberInput>> {
             continue;
         }
         let parts: Vec<&str> = trimmed.split(',').map(str::trim).collect();
-        let email = parts.first().copied().unwrap_or_default().trim_matches('"');
-        if index == 0 && email.eq_ignore_ascii_case("email") {
+        let handle = parts.first().copied().unwrap_or_default().trim_matches('"');
+        // Skip a header row named after either the new `handle` column or the
+        // legacy `email` column (the backend renamed the field, but older CSVs
+        // still carry an `email` header).
+        if index == 0
+            && (handle.eq_ignore_ascii_case("handle") || handle.eq_ignore_ascii_case("email"))
+        {
             continue;
         }
-        anyhow::ensure!(!email.is_empty(), "CSV line {} has no email", index + 1);
+        anyhow::ensure!(
+            !handle.is_empty(),
+            "CSV line {} has no recipient handle",
+            index + 1
+        );
         let name = parts
             .get(1)
             .map(|value| value.trim_matches('"').trim().to_string())
             .filter(|value| !value.is_empty());
         members.push(AudienceMemberInput {
-            email: email.to_string(),
+            handle: handle.to_string(),
             name,
         });
     }

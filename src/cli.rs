@@ -777,7 +777,7 @@ pub enum ErasureJobCommand {
     Create {
         /// Erase this data subject's mail across the account.
         #[arg(long = "subject-email", conflicts_with = "inbox_id")]
-        subject_email: Option<String>,
+        subject_handle: Option<String>,
         /// Purge this inbox.
         #[arg(long = "inbox-id")]
         inbox_id: Option<String>,
@@ -2101,35 +2101,35 @@ impl std::fmt::Display for Framework {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 pub enum AudienceCommand {
-    /// List email lists.
+    /// List audiences.
     List,
-    /// Create an email list.
+    /// Create an audience.
     Create {
         name: String,
         #[arg(long)]
         description: Option<String>,
     },
-    /// Show list members.
-    Get { list_id: String },
-    /// Delete (archive) an email list.
-    Delete { list_id: String },
+    /// Show audience members.
+    Get { audience_id: String },
+    /// Delete (archive) an audience.
+    Delete { audience_id: String },
     /// Add one recipient manually.
     Add {
-        list_id: String,
-        #[arg(long)]
-        email: String,
+        audience_id: String,
+        #[arg(long, visible_alias = "email")]
+        handle: String,
         #[arg(long)]
         name: Option<String>,
     },
-    /// Import recipients from CSV. Reads first column as email and optional second column as name.
+    /// Import recipients from CSV. Reads first column as the recipient handle (e.g. an email) and optional second column as name.
     ImportCsv {
-        list_id: String,
+        audience_id: String,
         #[arg(long = "file")]
         file: PathBuf,
     },
-    /// Send an email to all active recipients in a list.
+    /// Send a message to all active members of an audience.
     Send {
-        list_id: String,
+        audience_id: String,
         #[command(flatten)]
         send: SendArgs,
     },
@@ -3313,8 +3313,8 @@ mod tests {
         let cli = Cli::parse_from(["dairo", "audiences", "delete", "list_123"]);
         match cli.command {
             Command::Audience {
-                command: AudienceCommand::Delete { list_id },
-            } => assert_eq!(list_id, "list_123"),
+                command: AudienceCommand::Delete { audience_id },
+            } => assert_eq!(audience_id, "list_123"),
             _ => panic!("expected lists delete command"),
         }
     }
@@ -4016,11 +4016,11 @@ mod tests {
             Command::ErasureJobs {
                 command:
                     ErasureJobCommand::Create {
-                        subject_email,
+                        subject_handle,
                         inbox_id,
                     },
             } => {
-                assert_eq!(subject_email.as_deref(), Some("max@example.com"));
+                assert_eq!(subject_handle.as_deref(), Some("max@example.com"));
                 assert_eq!(inbox_id, None);
             }
             _ => panic!("expected erasure-jobs create command"),

@@ -289,20 +289,20 @@ impl ApiClient {
 
     /// Gets a list plus its active members (`GET /v1/audiences/{id}`, scope
     /// `audiences:read`). The members are carried as a field on the single list object.
-    pub async fn get_audience(&self, list_id: &str) -> Result<AudienceDetailResponse> {
+    pub async fn get_audience(&self, audience_id: &str) -> Result<AudienceDetailResponse> {
         self.execute_json(self.build_request(
             Method::GET,
-            &["v1", "audiences", list_id],
+            &["v1", "audiences", audience_id],
             None::<&()>,
         )?)
         .await
     }
 
     /// Archives a list (`DELETE /v1/audiences/{id}`, scope `audiences:write`). Returns 204.
-    pub async fn delete_audience(&self, list_id: &str) -> Result<()> {
+    pub async fn delete_audience(&self, audience_id: &str) -> Result<()> {
         self.execute_no_content(self.build_request(
             Method::DELETE,
-            &["v1", "audiences", list_id],
+            &["v1", "audiences", audience_id],
             None::<&()>,
         )?)
         .await
@@ -313,12 +313,12 @@ impl ApiClient {
     /// both the manual add and CSV import now post here.
     pub async fn add_audience_members(
         &self,
-        list_id: &str,
+        audience_id: &str,
         body: &AudienceMembersRequest,
     ) -> Result<AudienceImportResponse> {
         self.execute_json(self.build_request(
             Method::POST,
-            &["v1", "audiences", list_id, "members"],
+            &["v1", "audiences", audience_id, "members"],
             Some(body),
         )?)
         .await
@@ -326,12 +326,12 @@ impl ApiClient {
 
     pub async fn send_audience(
         &self,
-        list_id: &str,
+        audience_id: &str,
         body: &SendMessageRequest,
     ) -> Result<AudienceSendResponse> {
         self.execute_json(self.build_request(
             Method::POST,
-            &["v1", "audiences", list_id, "send"],
+            &["v1", "audiences", audience_id, "send"],
             Some(body),
         )?)
         .await
