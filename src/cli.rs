@@ -98,11 +98,6 @@ pub struct Cli {
     #[arg(long, global = true, hide = true, env = "DAIRO_API_URL")]
     pub api_url: Option<String>,
 
-    /// Store the API token in the plaintext `0600` config file instead of the OS
-    /// keychain. Use on headless/CI hosts where no keychain is available.
-    #[arg(long = "insecure-storage", global = true)]
-    pub insecure_storage: bool,
-
     #[command(subcommand)]
     pub command: Command,
 }
@@ -2917,14 +2912,6 @@ mod tests {
             );
         }
         assert!(Cli::try_parse_from(["dairo", "completion", "tcsh"]).is_err());
-    }
-
-    #[test]
-    fn parses_global_insecure_storage_flag() {
-        let cli = Cli::parse_from(["dairo", "--insecure-storage", "whoami"]);
-        assert!(cli.insecure_storage);
-        let cli = Cli::parse_from(["dairo", "whoami"]);
-        assert!(!cli.insecure_storage);
     }
 
     #[test]

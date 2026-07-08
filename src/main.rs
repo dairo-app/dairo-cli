@@ -33,7 +33,7 @@ use cli::{
     OutboundCommand, RecipientArgs, ReputationCommand, SenderArgs, ShareCommand, TemplateCommand,
     ThreadCommand, VerificationWaitCommand, WebhookCommand,
 };
-use config::{Config, StorageMode};
+use config::Config;
 use output::OutputFormat;
 use serde_json::json;
 use std::{
@@ -87,14 +87,6 @@ async fn run(cli: Cli) -> Result<()> {
     let config_path = Config::path()?;
 
     // Select the credential-storage policy for the rest of the process: the OS
-    // keychain by default, or the legacy `0600` file when `--insecure-storage`
-    // is set. This must happen before any config load/save.
-    config::set_storage_mode(if cli.insecure_storage {
-        StorageMode::FileOnly
-    } else {
-        StorageMode::Auto
-    });
-
     match cli.command {
         Command::Auth { command } => match command {
             AuthCommand::Token(command) => {

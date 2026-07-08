@@ -69,7 +69,7 @@ impl Check {
 /// API base; `api_key` is the resolved token (empty when none is configured).
 /// `config_path` is shown so the user knows where credentials live.
 pub async fn run(
-    config: &Config,
+    _config: &Config,
     base_url: &str,
     api_key: &str,
     config_path: &std::path::Path,
@@ -95,14 +95,10 @@ pub async fn run(
     checks.push(Check::pass("Base URL", base_url.to_string()));
 
     // 3. Config / credential location.
-    let credential_location = match config.auth_method.as_deref() {
-        _ if crate::config::keychain_in_use() => "OS keychain (service \"dairo\")".to_string(),
-        _ => format!("config file {}", config_path.display()),
-    };
     checks.push(Check::pass(
         "Config & credential location",
         format!(
-            "config file {}; token stored in {credential_location}",
+            "config file {} (0600; token stored here — no OS keychain)",
             config_path.display()
         ),
     ));

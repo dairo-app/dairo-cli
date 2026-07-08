@@ -2,6 +2,19 @@
 
 All notable Dairo CLI changes are tracked here.
 
+## 0.0.11 - 2026-07-08
+
+### Changed
+
+- Credentials no longer touch the OS keychain. The token now lives only in
+  the `0600` config file (dir `0700`) — the same model as gh, aws, and
+  flyctl. macOS binds keychain ACLs to the binary's code signature, so every
+  self-update invalidated the ACL and re-prompted on each command; denying
+  the prompt read as "logged out" and forced a re-login. Both symptoms are
+  gone. One-time cost: a single `dairo login` after upgrading (tokens minted
+  by `dairo login` are valid for one year). The `--insecure-storage` flag is
+  removed (file storage is now simply how it works).
+
 ## 0.0.10 - 2026-07-08
 
 ### Added
