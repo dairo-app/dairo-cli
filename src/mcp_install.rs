@@ -16,10 +16,10 @@ pub struct McpInstallReport {
 pub fn install(
     client: McpClient,
     name: &str,
-    api_url: &str,
+    mcp_base_url: &str,
     api_key: &str,
 ) -> Result<Vec<McpInstallReport>> {
-    let endpoint = mcp_endpoint(api_url)?;
+    let endpoint = mcp_endpoint(mcp_base_url)?;
     let clients = match client {
         McpClient::Auto => vec![
             McpClient::Hermes,
@@ -43,8 +43,11 @@ pub fn install(
     Ok(reports)
 }
 
-fn mcp_endpoint(api_url: &str) -> Result<String> {
-    let trimmed = api_url.trim_end_matches('/');
+/// Appends `/mcp` to the MCP host base (default `https://mcp.dairo.app`, see
+/// `resolve_mcp_base_url` in `main.rs`), tolerating a base that already ends in
+/// `/mcp`.
+fn mcp_endpoint(mcp_base_url: &str) -> Result<String> {
+    let trimmed = mcp_base_url.trim_end_matches('/');
     let endpoint = if trimmed.ends_with("/mcp") {
         trimmed.to_string()
     } else {
@@ -52,7 +55,7 @@ fn mcp_endpoint(api_url: &str) -> Result<String> {
     };
     anyhow::ensure!(
         endpoint.starts_with("https://") || endpoint.starts_with("http://"),
-        "API URL must be absolute"
+        "MCP base URL must be absolute"
     );
     Ok(endpoint)
 }
@@ -84,7 +87,8 @@ fn install_hermes(name: &str, endpoint: &str, api_key: &str) -> Result<McpInstal
         client: "hermes".to_string(),
         path,
         action,
-        verify: "restart Hermes or run /reload-mcp, then ask Max to call dairo.whoami".to_string(),
+        verify: "restart Hermes or run /reload-mcp, then ask Max to call get_account_info"
+            .to_string(),
     })
 }
 
@@ -109,7 +113,7 @@ fn install_codex(name: &str, endpoint: &str, api_key: &str) -> Result<McpInstall
         client: "codex".to_string(),
         path,
         action,
-        verify: "restart Codex and run /mcp; use dairo.whoami as a smoke test".to_string(),
+        verify: "restart Codex and run /mcp; use get_account_info as a smoke test".to_string(),
     })
 }
 
@@ -141,7 +145,8 @@ fn install_cursor(name: &str, endpoint: &str, api_key: &str) -> Result<McpInstal
         client: "cursor".to_string(),
         path,
         action,
-        verify: "restart Cursor or reload MCP tools; ask agent to call dairo.whoami".to_string(),
+        verify: "restart Cursor or reload MCP tools; ask agent to call get_account_info"
+            .to_string(),
     })
 }
 

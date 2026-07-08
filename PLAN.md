@@ -96,10 +96,10 @@ is invisible to CI. See gap C1.
 
 ## 3. Parity gaps vs backend `/v1` + newer features
 
-Baseline: backend exposes ~34 `/v1` routes (per `dairo.catalog` families:
-account, domains, inboxes, mail, attachments, outbound, audiences, webhooks,
-api_keys, audit, dedicated_ips) plus scopes `lists:read`/`lists:write` and the
-metering tools `dairo.get.usage` / `dairo.get.storage.usage`.
+Baseline: backend exposes ~34 `/v1` routes (per the hosted MCP catalog
+families: account, domains, inboxes, mail, attachments, outbound, audiences,
+webhooks, api_keys, audit, dedicated_ips) plus scopes `lists:read`/`lists:write`
+and account-level usage metering (surfaced by `get_account_info`).
 
 Legend: `[ ]` not done · `[~]` partial · `[x]` done (listed for completeness).
 
@@ -122,8 +122,8 @@ Legend: `[ ]` not done · `[~]` partial · `[x]` done (listed for completeness).
   `SendMessageRequest`. **Net-new; blocked on backend route freeze.** See §6.
 - [~] **A9. Usage-based metering.** `whoami` surfaces `usage`/`limits`/`period`
   as opaque `serde_json::Value`, so the data is reachable but not typed,
-  labeled, or convenient. The MCP exposes dedicated `dairo.get.usage` and
-  `dairo.get.storage.usage` tools; the CLI has no `dairo usage` equivalent and
+  labeled, or convenient. The MCP surfaces usage and storage metering through
+  `get_account_info`; the CLI has no `dairo usage` equivalent and
   no storage-focused view. (Metering has **no** standalone public `/v1/usage`
   route — it is surfaced via `whoami`, so this is an ergonomics gap, not a
   missing route.) See gaps B1, D1.

@@ -1747,8 +1747,11 @@ pub struct LoginArgs {
     /// mint a least-privilege token.
     #[arg(long = "scope", default_value = crate::auth::DEFAULT_LOGIN_SCOPE)]
     pub scope: String,
-    /// Override the Dairo API base URL for the OAuth flow. Defaults to the global
-    /// `--api-url` / `DAIRO_API_URL` / configured base, then the public API.
+    /// Override the Dairo API base URL for the OAuth flow. With the default API
+    /// base, OAuth runs against `https://mcp.dairo.app` (override with
+    /// `DAIRO_OAUTH_BASE_URL`); a non-default base (this flag, the global
+    /// `--api-url` / `DAIRO_API_URL`, or the configured base) is expected to
+    /// serve `/oauth/*` itself, e.g. a local dev backend.
     #[arg(long = "api-url", value_name = "URL")]
     pub api_url: Option<String>,
 }

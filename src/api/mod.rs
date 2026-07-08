@@ -10,6 +10,12 @@ pub use models::*;
 
 pub const DEFAULT_BASE_URL: &str = "https://api.dairo.app";
 
+/// Default host for the hosted MCP server and its OAuth authorization server
+/// (`/mcp`, `/oauth/{authorize,token,register}`, and the OAuth discovery
+/// documents). The `/v1` REST API stays on [`DEFAULT_BASE_URL`]; the MCP and
+/// OAuth surface is served only from this host.
+pub const DEFAULT_MCP_BASE_URL: &str = "https://mcp.dairo.app";
+
 /// Wall-clock timeout applied to every request so a hung connection cannot
 /// block the CLI forever.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -1587,7 +1593,7 @@ impl ApiClient {
     }
 
     /// Fetches the public MCP tool catalog (`GET /v1/mcp/catalog`), the single
-    /// source of truth for the hosted MCP surface served at `api.dairo.app/mcp`.
+    /// source of truth for the hosted MCP surface served at `mcp.dairo.app/mcp`.
     ///
     /// The catalog itself is public and cacheable; the bearer key this client
     /// always attaches is ignored by the endpoint unless `for_me` is set. When

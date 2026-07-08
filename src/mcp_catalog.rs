@@ -2,7 +2,7 @@
 //!
 //! The catalog is fetched from `GET /v1/mcp/catalog` (see
 //! [`crate::api::ApiClient::mcp_catalog`]), the single source of truth for the
-//! tools exposed by Dairo's hosted MCP server at `api.dairo.app/mcp`. This module
+//! tools exposed by Dairo's hosted MCP server at `mcp.dairo.app/mcp`. This module
 //! only formats that response: a `name / family / scope / confirm` table by
 //! default, the raw JSON with `--json`, an `allowed` column with `--for-me`, and
 //! an optional `--family` filter.
@@ -217,24 +217,24 @@ mod tests {
             "catalogVersion": "abc123def456",
             "server": "dairo",
             "toolCount": 3,
-            "toolNames": ["dairo.docs", "dairo.list.inboxes", "dairo.send"],
+            "toolNames": ["search_docs", "list_inboxes", "send_message"],
             "tools": [
                 {
-                    "name": "dairo.docs",
+                    "name": "search_docs",
                     "family": "account",
                     "description": "Docs.",
                     "scope": null,
                     "confirmRequired": false
                 },
                 {
-                    "name": "dairo.list.inboxes",
+                    "name": "list_inboxes",
                     "family": "inboxes",
                     "description": "List inboxes.",
                     "scope": "messages:read",
                     "confirmRequired": false
                 },
                 {
-                    "name": "dairo.send",
+                    "name": "send_message",
                     "family": "outbound",
                     "description": "Send.",
                     "scope": "messages:send",
@@ -248,14 +248,14 @@ mod tests {
     fn collects_all_tools_without_filter() {
         let rows = collect_tools(&sample_catalog(), false, None);
         assert_eq!(rows.len(), 3);
-        assert_eq!(rows[0].name, "dairo.docs");
+        assert_eq!(rows[0].name, "search_docs");
     }
 
     #[test]
     fn family_filter_narrows_rows() {
         let rows = collect_tools(&sample_catalog(), false, Some("outbound"));
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].name, "dairo.send");
+        assert_eq!(rows[0].name, "send_message");
     }
 
     #[test]
@@ -268,13 +268,13 @@ mod tests {
     fn for_me_keeps_only_allowed_tools() {
         let mut catalog = sample_catalog();
         let tools = catalog["tools"].as_array_mut().unwrap();
-        tools[0]["allowed"] = json!(true); // docs (local)
-        tools[1]["allowed"] = json!(true); // list.inboxes (messages:read)
-        tools[2]["allowed"] = json!(false); // send.email (messages:send, not held)
+        tools[0]["allowed"] = json!(true); // search_docs (local)
+        tools[1]["allowed"] = json!(true); // list_inboxes (messages:read)
+        tools[2]["allowed"] = json!(false); // send_message (messages:send, not held)
 
         let rows = collect_tools(&catalog, true, None);
         assert_eq!(rows.len(), 2);
-        assert!(rows.iter().all(|row| row.name != "dairo.send"));
+        assert!(rows.iter().all(|row| row.name != "send_message"));
     }
 
     #[test]
@@ -298,7 +298,7 @@ mod tests {
         let filtered = filter_catalog_by_family(&sample_catalog(), "outbound");
         assert_eq!(filtered["toolCount"], json!(1));
         assert_eq!(filtered["tools"].as_array().unwrap().len(), 1);
-        assert_eq!(filtered["toolNames"], json!(["dairo.send"]));
+        assert_eq!(filtered["toolNames"], json!(["send_message"]));
         // Untouched top-level fields are preserved.
         assert_eq!(filtered["server"], json!("dairo"));
         assert_eq!(filtered["catalogVersion"], json!("abc123def456"));

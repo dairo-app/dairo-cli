@@ -163,11 +163,7 @@ async fn run(cli: Cli) -> Result<()> {
         command => {
             let config = Config::load_from_path(&config_path)?;
             let api_key = config.resolve_api_key()?;
-            let base_url = cli
-                .api_url
-                .or_else(|| std::env::var("DAIRO_API_URL").ok())
-                .or(config.api_url)
-                .unwrap_or_else(|| api::DEFAULT_BASE_URL.to_string());
+            let base_url = resolve_base_url(cli.api_url.as_deref(), &config);
             let client = ApiClient::new(&base_url, &api_key)?;
             let format = OutputFormat::from_json_flag(cli.json);
 
@@ -386,7 +382,12 @@ async fn run(cli: Cli) -> Result<()> {
                 },
                 Command::Mcp { command } => match command {
                     McpCommand::Install { client, name } => {
-                        let reports = mcp_install::install(client, &name, &base_url, &api_key)?;
+                        // The hosted MCP endpoint lives on the MCP host
+                        // (`https://mcp.dairo.app/mcp`), not on the `/v1` API
+                        // host, so resolve the MCP base separately from
+                        // `base_url`.
+                        let mcp_base_url = resolve_mcp_base_url(cli.api_url.as_deref(), &config);
+                        let reports = mcp_install::install(client, &name, &mcp_base_url, &api_key)?;
                         output::print_mcp_install(&reports, format)
                     }
                     McpCommand::Catalog {
@@ -757,20 +758,45 @@ fn resolve_base_url(explicit: Option<&str>, config: &Config) -> String {
         .unwrap_or_else(|| api::DEFAULT_BASE_URL.to_string())
 }
 
+/// Resolves the base URL for the MCP + OAuth host, used by `dairo login`
+/// (`/oauth/*`) and `dairo mcp install` (`/mcp`). Precedence:
+///
+/// 1. `DAIRO_OAUTH_BASE_URL` — explicit override of the OAuth/MCP host.
+/// 2. A non-default API base (via `--api-url` / `DAIRO_API_URL` / config): a
+///    dev or self-hosted backend serves `/oauth/*` and `/mcp` on the same host
+///    as `/v1`, so the override carries over.
+/// 3. The public default, `https://mcp.dairo.app`. The `/v1` REST API stays on
+///    `https://api.dairo.app`; the OAuth authorization server and the hosted
+///    MCP endpoint live only on the MCP host.
+fn resolve_mcp_base_url(explicit: Option<&str>, config: &Config) -> String {
+    if let Ok(value) = std::env::var("DAIRO_OAUTH_BASE_URL") {
+        let value = value.trim();
+        if !value.is_empty() {
+            return value.to_string();
+        }
+    }
+    let api_base = resolve_base_url(explicit, config);
+    if api_base.trim_end_matches('/') != api::DEFAULT_BASE_URL {
+        return api_base;
+    }
+    api::DEFAULT_MCP_BASE_URL.to_string()
+}
+
 /// Handles `dairo login`: runs the browser OAuth (PKCE) flow and persists the
-/// resulting token. The `--api-url` on the subcommand takes precedence over the
-/// global `--api-url`/env/config base.
+/// resulting token. The OAuth legs run against the MCP/OAuth host (see
+/// [`resolve_mcp_base_url`]); the `--api-url` on the subcommand takes
+/// precedence over the global `--api-url`/env/config base when deriving it.
 async fn run_login(
     args: LoginArgs,
     global_api_url: &Option<String>,
     config_path: &Path,
 ) -> Result<()> {
     let config = Config::load_from_path(config_path)?;
-    let base_url = resolve_base_url(
+    let oauth_base_url = resolve_mcp_base_url(
         args.api_url.as_deref().or(global_api_url.as_deref()),
         &config,
     );
-    let outcome = auth::login(&base_url, &args.scope, config_path).await?;
+    let outcome = auth::login(&oauth_base_url, &args.scope, config_path).await?;
     // Never print the token; only the granted scopes and where it was stored.
     println!(
         "Signed in. Token saved to {}.",
@@ -838,7 +864,7 @@ async fn run_logout(global_api_url: &Option<String>, config_path: &Path) -> Resu
         }
         println!(
             "If the token may still be active, revoke it in the Dairo dashboard \
-             (https://dairo.app/app) to be safe."
+             (https://platform.dairo.app/app) to be safe."
         );
     }
     Ok(())

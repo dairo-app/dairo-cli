@@ -1,7 +1,9 @@
 //! Browser-based OAuth 2.0 (PKCE) login for the Dairo CLI.
 //!
 //! `dairo login` runs the exact same Authorization-Code + PKCE flow the hosted
-//! MCP OAuth clients use (see the backend `mcp/oauth.rs` contract):
+//! MCP OAuth clients use (see the backend `mcp/oauth.rs` contract). The
+//! authorization server lives on the MCP host (`https://mcp.dairo.app` by
+//! default — NOT the `/v1` API host):
 //!
 //! 1. Bind a loopback (`127.0.0.1:0`) listener FIRST and learn the port, so the
 //!    `redirect_uri` is `http://127.0.0.1:<port>/callback`.
@@ -63,10 +65,12 @@ pub struct LoginOutcome {
 
 /// Runs the browser OAuth login end to end and persists the resulting token.
 ///
-/// `base_url` is the API base (e.g. `https://api.dairo.app`); `scope` is the
+/// `base_url` is the OAuth authorization-server base (`https://mcp.dairo.app`
+/// by default; see `resolve_mcp_base_url` in `main.rs`); `scope` is the
 /// space-or-comma list of requested scopes (defaults applied by the caller).
 pub async fn login(base_url: &str, scope: &str, config_path: &Path) -> Result<LoginOutcome> {
-    let base = Url::parse(base_url).with_context(|| format!("invalid API base URL: {base_url}"))?;
+    let base =
+        Url::parse(base_url).with_context(|| format!("invalid OAuth base URL: {base_url}"))?;
 
     // Transport guard, mirroring the bearer-key path (`require_secure_base_url`):
     // the OAuth legs carry the PKCE verifier and return a freshly minted key, so
@@ -218,7 +222,7 @@ fn oauth_endpoint(base: &Url, segment: &str) -> Result<Url> {
     {
         let mut segments = url
             .path_segments_mut()
-            .map_err(|_| anyhow!("API base URL cannot be a base: {base}"))?;
+            .map_err(|_| anyhow!("OAuth base URL cannot be a base: {base}"))?;
         segments.pop_if_empty();
         segments.push("oauth");
         segments.push(segment);
@@ -691,7 +695,7 @@ mod tests {
 
     #[test]
     fn builds_authorize_url_with_all_pkce_params() {
-        let base = Url::parse("https://api.dairo.app").unwrap();
+        let base = Url::parse("https://mcp.dairo.app").unwrap();
         let url = build_authorize_url(
             &base,
             "dairo-mcp-abc",

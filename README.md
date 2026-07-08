@@ -69,6 +69,8 @@ dairo login                 # opens your browser, then stores the token
 dairo logout                # revokes the stored token server-side and clears it
 ```
 
+`dairo login` talks to the OAuth authorization server at `https://mcp.dairo.app` (the REST API itself stays on `https://api.dairo.app`). Set `DAIRO_OAUTH_BASE_URL` to point the OAuth flow somewhere else explicitly; if you override the API base (`--api-url` / `DAIRO_API_URL`), that base is expected to serve `/oauth/*` itself, e.g. a local dev backend.
+
 For CI and headless hosts where no browser is available, set `DAIRO_API_KEY` or save a token manually with `dairo auth token set` (see below).
 
 Token lookup order:
@@ -339,7 +341,7 @@ Install Dairo MCP for agents with one command. It saves the token through stdin,
 printf '%s' "$DAIRO_API_KEY" | dairo auth token set && dairo mcp install --client auto
 ```
 
-`--client auto` configures Hermes, Codex, Cursor, and a project `.mcp.json` for Claude. You can target one client with `--client hermes`, `--client codex`, `--client cursor`, or `--client claude`. The remote endpoint is `https://api.dairo.app/mcp` and exposes agent-first tools like `dairo.whoami`, `dairo.send`, `dairo.list.outbound.events`, and `dairo.send.audience`.
+`--client auto` configures Hermes, Codex, Cursor, and a project `.mcp.json` for Claude. You can target one client with `--client hermes`, `--client codex`, `--client cursor`, or `--client claude`. The remote endpoint is `https://mcp.dairo.app/mcp` and exposes agent-first tools like `get_account_info`, `send_message`, `list_sent_messages`, and `send_broadcast`.
 
 ### Messages
 
@@ -413,6 +415,7 @@ Human output remains table/text oriented. One-time secrets from webhook/API-key 
 
 - `missing Dairo API token`: set `DAIRO_API_KEY` or pipe a token into `dairo auth token set`.
 - Network errors: verify `DAIRO_API_URL` is unset or points at a reachable Dairo API such as `https://api.dairo.app`.
+- `dairo login` errors: the OAuth authorization server lives at `https://mcp.dairo.app`, not on the API host. Set `DAIRO_OAUTH_BASE_URL` to override it; a non-default API base must serve `/oauth/*` itself.
 - Permission errors writing config: prefer `DAIRO_API_KEY`, or remove and recreate the platform config directory with user-only permissions.
 - SES provider errors: SES remains the source of truth for sender/domain verification, quotas, suppression, bounces, complaints, and provider rejections.
 
