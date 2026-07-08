@@ -19,7 +19,7 @@
   ],
   "tags": [
     {
-      "name": "Emails",
+      "name": "Messages",
       "description": "Outbound email sending."
     },
     {
@@ -85,9 +85,754 @@
     {
       "name": "Buckets",
       "description": "Storage buckets for arbitrary object uploads."
+    },
+    {
+      "name": "Contacts",
+      "description": "Channel-agnostic address book: contacts + their handles."
     }
   ],
   "paths": {
+    "/v1/letters/templates": {
+      "get": {
+        "tags": [
+          "Letters"
+        ],
+        "summary": "List letter templates (most recent first).",
+        "operationId": "listLetterTemplates",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "letters:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetterTemplateList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Letters"
+        ],
+        "summary": "Create a reusable letter template.",
+        "operationId": "createLetterTemplate",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "letters:send"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLetterTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetterTemplate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/letters/templates/{id}": {
+      "get": {
+        "tags": [
+          "Letters"
+        ],
+        "summary": "Get one letter template (with its full HTML body).",
+        "operationId": "getLetterTemplate",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "letters:read"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetterTemplate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Letters"
+        ],
+        "summary": "Update a letter template.",
+        "operationId": "updateLetterTemplate",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "letters:send"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLetterTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetterTemplate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/letters/templates/{id}/preview": {
+      "post": {
+        "tags": [
+          "Letters"
+        ],
+        "summary": "Render a proof of a letter template with a sample recipient.",
+        "operationId": "previewLetterTemplate",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "letters:send"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewLetterTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetterTemplatePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/letters/batches": {
+      "post": {
+        "tags": [
+          "Letters"
+        ],
+        "summary": "Send one letter template to many recipients in a single call.",
+        "operationId": "createLetterBatch",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "letters:send"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLetterBatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetterBatchCreateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/letters/batches/{id}": {
+      "get": {
+        "tags": [
+          "Letters"
+        ],
+        "summary": "Get a batch with its live per-status rollup.",
+        "operationId": "getLetterBatch",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "letters:read"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetterBatch"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/account/residency": {
       "get": {
         "tags": [
@@ -1948,7 +2693,7 @@
           "Compliance"
         ],
         "summary": "Export the tamper-evident hash-chained audit ledger.",
-        "description": "Returns the caller's own audit-log rows in ascending chainSeq order, each carrying prevHash/rowHash, plus an Ed25519-signed manifest committing to the chain head. An auditor verifies the manifest against JWKS and independently re-derives every rowHash from the rows to detect any insert/delete/edit — no server trust required. With NO from/to the export defaults to the last 30 days (not the entire history) to avoid accidental over-disclosure; supply either bound to request an explicit, full-history-capable window. A single page is capped at 5000 rows: when more rows remain, pagination.nextCursor carries the head chainSeq — pass it back as ?after=<cursor> to drain the next page. Each page's manifest commits to that page's exact window, so every page is independently verifiable. Requires the messages:read scope.",
+        "description": "Returns the caller's own audit-log rows in ascending chainSeq order, each carrying prevHash/rowHash, plus an Ed25519-signed manifest committing to the chain head. An auditor verifies the manifest against JWKS and independently re-derives every rowHash from the rows to detect any insert/delete/edit \u2014 no server trust required. With NO from/to the export defaults to the last 30 days (not the entire history) to avoid accidental over-disclosure; supply either bound to request an explicit, full-history-capable window. A single page is capped at 5000 rows: when more rows remain, pagination.nextCursor carries the head chainSeq \u2014 pass it back as ?after=<cursor> to drain the next page. Each page's manifest commits to that page's exact window, so every page is independently verifiable. Requires the messages:read scope.",
         "operationId": "exportAuditLedger",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -4765,7 +5510,7 @@
         ]
       }
     },
-    "/v1/lists": {
+    "/v1/audiences": {
       "get": {
         "tags": [
           "Audiences"
@@ -4968,7 +5713,7 @@
         ]
       }
     },
-    "/v1/lists/{listId}": {
+    "/v1/audiences/{audienceId}": {
       "get": {
         "tags": [
           "Audiences"
@@ -5063,7 +5808,7 @@
         ],
         "parameters": [
           {
-            "name": "listId",
+            "name": "audienceId",
             "in": "path",
             "required": true,
             "schema": {
@@ -5167,7 +5912,7 @@
         ],
         "parameters": [
           {
-            "name": "listId",
+            "name": "audienceId",
             "in": "path",
             "required": true,
             "schema": {
@@ -5178,7 +5923,7 @@
         ]
       }
     },
-    "/v1/lists/{listId}/members": {
+    "/v1/audiences/{audienceId}/members": {
       "post": {
         "tags": [
           "Audiences"
@@ -5273,7 +6018,7 @@
         ],
         "parameters": [
           {
-            "name": "listId",
+            "name": "audienceId",
             "in": "path",
             "required": true,
             "schema": {
@@ -5294,21 +6039,21 @@
         }
       }
     },
-    "/v1/lists/{listId}/send": {
+    "/v1/audiences/{audienceId}/send": {
       "post": {
         "tags": [
           "Audiences"
         ],
-        "summary": "Send an email to an email list with SES-safe batching.",
+        "summary": "Broadcast an email to an email list (asynchronous fan-out; returns 202).",
         "operationId": "sendToAudience",
         "x-dairo-status": "live",
         "responses": {
-          "200": {
-            "description": "Success",
+          "202": {
+            "description": "Broadcast accepted for asynchronous fan-out. The dispatcher validated and pinned the body and enqueued one broadcast job; the expander worker resolves list membership and delivers per recipient off the request path (SES for external, A2A for internal Dairo inboxes). Poll delivery via GET /v1/messages / webhooks.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AudienceSendResponse"
+                  "$ref": "#/components/schemas/Broadcast"
                 }
               }
             }
@@ -5389,7 +6134,7 @@
         ],
         "parameters": [
           {
-            "name": "listId",
+            "name": "audienceId",
             "in": "path",
             "required": true,
             "schema": {
@@ -5567,7 +6312,7 @@
           "Messages"
         ],
         "summary": "Send an email from a Dairo inbox.",
-        "description": "Sends a single email from a Dairo inbox. An immediate send (no sendAt) performs the SES SendEmail synchronously and returns status 'sent' (with providerMessageId) — or a precise error at submit time (413 for an oversized attachment, 4xx/403 otherwise). A scheduled send (sendAt in the future) returns status 'scheduled' after passing every upfront gate. The response is never accepted as 'queued' here; 'queued' is reserved for the bulk list-broadcast endpoint.",
+        "description": "Sends a single email from a Dairo inbox. An immediate send (no sendAt) performs the SES SendEmail synchronously and returns status 'sent' (with providerMessageId) \u2014 or a precise error at submit time (413 for an oversized attachment, 4xx/403 otherwise). A scheduled send (sendAt in the future) returns status 'scheduled' after passing every upfront gate. The response is never accepted as 'queued' here; 'queued' is reserved for the bulk list-broadcast endpoint.",
         "operationId": "sendMessage",
         "x-dairo-status": "live",
         "responses": {
@@ -8284,6 +9029,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "batchId",
+            "in": "query",
+            "required": false,
+            "description": "Filter to the member letters of one batch (the id returned by POST /v1/letters/batches).",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8395,7 +9149,7 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "Success",
             "content": {
               "application/json": {
@@ -10755,7 +11509,7 @@
           "Organizations"
         ],
         "summary": "List the organizations the authenticated dashboard user belongs to, with their role in each.",
-        "description": "Dashboard (JWT) surface. Returns every workspace the caller is a member of plus their role — the org switcher list. Honors the X-Dairo-Org active-org selector header on the dashboard surface generally; this list endpoint itself is membership-derived and not org-scoped.",
+        "description": "Dashboard (JWT) surface. Returns every workspace the caller is a member of plus their role \u2014 the org switcher list. Honors the X-Dairo-Org active-org selector header on the dashboard surface generally; this list endpoint itself is membership-derived and not org-scoped.",
         "operationId": "listDashboardOrganizations",
         "x-dairo-status": "internal",
         "security": [
@@ -11127,6 +11881,1597 @@
           }
         }
       }
+    },
+    "/v1/contacts": {
+      "get": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "List contacts.",
+        "operationId": "listContacts",
+        "x-dairo-status": "live",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "contacts:read"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "Create a contact.",
+        "operationId": "createContact",
+        "x-dairo-status": "live",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "contacts:write"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactCreateRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/v1/contacts/me": {
+      "get": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "Get the workspace self contact.",
+        "operationId": "getSelfContact",
+        "x-dairo-status": "live",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "contacts:read"
+        ]
+      }
+    },
+    "/v1/contacts/{contactId}": {
+      "get": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "Get a contact with its handles.",
+        "operationId": "getContact",
+        "x-dairo-status": "live",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "contacts:read"
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "Update a contact.",
+        "operationId": "updateContact",
+        "x-dairo-status": "live",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "contacts:write"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactUpdateRequest"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "Delete a contact.",
+        "operationId": "deleteContact",
+        "x-dairo-status": "live",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "contacts:write"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "contactId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/v1/contacts/{contactId}/handles": {
+      "post": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "Add a handle to a contact.",
+        "operationId": "addContactHandle",
+        "x-dairo-status": "live",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactHandleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "contacts:write"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactHandleInput"
+              }
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "contactId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/v1/contacts/{contactId}/handles/{handleId}": {
+      "delete": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "Remove a handle from a contact.",
+        "operationId": "deleteContactHandle",
+        "x-dairo-status": "live",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "contacts:write"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "contactId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "handleId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/v1/contacts/{contactId}/messages": {
+      "get": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "List a contact's cross-channel message history (inbound + outbound merged, newest-first, paginated).",
+        "operationId": "listContactMessages",
+        "x-dairo-status": "live",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "contacts:read"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "name": "contactId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/v1/messages/{messageId}/edit": {
+      "post": {
+        "tags": [
+          "Messages"
+        ],
+        "summary": "Edit a Telegram message you sent.",
+        "description": "Edits a Telegram message you sent, by messageId. Body is exactly one of text or html, plus optional buttons (a 2-D array of {text, url|callback}); pass buttons:[] to clear the inline keyboard. Only telegram outbound messages are editable \u2014 a non-telegram/non-outbound or cross-tenant id returns 404. Requires the messages:send scope.",
+        "operationId": "editTelegramMessage",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "messages:send"
+        ],
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "description": "The Dairo outbound message id (a telegram send) to edit.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageActionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditTelegramMessageRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/messages/{messageId}/react": {
+      "post": {
+        "tags": [
+          "Messages"
+        ],
+        "summary": "Set the bot's reaction on a Telegram message.",
+        "description": "Sets the bot's emoji reaction on a Telegram message you sent or received, by messageId. emoji must be one of Telegram's allowed reaction emoji; a custom/premium emoji is rejected with a 400. big plays the big-reaction animation. Requires the messages:send scope.",
+        "operationId": "reactTelegramMessage",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "messages:send"
+        ],
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "description": "The Dairo message id (a telegram send or received message) to react to.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageActionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReactTelegramMessageRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/messages/{messageId}/unreact": {
+      "post": {
+        "tags": [
+          "Messages"
+        ],
+        "summary": "Clear the bot's reaction on a Telegram message.",
+        "description": "Clears the bot's own reaction on a Telegram message you sent or received, by messageId. Requires the messages:send scope.",
+        "operationId": "unreactTelegramMessage",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "messages:send"
+        ],
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "description": "The Dairo message id (a telegram send or received message) to clear the bot's reaction on.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageActionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/telegram/voices": {
+      "get": {
+        "operationId": "listTelegramVoices",
+        "summary": "Browse the Telegram voice catalog",
+        "description": "List Fish Audio voices available for the Telegram text->voice send (telegram.voice.voiceId). Filter by best language, free-text search, or featured (celebrity/character) voices.",
+        "tags": [
+          "Telegram"
+        ],
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "__any__"
+        ],
+        "parameters": [
+          {
+            "name": "language",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by best language (e.g. en, de, es)."
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Free-text search over name and description."
+          },
+          {
+            "name": "featured",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Only celebrity/character voices."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of voices.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    },
+                    "default": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TelegramVoice"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/buckets/{bucketId}/share-links": {
+      "post": {
+        "tags": [
+          "Buckets"
+        ],
+        "summary": "Create a share bundle (one link over many objects)",
+        "description": "Create ONE secure share link over MANY stored objects in a bucket. The recipient gets a single /s/ page listing every file. Same policy options as a single-object share link: password, maxUses, expiresAt.",
+        "operationId": "createShareBundle",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "buckets:write"
+        ],
+        "parameters": [
+          {
+            "name": "bucketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bucket identifier (buk_*)."
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShareLinkRequest",
+                "properties": {
+                  "objectIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "minItems": 1,
+                    "description": "The object ids to bundle into one share link."
+                  }
+                },
+                "required": [
+                  "objectIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareLink"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -11178,6 +13523,359 @@
       }
     },
     "schemas": {
+      "LetterTemplate": {
+        "type": "object",
+        "required": [
+          "object",
+          "id",
+          "name",
+          "status"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "letter_template"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string",
+            "description": "The branded letter HTML with {{placeholders}} and a blank recipient address window. Omitted from list items."
+          },
+          "variables": {
+            "description": "Declared template variables: a JSON array of placeholder names or an object. Defaults to [].",
+            "oneOf": [
+              {
+                "type": "array"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/LetterTemplateStatus"
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "LetterTemplateStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "archived"
+        ]
+      },
+      "LetterTemplateList": {
+        "type": "object",
+        "required": [
+          "object",
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LetterTemplate"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        }
+      },
+      "CreateLetterTemplateRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "html"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string",
+            "description": "The branded letter HTML. Use {{placeholders}} where values vary per recipient and leave the recipient address window blank."
+          },
+          "variables": {
+            "description": "Declared template variables: a JSON array of placeholder names or an object. Defaults to [].",
+            "oneOf": [
+              {
+                "type": "array"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/LetterTemplateStatus"
+          }
+        }
+      },
+      "UpdateLetterTemplateRequest": {
+        "type": "object",
+        "description": "Partial update. Provide at least one of name, html, variables, or status.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "variables": {
+            "description": "Declared template variables: a JSON array of placeholder names or an object. Defaults to [].",
+            "oneOf": [
+              {
+                "type": "array"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/LetterTemplateStatus"
+          }
+        }
+      },
+      "PreviewLetterTemplateRequest": {
+        "type": "object",
+        "description": "All fields optional; the proof renders with a sample recipient and, by default, left address placement.",
+        "properties": {
+          "templateData": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Values that fill the template's {{placeholders}} for the preview."
+          },
+          "addressPlacement": {
+            "$ref": "#/components/schemas/LetterAddressPlacement"
+          }
+        }
+      },
+      "LetterTemplatePreview": {
+        "type": "object",
+        "required": [
+          "object",
+          "templateId",
+          "addressPlacement",
+          "pdfBase64"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "letter_template_preview"
+            ]
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "addressPlacement": {
+            "$ref": "#/components/schemas/LetterAddressPlacement"
+          },
+          "pdfBase64": {
+            "type": "string",
+            "description": "The composited proof PDF, base64-encoded."
+          }
+        }
+      },
+      "BatchRecipient": {
+        "type": "object",
+        "required": [
+          "to"
+        ],
+        "properties": {
+          "to": {
+            "$ref": "#/components/schemas/PostalAddress"
+          },
+          "templateData": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Per-recipient values that fill the template's {{placeholders}} for this letter."
+          }
+        }
+      },
+      "CreateLetterBatchRequest": {
+        "type": "object",
+        "required": [
+          "templateId",
+          "recipients"
+        ],
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "description": "The stored letter template rendered once per recipient."
+          },
+          "recipients": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/BatchRecipient"
+            }
+          },
+          "from": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PostalAddress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "print": {
+            "$ref": "#/components/schemas/LetterPrintOptions"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/LetterDelivery"
+          },
+          "paymentSlip": {
+            "description": "Optional payment-slip overlay applied to every letter.",
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "qr",
+                  "sepaDe",
+                  "sepaAt"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "autoSend": {
+            "type": "boolean",
+            "default": true
+          },
+          "notifications": {
+            "type": "boolean",
+            "default": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "LetterBatch": {
+        "type": "object",
+        "required": [
+          "object",
+          "id",
+          "status",
+          "total"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "letter_batch"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "templateId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "completed": {
+            "type": "integer",
+            "description": "Member letters in a terminal state (delivered, undeliverable, canceled, failed)."
+          },
+          "statusCounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Live count of member letters keyed by their letter status."
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "LetterBatchCreateResponse": {
+        "type": "object",
+        "required": [
+          "object",
+          "id",
+          "total",
+          "status"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "letter_batch"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Number of letters created (one per recipient)."
+          },
+          "status": {
+            "type": "string",
+            "description": "The batch status; queued on create."
+          }
+        }
+      },
       "AgentBindRequest": {
         "type": "object",
         "description": "Provide an apiKeyId and/or inboxId to bind to this agent.",
@@ -12221,7 +14919,7 @@
                 "letter.status_changed",
                 "domain.verified"
               ],
-              "description": "A subscribable event type. webhook.ping is NOT valid here — it is a synthetic connectivity-test action delivered by POST /v1/webhooks/{id}/ping, not a subscribable event."
+              "description": "A subscribable event type. webhook.ping is NOT valid here \u2014 it is a synthetic connectivity-test action delivered by POST /v1/webhooks/{id}/ping, not a subscribable event."
             },
             "minItems": 1
           },
@@ -12287,7 +14985,7 @@
               "kind": {
                 "type": "string"
               },
-              "subjectEmail": {
+              "subjectHandle": {
                 "type": [
                   "string",
                   "null"
@@ -12527,7 +15225,7 @@
         "type": "object",
         "required": [
           "id",
-          "listId",
+          "audienceId",
           "email",
           "metadata",
           "status",
@@ -12540,13 +15238,21 @@
             "type": "string",
             "format": "uuid"
           },
-          "listId": {
+          "audienceId": {
             "type": "string",
             "format": "uuid"
           },
           "email": {
             "type": "string",
             "format": "email"
+          },
+          "contactId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Set when this member was added as a contact (\u00a712); the email is derived from the contact's primary email handle. Null for a raw-email member."
           },
           "name": {
             "type": [
@@ -12586,13 +15292,17 @@
             "maxItems": 2000,
             "items": {
               "type": "object",
-              "required": [
-                "email"
-              ],
+              "description": "A member is EITHER a contactId (the email is derived from the contact's primary email handle) OR a raw email (\u00a712). Exactly one is required.",
               "properties": {
                 "email": {
                   "type": "string",
-                  "format": "email"
+                  "format": "email",
+                  "description": "Raw recipient address. Provide this OR contactId."
+                },
+                "contactId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "A contact in the address book; its primary email handle becomes the member's address. Provide this OR email."
                 },
                 "name": {
                   "type": "string"
@@ -12609,11 +15319,11 @@
       "AudienceMembersResponse": {
         "type": "object",
         "required": [
-          "listId",
+          "audienceId",
           "imported"
         ],
         "properties": {
-          "listId": {
+          "audienceId": {
             "type": "string",
             "format": "uuid"
           },
@@ -12636,14 +15346,14 @@
       "AudienceSendResponse": {
         "type": "object",
         "required": [
-          "listId",
+          "audienceId",
           "listName",
           "recipientCount",
           "batchCount",
           "messages"
         ],
         "properties": {
-          "listId": {
+          "audienceId": {
             "type": "string",
             "format": "uuid"
           },
@@ -12661,6 +15371,34 @@
             "items": {
               "$ref": "#/components/schemas/SendMessageResponse"
             }
+          }
+        }
+      },
+      "Broadcast": {
+        "type": "object",
+        "description": "The 202 accept envelope for a list broadcast enqueued for asynchronous fan-out.",
+        "required": [
+          "object",
+          "id",
+          "audienceId",
+          "status"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "const": "broadcast"
+          },
+          "id": {
+            "type": "string",
+            "description": "The server-minted broadcast id (bcast_...)."
+          },
+          "audienceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "const": "queued"
           }
         }
       },
@@ -12684,10 +15422,10 @@
       "EraseRequest": {
         "type": "object",
         "required": [
-          "subjectEmail"
+          "subjectHandle"
         ],
         "properties": {
-          "subjectEmail": {
+          "subjectHandle": {
             "type": "string",
             "format": "email",
             "description": "The data subject's email address to erase across all stored mail."
@@ -12719,7 +15457,7 @@
               "purge_inbox"
             ]
           },
-          "subjectEmail": {
+          "subjectHandle": {
             "type": [
               "string",
               "null"
@@ -12974,7 +15712,7 @@
             "enum": [
               "list"
             ],
-            "description": "Always \"list\" — the unified list envelope discriminator."
+            "description": "Always \"list\" \u2014 the unified list envelope discriminator."
           },
           "data": {
             "type": "array",
@@ -12991,7 +15729,7 @@
             "items": {
               "$ref": "#/components/schemas/LedgerGap"
             },
-            "description": "Per-partition seq gaps detected within this page's window. An empty array means no gap was detected in the returned window — detection is window-local (only the seq range present on this page), not whole-history."
+            "description": "Per-partition seq gaps detected within this page's window. An empty array means no gap was detected in the returned window \u2014 detection is window-local (only the seq range present on this page), not whole-history."
           }
         }
       },
@@ -13194,7 +15932,7 @@
               "email",
               "a2a"
             ],
-            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, …) are not yet wired."
+            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, \u2026) are not yet wired."
           }
         },
         "additionalProperties": false
@@ -13719,7 +16457,7 @@
       },
       "LetterFileRef": {
         "type": "object",
-        "description": "Reuse a PDF already stored in Dairo as the letter — no re-upload. Provide EXACTLY ONE of `attachmentId` (an email attachment) or `objectId` (a storage object from the buckets API). Providing both, or neither, is a 400.",
+        "description": "Reuse a PDF already stored in Dairo as the letter \u2014 no re-upload. Provide EXACTLY ONE of `attachmentId` (an email attachment) or `objectId` (a storage object from the buckets API). Providing both, or neither, is a 400.",
         "properties": {
           "attachmentId": {
             "type": "string",
@@ -14047,7 +16785,7 @@
               "email",
               "a2a"
             ],
-            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, …) are not yet wired."
+            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, \u2026) are not yet wired."
           },
           "channelMetadata": {
             "type": [
@@ -14055,7 +16793,7 @@
               "null"
             ],
             "additionalProperties": true,
-            "description": "Channel-specific metadata bag (per-channel extension point). Inbound email: {sesMessageId, spfVerdict, dkimVerdict, dmarcVerdict, …}. A2A: {receiptId, provenance, provenanceVerified}. A folded outbound send: {providerMessageId, provider, lastEventType, lastEventAt, bouncedAt, complainedAt}."
+            "description": "Channel-specific metadata bag (per-channel extension point). Inbound email: {sesMessageId, spfVerdict, dkimVerdict, dmarcVerdict, \u2026}. A2A: {receiptId, provenance, provenanceVerified}. A folded outbound send: {providerMessageId, provider, lastEventType, lastEventAt, bouncedAt, complainedAt}."
           }
         },
         "additionalProperties": false
@@ -14856,7 +17594,7 @@
       },
       "SendMessageAttachment": {
         "type": "object",
-        "description": "An outbound attachment. Provide EITHER inline bytes (contentBase64) OR a storage reference (objectId) — exactly one, never both. Inline attachments require filename and are capped at 8 MiB decoded (API Gateway JSON/base64 envelope). A storage-reference attachment names a Dairo storage object you own (the objectId returned by a bucket upload's finalize, or any owned storage object); Dairo fetches its bytes server-side and native-attaches up to 24 MiB, deriving filename and contentType from the object unless you override them here. Over 24 MiB the send fails with a 413 (create a share link and place it in the body yourself; Dairo never auto-edits the body).",
+        "description": "An outbound attachment. Provide EITHER inline bytes (contentBase64) OR a storage reference (objectId) \u2014 exactly one, never both. Inline attachments require filename and are capped at 8 MiB decoded (API Gateway JSON/base64 envelope). A storage-reference attachment names a Dairo storage object you own (the objectId returned by a bucket upload's finalize, or any owned storage object); Dairo fetches its bytes server-side and native-attaches up to 24 MiB, deriving filename and contentType from the object unless you override them here. Over 24 MiB the send fails with a 413 (create a share link and place it in the body yourself; Dairo never auto-edits the body).",
         "oneOf": [
           {
             "required": [
@@ -15004,6 +17742,20 @@
             "type": "boolean",
             "default": false,
             "description": "Override complaint suppression for recipients that previously complained."
+          },
+          "contactId": {
+            "type": "string",
+            "description": "Optional contact reference: the contact's PRIMARY handle for the sending inbox's channel is added to `to`, so a send needs no raw address. Accepts a bare contact id, or a `contact:<id>` / `@alias` / `@me` ref. Recipients in to/cc/bcc may ALSO be contact references (`@alias`, `contact:<id>`, `@me`); raw addresses pass through unchanged."
+          },
+          "buttons": {
+            "type": "array",
+            "description": "Telegram inline keyboard (Telegram-channel inbox only): rows of {text, url|callback} buttons. A URL button opens a link; a callback button surfaces the tap back to you as an inbound button_tap event and shows a feedback toast on tap (default: \u2713 + the button label; set alert:true for a modal).",
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/TelegramButton"
+              }
+            }
           }
         },
         "anyOf": [
@@ -15050,7 +17802,7 @@
               "failed",
               "queued"
             ],
-            "description": "A single immediate send (POST /v1/emails without sendAt) is performed synchronously and returns 'sent' (with providerMessageId) or 'failed' — it is never accepted as 'queued' only to fail later on something knowable at submit time (oversized attachment, unverified sender, etc.). A scheduled send (sendAt in the future) returns 'scheduled'. 'queued' is returned ONLY for a bulk list broadcast (POST /v1/lists/{id}/send), whose batches are delivered asynchronously by the worker fleet."
+            "description": "A single immediate send (POST /v1/emails without sendAt) is performed synchronously and returns 'sent' (with providerMessageId) or 'failed' \u2014 it is never accepted as 'queued' only to fail later on something knowable at submit time (oversized attachment, unverified sender, etc.). A scheduled send (sendAt in the future) returns 'scheduled'. 'queued' is returned ONLY for a bulk list broadcast (POST /v1/audiences/{id}/send), whose batches are delivered asynchronously by the worker fleet."
           },
           "providerMessageId": {
             "type": [
@@ -15078,7 +17830,7 @@
               "email",
               "a2a"
             ],
-            "description": "The channel this send transited: \"email\" (SES) or \"a2a\" (internal Dairo-to-Dairo, delivered as a receipt, providerMessageId 'a2a_…')."
+            "description": "The channel this send transited: \"email\" (SES) or \"a2a\" (internal Dairo-to-Dairo, delivered as a receipt, providerMessageId 'a2a_\u2026')."
           },
           "channelMetadata": {
             "type": [
@@ -15671,7 +18423,7 @@
               "email",
               "a2a"
             ],
-            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, …) are not yet wired."
+            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, \u2026) are not yet wired."
           }
         },
         "additionalProperties": false
@@ -16879,6 +19631,441 @@
             "type": "string"
           }
         }
+      },
+      "ContactHandle": {
+        "type": "object",
+        "required": [
+          "id",
+          "contactId",
+          "channel",
+          "value",
+          "isPrimary",
+          "verified",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "channel": {
+            "type": "string",
+            "description": "Delivery channel of this handle (email/a2a/telegram/postal/\u2026)."
+          },
+          "value": {
+            "type": "string",
+            "description": "The channel address (email address, chat id, agent id, or for a postal handle the one-line formatted address)."
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isPrimary": {
+            "type": "boolean"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Structured extras. For a postal handle this carries the structured address: { name, street, line2?, postalCode, city, state?, country } (see PostalAddress)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Contact": {
+        "type": "object",
+        "required": [
+          "id",
+          "displayName",
+          "kind",
+          "isSelf",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "alias": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "@-referenceable handle, unique per workspace."
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "person",
+              "agent",
+              "self"
+            ]
+          },
+          "isSelf": {
+            "type": "boolean",
+            "description": "The workspace self contact (the \"@me\" recipient)."
+          },
+          "info": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Free-text notes."
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "handles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContactHandle"
+            },
+            "description": "Present on the detail view (GET /v1/contacts/{id} and /v1/contacts/me)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ContactHandleInput": {
+        "type": "object",
+        "required": [
+          "channel",
+          "value"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "email / a2a / telegram / postal / \u2026"
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "The channel address. For a postal handle this is the one-line formatted address (for display); the structured address goes in metadata."
+          },
+          "label": {
+            "type": "string"
+          },
+          "isPrimary": {
+            "type": "boolean",
+            "default": false
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Structured extras. REQUIRED for a postal handle: { name, street, line2?, postalCode, city, state?, country } (see PostalAddress). name/street/postalCode/city/country are required; country is an ISO-3166 alpha-2 code or a country name."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ContactCreateRequest": {
+        "type": "object",
+        "required": [
+          "displayName"
+        ],
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alias": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "person",
+              "agent",
+              "self"
+            ]
+          },
+          "info": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "avatarUrl": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "handles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContactHandleInput"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ContactUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alias": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "person",
+              "agent",
+              "self"
+            ]
+          },
+          "info": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000
+          },
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ContactListResponse": {
+        "type": "object",
+        "required": [
+          "contacts"
+        ],
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Contact"
+            }
+          }
+        }
+      },
+      "ContactDetailResponse": {
+        "type": "object",
+        "required": [
+          "contact"
+        ],
+        "properties": {
+          "contact": {
+            "$ref": "#/components/schemas/Contact"
+          }
+        }
+      },
+      "ContactHandleResponse": {
+        "type": "object",
+        "required": [
+          "contactHandle"
+        ],
+        "properties": {
+          "contactHandle": {
+            "$ref": "#/components/schemas/ContactHandle"
+          }
+        }
+      },
+      "TelegramButton": {
+        "type": "object",
+        "description": "A Telegram inline-keyboard button: a text label plus exactly one of url (a http/https/tg link) or callback (an opaque action string surfaced back to you as an inbound button_tap event). A callback button shows a feedback toast on tap (default: \u2713 + the button label); set alert:true for a modal. feedback/alert are ignored on a url button.",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Button label (1-64 chars)."
+          },
+          "url": {
+            "type": "string",
+            "description": "A http://, https://, or tg:// link opened on tap. Mutually exclusive with callback."
+          },
+          "callback": {
+            "type": "string",
+            "description": "An opaque action string. On tap it is surfaced back to you as an inbound button_tap message + a message.button.tapped event. Mutually exclusive with url."
+          },
+          "feedback": {
+            "type": "string",
+            "description": "Callback-button only: the toast text shown to the tapping user (answerCallbackQuery text, max 200 chars). Defaults to '\u2713 <button label>' when omitted, so every tap gives visible feedback. Ignored on a url button."
+          },
+          "alert": {
+            "type": "boolean",
+            "description": "Callback-button only: when true, the feedback is shown as a modal dialog (show_alert) instead of a transient toast. Ignored on a url button."
+          }
+        }
+      },
+      "EditTelegramMessageRequest": {
+        "type": "object",
+        "description": "Edit a Telegram message you sent: exactly one of text or html, plus an optional replacement inline keyboard.",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "New plain-text body. Mutually exclusive with html."
+          },
+          "html": {
+            "type": "string",
+            "description": "New rich-HTML body. Mutually exclusive with text."
+          },
+          "buttons": {
+            "type": "array",
+            "description": "Optional replacement inline keyboard (rows of buttons). Pass [] to clear the keyboard. Callback buttons show a feedback toast on tap (default: \u2713 + the button label; set alert:true for a modal).",
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/TelegramButton"
+              }
+            }
+          }
+        }
+      },
+      "ReactTelegramMessageRequest": {
+        "type": "object",
+        "required": [
+          "emoji"
+        ],
+        "description": "Set the bot's emoji reaction on a Telegram message.",
+        "properties": {
+          "emoji": {
+            "type": "string",
+            "description": "A single Telegram-allowed reaction emoji (e.g. \ud83d\udc4d \ud83d\udc4e \u2764 \ud83d\udd25)."
+          },
+          "big": {
+            "type": "boolean",
+            "description": "Play the big-reaction animation.",
+            "default": false
+          }
+        }
+      },
+      "MessageActionResponse": {
+        "type": "object",
+        "description": "The result of a Telegram message action (edit/react/unreact).",
+        "properties": {
+          "object": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "description": "The message id acted on."
+          },
+          "channel": {
+            "type": "string"
+          },
+          "edited": {
+            "type": "boolean"
+          },
+          "editedAt": {
+            "type": "string"
+          },
+          "reacted": {
+            "type": "boolean"
+          },
+          "emoji": {
+            "type": "string"
+          },
+          "big": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TelegramVoice": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "Stable handle; use as telegram.voice.voiceId."
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "bestLanguage": {
+            "type": "string",
+            "nullable": true
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "gender": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "featured": {
+            "type": "boolean"
+          },
+          "popularity": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "featured"
+        ]
       }
     }
   }

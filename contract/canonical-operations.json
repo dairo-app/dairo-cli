@@ -3,7 +3,7 @@
   "description": "Derived from the canonical dairo.openapi.json. Regenerate via scripts/gen-canonical-operations.py; do not hand-edit.",
   "openapiVersion": "3.1.0",
   "specVersion": "1.0.0",
-  "operationCount": 103,
+  "operationCount": 124,
   "operations": [
     {
       "method": "GET",
@@ -278,6 +278,88 @@
     },
     {
       "method": "GET",
+      "operationId": "listAudiences",
+      "parameters": [],
+      "path": "/v1/audiences",
+      "scopes": [
+        "lists:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createAudience",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/audiences",
+      "scopes": [
+        "lists:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteAudience",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "audienceId"
+        }
+      ],
+      "path": "/v1/audiences/{audienceId}",
+      "scopes": [
+        "lists:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAudience",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "audienceId"
+        }
+      ],
+      "path": "/v1/audiences/{audienceId}",
+      "scopes": [
+        "lists:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "addAudienceMembers",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "audienceId"
+        }
+      ],
+      "path": "/v1/audiences/{audienceId}/members",
+      "scopes": [
+        "lists:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "sendToAudience",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "audienceId"
+        }
+      ],
+      "path": "/v1/audiences/{audienceId}/send",
+      "scopes": [
+        "lists:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
       "operationId": "listAuditLogs",
       "parameters": [
         {},
@@ -527,6 +609,21 @@
       "contractSource": "openapi"
     },
     {
+      "method": "POST",
+      "operationId": "createShareBundle",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/share-links",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
       "method": "GET",
       "operationId": "listBudgets",
       "parameters": [],
@@ -568,6 +665,101 @@
       "path": "/v1/budgets/{scope}",
       "scopes": [
         "budgets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listContacts",
+      "parameters": [],
+      "path": "/v1/contacts",
+      "scopes": [
+        "contacts:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createContact",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/contacts",
+      "scopes": [
+        "contacts:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getSelfContact",
+      "parameters": [],
+      "path": "/v1/contacts/me",
+      "scopes": [
+        "contacts:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteContact",
+      "parameters": [],
+      "path": "/v1/contacts/{contactId}",
+      "scopes": [
+        "contacts:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getContact",
+      "parameters": [],
+      "path": "/v1/contacts/{contactId}",
+      "scopes": [
+        "contacts:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "updateContact",
+      "parameters": [],
+      "path": "/v1/contacts/{contactId}",
+      "scopes": [
+        "contacts:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "addContactHandle",
+      "parameters": [],
+      "path": "/v1/contacts/{contactId}/handles",
+      "scopes": [
+        "contacts:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteContactHandle",
+      "parameters": [],
+      "path": "/v1/contacts/{contactId}/handles/{handleId}",
+      "scopes": [
+        "contacts:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listContactMessages",
+      "parameters": [
+        {},
+        {}
+      ],
+      "path": "/v1/contacts/{contactId}/messages",
+      "scopes": [
+        "contacts:read"
       ],
       "contractSource": "openapi"
     },
@@ -919,6 +1111,10 @@
         {
           "in": "query",
           "name": "country"
+        },
+        {
+          "in": "query",
+          "name": "batchId"
         }
       ],
       "path": "/v1/letters",
@@ -941,11 +1137,101 @@
     },
     {
       "method": "POST",
+      "operationId": "createLetterBatch",
+      "parameters": [],
+      "path": "/v1/letters/batches",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getLetterBatch",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/batches/{id}",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
       "operationId": "priceLetter",
       "parameters": [],
       "path": "/v1/letters/price",
       "scopes": [
         "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listLetterTemplates",
+      "parameters": [],
+      "path": "/v1/letters/templates",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createLetterTemplate",
+      "parameters": [],
+      "path": "/v1/letters/templates",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getLetterTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/templates/{id}",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "updateLetterTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/templates/{id}",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "previewLetterTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/templates/{id}/preview",
+      "scopes": [
+        "letters:send"
       ],
       "contractSource": "openapi"
     },
@@ -993,88 +1279,6 @@
       "path": "/v1/letters/{id}/events",
       "scopes": [
         "letters:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listAudiences",
-      "parameters": [],
-      "path": "/v1/lists",
-      "scopes": [
-        "lists:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "createAudience",
-      "parameters": [
-        {}
-      ],
-      "path": "/v1/lists",
-      "scopes": [
-        "lists:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "DELETE",
-      "operationId": "deleteAudience",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "listId"
-        }
-      ],
-      "path": "/v1/lists/{listId}",
-      "scopes": [
-        "lists:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getAudience",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "listId"
-        }
-      ],
-      "path": "/v1/lists/{listId}",
-      "scopes": [
-        "lists:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "addAudienceMembers",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "listId"
-        }
-      ],
-      "path": "/v1/lists/{listId}/members",
-      "scopes": [
-        "lists:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "sendToAudience",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "listId"
-        }
-      ],
-      "path": "/v1/lists/{listId}/send",
-      "scopes": [
-        "lists:write"
       ],
       "contractSource": "openapi"
     },
@@ -1177,6 +1381,21 @@
       "contractSource": "openapi"
     },
     {
+      "method": "POST",
+      "operationId": "editTelegramMessage",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}/edit",
+      "scopes": [
+        "messages:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
       "method": "GET",
       "operationId": "listOutboundEvents",
       "parameters": [
@@ -1189,6 +1408,36 @@
       "path": "/v1/messages/{messageId}/events",
       "scopes": [
         "messages:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "reactTelegramMessage",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}/react",
+      "scopes": [
+        "messages:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "unreactTelegramMessage",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}/unreact",
+      "scopes": [
+        "messages:send"
       ],
       "contractSource": "openapi"
     },
@@ -1243,6 +1492,37 @@
       "path": "/v1/share-links/{shareLinkId}/opens",
       "scopes": [
         "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listTelegramVoices",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "language"
+        },
+        {
+          "in": "query",
+          "name": "q"
+        },
+        {
+          "in": "query",
+          "name": "featured"
+        },
+        {
+          "in": "query",
+          "name": "limit"
+        },
+        {
+          "in": "query",
+          "name": "offset"
+        }
+      ],
+      "path": "/v1/telegram/voices",
+      "scopes": [
+        "__any__"
       ],
       "contractSource": "openapi"
     },

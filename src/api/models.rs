@@ -223,7 +223,7 @@ pub struct AudienceMemberInput {
     pub name: Option<String>,
 }
 
-/// `GET /v1/lists/{id}` now returns the flat list object with its members
+/// `GET /v1/audiences/{id}` now returns the flat list object with its members
 /// carried as a `members` field on it (the redesign dropped the `{ list, members }`
 /// wrapper). The list's own fields are flattened in alongside `members`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -236,14 +236,14 @@ pub struct AudienceDetailResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AudienceImportResponse {
-    #[serde(rename = "listId")]
+    #[serde(rename = "audienceId")]
     pub list_id: String,
     pub imported: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AudienceSendResponse {
-    #[serde(rename = "listId")]
+    #[serde(rename = "audienceId")]
     pub list_id: String,
     #[serde(rename = "listName")]
     pub list_name: String,
@@ -271,7 +271,7 @@ pub struct Audience {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AudienceMember {
     pub id: String,
-    #[serde(rename = "listId")]
+    #[serde(rename = "audienceId")]
     pub list_id: String,
     pub email: String,
     pub name: Option<String>,

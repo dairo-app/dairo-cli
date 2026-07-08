@@ -267,42 +267,42 @@ impl ApiClient {
             .await
     }
 
-    /// Lists active lists (`GET /v1/lists`, scope `lists:read`; was
+    /// Lists active lists (`GET /v1/audiences`, scope `audiences:read`; was
     /// `/v1/email-lists`).
     pub async fn list_audiences(&self) -> Result<ListEnvelope<Audience>> {
-        self.execute_json(self.build_request(Method::GET, &["v1", "lists"], None::<&()>)?)
+        self.execute_json(self.build_request(Method::GET, &["v1", "audiences"], None::<&()>)?)
             .await
     }
 
-    /// Creates a list (`POST /v1/lists`, scope `lists:write`). Returns the single
+    /// Creates a list (`POST /v1/audiences`, scope `audiences:write`). Returns the single
     /// list object.
     pub async fn create_audience(&self, body: &CreateAudienceRequest) -> Result<Audience> {
-        self.execute_json(self.build_request(Method::POST, &["v1", "lists"], Some(body))?)
+        self.execute_json(self.build_request(Method::POST, &["v1", "audiences"], Some(body))?)
             .await
     }
 
-    /// Gets a list plus its active members (`GET /v1/lists/{id}`, scope
-    /// `lists:read`). The members are carried as a field on the single list object.
+    /// Gets a list plus its active members (`GET /v1/audiences/{id}`, scope
+    /// `audiences:read`). The members are carried as a field on the single list object.
     pub async fn get_audience(&self, list_id: &str) -> Result<AudienceDetailResponse> {
         self.execute_json(self.build_request(
             Method::GET,
-            &["v1", "lists", list_id],
+            &["v1", "audiences", list_id],
             None::<&()>,
         )?)
         .await
     }
 
-    /// Archives a list (`DELETE /v1/lists/{id}`, scope `lists:write`). Returns 204.
+    /// Archives a list (`DELETE /v1/audiences/{id}`, scope `audiences:write`). Returns 204.
     pub async fn delete_audience(&self, list_id: &str) -> Result<()> {
         self.execute_no_content(self.build_request(
             Method::DELETE,
-            &["v1", "lists", list_id],
+            &["v1", "audiences", list_id],
             None::<&()>,
         )?)
         .await
     }
 
-    /// Upserts members via the canonical `POST /v1/lists/{id}/members` endpoint
+    /// Upserts members via the canonical `POST /v1/audiences/{id}/members` endpoint
     /// (<= 2000 members). The `/members/import` alias was removed in the redesign;
     /// both the manual add and CSV import now post here.
     pub async fn add_audience_members(
@@ -312,7 +312,7 @@ impl ApiClient {
     ) -> Result<AudienceImportResponse> {
         self.execute_json(self.build_request(
             Method::POST,
-            &["v1", "lists", list_id, "members"],
+            &["v1", "audiences", list_id, "members"],
             Some(body),
         )?)
         .await
@@ -325,7 +325,7 @@ impl ApiClient {
     ) -> Result<AudienceSendResponse> {
         self.execute_json(self.build_request(
             Method::POST,
-            &["v1", "lists", list_id, "send"],
+            &["v1", "audiences", list_id, "send"],
             Some(body),
         )?)
         .await
@@ -1059,6 +1059,87 @@ impl ApiClient {
     /// (`DELETE /v1/buckets/{bucketId}`, scope `buckets:write`). Surfaces the
     /// backend's `409` when the bucket is the protected default. Returns the
     /// archived `bucket` envelope.
+    /// Creates a secure share link over ONE stored object
+    /// (`POST /v1/buckets/{bucketId}/objects/{objectId}/share-links`, scope `buckets:write`).
+    pub async fn create_share_link(
+        &self,
+        bucket_id: &str,
+        object_id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &[
+                "v1",
+                "buckets",
+                bucket_id,
+                "objects",
+                object_id,
+                "share-links",
+            ],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Creates a share BUNDLE: one link + /s/ page over MANY objects in a bucket
+    /// (`POST /v1/buckets/{bucketId}/share-links`, scope `buckets:write`).
+    pub async fn create_share_bundle(
+        &self,
+        bucket_id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "buckets", bucket_id, "share-links"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Lists the share links minted over one object
+    /// (`GET /v1/buckets/{bucketId}/objects/{objectId}/share-links`, scope `buckets:read`).
+    pub async fn list_share_links(
+        &self,
+        bucket_id: &str,
+        object_id: &str,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &[
+                "v1",
+                "buckets",
+                bucket_id,
+                "objects",
+                object_id,
+                "share-links",
+            ],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Revokes a share link (`DELETE /v1/share-links/{shareLinkId}`, scope `buckets:write`).
+    pub async fn revoke_share_link(&self, share_link_id: &str) -> Result<()> {
+        self.execute_no_content(self.build_request(
+            Method::DELETE,
+            &["v1", "share-links", share_link_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Lists a share link's open analytics
+    /// (`GET /v1/share-links/{shareLinkId}/opens`, scope `buckets:read`).
+    pub async fn list_share_opens(&self, share_link_id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "share-links", share_link_id, "opens"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
     pub async fn delete_bucket(&self, bucket_id: &str) -> Result<()> {
         // DELETE /v1/buckets/{id} responds 204 with an EMPTY body; parsing it as
         // JSON (execute_json) fails with "EOF while parsing a value" even though the
@@ -1974,12 +2055,16 @@ mod tests {
     fn audience_delete_targets_list_resource() {
         let client = ApiClient::new("https://api.example.test", "token").unwrap();
         let request = client
-            .build_request(Method::DELETE, &["v1", "lists", "list_123"], None::<&()>)
+            .build_request(
+                Method::DELETE,
+                &["v1", "audiences", "list_123"],
+                None::<&()>,
+            )
             .unwrap();
         assert_eq!(request.method(), Method::DELETE);
         assert_eq!(
             request.url().as_str(),
-            "https://api.example.test/v1/lists/list_123"
+            "https://api.example.test/v1/audiences/list_123"
         );
     }
 

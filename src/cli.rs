@@ -17,14 +17,14 @@ const ROOT_HELP_COMMANDS: &str = "Getting started:
   init           Scaffold a Dairo starter into your project
   doctor         Check local config and connectivity
 
-Email:
-  send           Send an email from an inbox
+Messaging:
+  send           Send a message from an inbox (email, Telegram, A2A)
   inbox          Manage inboxes
-  messages       Read inbox mail
-  threads        Read mail threads
+  messages       Read inbox messages
+  threads        Read message threads
   outbound       Outbound history and delivery events
-  lists          Email lists and broadcasts
-  templates      Reusable email templates
+  audiences      Broadcast audiences and audience sends
+  templates      Reusable message templates
   attachments    Download message attachments
 
 Realtime and webhooks:
@@ -37,6 +37,7 @@ Physical mail:
 
 Storage:
   bucket         Store and retrieve files in named storage buckets
+  share          Secure share links over stored objects (single or bundle)
 
 Account and access:
   domain         Manage sending domains
@@ -194,11 +195,17 @@ pub enum Command {
         #[command(subcommand)]
         command: OutboundCommand,
     },
-    /// Manage email lists and send to list recipients.
-    #[command(name = "lists", alias = "list")]
+    /// Manage broadcast audiences and send to audience members.
+    #[command(name = "audiences", alias = "audience")]
     Audience {
         #[command(subcommand)]
         command: AudienceCommand,
+    },
+    /// Create and manage secure share links over stored objects (single or bundle).
+    #[command(name = "share", alias = "shares")]
+    Share {
+        #[command(subcommand)]
+        command: ShareCommand,
     },
     /// Inspect the account audit log (security-relevant control-plane actions).
     #[command(name = "audit-logs", alias = "audit-log")]
@@ -2717,7 +2724,7 @@ mod tests {
 
     #[test]
     fn parses_audience_delete_command() {
-        let cli = Cli::parse_from(["dairo", "lists", "delete", "list_123"]);
+        let cli = Cli::parse_from(["dairo", "audiences", "delete", "list_123"]);
         match cli.command {
             Command::Audience {
                 command: AudienceCommand::Delete { list_id },
@@ -4098,4 +4105,44 @@ mod tests {
             }
         ));
     }
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ShareCommand {
+    /// Create a share link over ONE object, or a BUNDLE when --object is given
+    /// multiple times (one link + /s/ page over many files).
+    Create {
+        /// The bucket holding the object(s).
+        #[arg(long)]
+        bucket: String,
+        /// Object id. Repeat to bundle many objects into ONE share link.
+        #[arg(long = "object", required = true)]
+        objects: Vec<String>,
+        /// Optional password the recipient must enter on the share page.
+        #[arg(long)]
+        password: Option<String>,
+        /// Optional use cap. 1 = one-time (410 after the first download).
+        #[arg(long = "max-uses")]
+        max_uses: Option<u32>,
+        /// Optional absolute expiry (RFC3339).
+        #[arg(long = "expires-at")]
+        expires_at: Option<String>,
+    },
+    /// List the share links minted over one object.
+    List {
+        #[arg(long)]
+        bucket: String,
+        #[arg(long)]
+        object: String,
+    },
+    /// Show a share link's open analytics.
+    Opens {
+        /// The share link id (shr_... or bnd_...).
+        id: String,
+    },
+    /// Revoke a share link (single or bundle) immediately.
+    Revoke {
+        /// The share link id (shr_... or bnd_...).
+        id: String,
+    },
 }

@@ -2,7 +2,7 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 78,
+  "operationCount": 83,
   "operations": [
     {
       "method": "GET",
@@ -815,9 +815,9 @@
       "method": "GET",
       "operationId": "listAudiences",
       "parameters": [],
-      "path": "/v1/lists",
+      "path": "/v1/audiences",
       "scopes": [
-        "lists:read"
+        "audiences:read"
       ],
       "contractSource": "openapi"
     },
@@ -827,9 +827,9 @@
       "parameters": [
         {}
       ],
-      "path": "/v1/lists",
+      "path": "/v1/audiences",
       "scopes": [
-        "lists:write"
+        "audiences:write"
       ],
       "contractSource": "openapi"
     },
@@ -839,12 +839,12 @@
       "parameters": [
         {
           "in": "path",
-          "name": "listId"
+          "name": "audienceId"
         }
       ],
-      "path": "/v1/lists/{listId}",
+      "path": "/v1/audiences/{audienceId}",
       "scopes": [
-        "lists:write"
+        "audiences:write"
       ],
       "contractSource": "openapi"
     },
@@ -854,12 +854,12 @@
       "parameters": [
         {
           "in": "path",
-          "name": "listId"
+          "name": "audienceId"
         }
       ],
-      "path": "/v1/lists/{listId}",
+      "path": "/v1/audiences/{audienceId}",
       "scopes": [
-        "lists:read"
+        "audiences:read"
       ],
       "contractSource": "openapi"
     },
@@ -869,12 +869,12 @@
       "parameters": [
         {
           "in": "path",
-          "name": "listId"
+          "name": "audienceId"
         }
       ],
-      "path": "/v1/lists/{listId}/members",
+      "path": "/v1/audiences/{audienceId}/members",
       "scopes": [
-        "lists:write"
+        "audiences:write"
       ],
       "contractSource": "openapi"
     },
@@ -884,12 +884,12 @@
       "parameters": [
         {
           "in": "path",
-          "name": "listId"
+          "name": "audienceId"
         }
       ],
-      "path": "/v1/lists/{listId}/send",
+      "path": "/v1/audiences/{audienceId}/send",
       "scopes": [
-        "lists:write"
+        "audiences:write"
       ],
       "contractSource": "openapi"
     },
@@ -1155,6 +1155,93 @@
       "path": "/v1/whoami",
       "scopes": [
         "__any__"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listShareLinks",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        },
+        {
+          "in": "path",
+          "name": "objectId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/objects/{objectId}/share-links",
+      "scopes": [
+        "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createShareLink",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        },
+        {
+          "in": "path",
+          "name": "objectId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/objects/{objectId}/share-links",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createShareBundle",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/share-links",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "revokeShareLink",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "shareLinkId"
+        }
+      ],
+      "path": "/v1/share-links/{shareLinkId}",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listShareLinkOpens",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "shareLinkId"
+        },
+        {
+          "in": "query",
+          "name": "limit"
+        }
+      ],
+      "path": "/v1/share-links/{shareLinkId}/opens",
+      "scopes": [
+        "buckets:read"
       ],
       "contractSource": "openapi"
     }

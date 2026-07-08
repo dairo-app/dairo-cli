@@ -2,6 +2,23 @@
 
 All notable Dairo CLI changes are tracked here.
 
+## 0.0.10 - 2026-07-08
+
+### Added
+
+- `dairo share` — secure share links over stored objects: `create` (pass
+  `--object` multiple times to bundle MANY files into ONE share link),
+  `list`, `opens`, and `revoke`.
+
+### Changed
+
+- Breaking: the `lists` command is now `audiences` (alias `audience`), the
+  API paths moved from `/v1/lists` to `/v1/audiences`, the scopes from
+  `lists:*` to `audiences:*`, and audience members carry a channel-agnostic
+  `handle` instead of `email`. Erasure jobs take `subjectHandle` (was
+  `subjectEmail`). Mirrors the backend's email-era naming cleanup.
+- The vendored API contract was re-synced (124 operations, up from 103).
+
 ## 0.0.9 - 2026-07-07
 
 ### Added

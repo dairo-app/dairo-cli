@@ -30,8 +30,8 @@ use cli::{
     ComplianceCommand, DedicatedIpCommand, DomainCommand, ErasureJobCommand, EventsCommand,
     InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode, LetterCommand, LetterPaymentArgs,
     LetterPriceArgs, LetterPrintArgs, LetterSendArgs, LoginArgs, McpCommand, MessageCommand,
-    OutboundCommand, RecipientArgs, ReputationCommand, SenderArgs, TemplateCommand, ThreadCommand,
-    VerificationWaitCommand, WebhookCommand,
+    OutboundCommand, RecipientArgs, ReputationCommand, SenderArgs, ShareCommand, TemplateCommand,
+    ThreadCommand, VerificationWaitCommand, WebhookCommand,
 };
 use config::{Config, StorageMode};
 use output::OutputFormat;
@@ -450,6 +450,34 @@ async fn run(cli: Cli) -> Result<()> {
                             &output::filter_events_of_type(response, "complaint"),
                             format,
                         )
+                    }
+                },
+                Command::Share { command } => match command {
+                    ShareCommand::Create { bucket, objects, password, max_uses, expires_at } => {
+                        let mut body = serde_json::Map::new();
+                        if let Some(p) = password { body.insert("password".into(), serde_json::json!(p)); }
+                        if let Some(m) = max_uses { body.insert("maxUses".into(), serde_json::json!(m)); }
+                        if let Some(e) = expires_at { body.insert("expiresAt".into(), serde_json::json!(e)); }
+                        let response = if objects.len() == 1 {
+                            client.create_share_link(&bucket, &objects[0], &serde_json::Value::Object(body)).await?
+                        } else {
+                            body.insert("objectIds".into(), serde_json::json!(objects));
+                            client.create_share_bundle(&bucket, &serde_json::Value::Object(body)).await?
+                        };
+                        output::print_json(&response, format)
+                    }
+                    ShareCommand::List { bucket, object } => {
+                        let response = client.list_share_links(&bucket, &object).await?;
+                        output::print_json(&response, format)
+                    }
+                    ShareCommand::Opens { id } => {
+                        let response = client.list_share_opens(&id).await?;
+                        output::print_json(&response, format)
+                    }
+                    ShareCommand::Revoke { id } => {
+                        client.revoke_share_link(&id).await?;
+                        println!("Share link {id} revoked.");
+                        Ok(())
                     }
                 },
                 Command::Audience { command } => match command {
@@ -2018,7 +2046,7 @@ fn build_set_budget_request(
 
 /// Assembles the `POST /v1/erasure-jobs` body. The redesign merged the two
 /// `/compliance/erase` + `/compliance/purge-inbox` verbs into one typed job
-/// resource: provide exactly one of `subjectEmail` or `inboxId`. The CLI enforces
+/// resource: provide exactly one of `subjectHandle` or `inboxId`. The CLI enforces
 /// the exactly-one rule client-side so a malformed request never goes out.
 fn build_erasure_job_request(
     subject_email: Option<String>,
@@ -2027,7 +2055,7 @@ fn build_erasure_job_request(
     let subject_email = subject_email.and_then(non_empty_trimmed);
     let inbox_id = inbox_id.and_then(non_empty_trimmed);
     match (subject_email, inbox_id) {
-        (Some(subject_email), None) => Ok(json!({ "subjectEmail": subject_email })),
+        (Some(subject_email), None) => Ok(json!({ "subjectHandle": subject_email })),
         (None, Some(inbox_id)) => Ok(json!({ "inboxId": inbox_id })),
         (Some(_), Some(_)) => {
             anyhow::bail!("erasure-jobs create takes exactly one of --subject-email or --inbox-id")
