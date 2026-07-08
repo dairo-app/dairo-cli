@@ -537,12 +537,46 @@ pub enum AgentCommand {
         #[arg(long)]
         ts: Option<String>,
     },
+    /// Create an agent passport (`POST /v1/agents`, scope `agents:write`).
+    Create {
+        /// Human-readable agent name.
+        #[arg(long)]
+        display: String,
+        /// Optional free-text description of the agent.
+        #[arg(long)]
+        description: Option<String>,
+    },
+    /// Fetch the public agent-provenance JWKS (`GET /v1/agents/jwks`, public).
+    Jwks,
+    /// Bind an API key and/or inbox to an agent (`POST /v1/agents/{id}/bindings`, scope `agents:write`).
+    ///
+    /// Supply `--api-key-id` and/or `--inbox-id`; at least one is required.
+    Bind {
+        /// Agent id (uuid or `agt_…`) to bind to.
+        id: String,
+        /// API key id to bind to the agent.
+        #[arg(long = "api-key-id")]
+        api_key_id: Option<String>,
+        /// Inbox id to bind to the agent.
+        #[arg(long = "inbox-id")]
+        inbox_id: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
 pub enum ReputationCommand {
     /// Fleet view of every agent's circuit-breaker state.
     List,
+    /// Get a single agent's reputation / circuit-breaker state (`GET /v1/agents/{id}/reputation`, scope `agents:read`).
+    Get {
+        /// Agent id (uuid or `agt_…`) whose reputation to fetch.
+        id: String,
+    },
+    /// Clear (reset) an agent's reputation state (`DELETE /v1/agents/{id}/reputation`, scope `agents:write`).
+    Clear {
+        /// Agent id (uuid or `agt_…`) whose reputation to reset.
+        id: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -2288,6 +2322,47 @@ pub enum WebhookCommand {
     },
     /// Delete a webhook by ID or URL.
     Delete { webhook: String },
+    /// Update a webhook's url and/or events (`PATCH /v1/webhooks/{webhook}`, scope `webhooks:write`).
+    ///
+    /// Pass `--url` and/or one or more `--event` flags; at least one is required.
+    /// Supplying `--event` replaces the whole event set.
+    Update {
+        /// Webhook id (or URL) to update.
+        webhook: String,
+        /// New delivery URL. Omit to leave the URL unchanged.
+        #[arg(long)]
+        url: Option<String>,
+        /// Replacement event type. Repeat for multiple events. Omit to leave events unchanged.
+        #[arg(long = "event")]
+        events: Vec<WebhookEvent>,
+    },
+    /// List recent delivery attempts for a webhook (`GET /v1/webhooks/{webhook}/deliveries`, scope `webhooks:read`).
+    Deliveries {
+        /// Webhook id (or URL) whose deliveries to list.
+        webhook: String,
+    },
+    /// Redrive a single failed delivery (`POST /v1/webhooks/{webhook}/deliveries/{delivery}/redrive`, scope `webhooks:write`).
+    Redrive {
+        /// Webhook id (or URL) that owns the delivery.
+        webhook: String,
+        /// Delivery id to redrive.
+        delivery: String,
+    },
+    /// Pause a webhook subscription (`POST /v1/webhooks/{webhook}/pause`, scope `webhooks:write`).
+    Pause {
+        /// Webhook id (or URL) to pause.
+        webhook: String,
+    },
+    /// Send a test (ping) event to a webhook (`POST /v1/webhooks/{webhook}/ping`, scope `webhooks:write`).
+    Ping {
+        /// Webhook id (or URL) to ping.
+        webhook: String,
+    },
+    /// Resume a paused webhook (`POST /v1/webhooks/{webhook}/resume`, scope `webhooks:write`).
+    Resume {
+        /// Webhook id (or URL) to resume.
+        webhook: String,
+    },
     /// Verify a received webhook delivery's signature (offline; no API call).
     ///
     /// Reads the raw request body from stdin and checks the signature and

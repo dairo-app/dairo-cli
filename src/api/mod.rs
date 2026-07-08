@@ -365,6 +365,81 @@ impl ApiClient {
         .await
     }
 
+    /// Updates a webhook's url and/or events (`PATCH /v1/webhooks/{webhook}`,
+    /// scope `webhooks:write`). Returns the updated webhook object.
+    pub async fn update_webhook(
+        &self,
+        webhook: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::PATCH,
+            &["v1", "webhooks", webhook],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Lists recent delivery attempts for a webhook
+    /// (`GET /v1/webhooks/{webhook}/deliveries`, scope `webhooks:read`).
+    pub async fn list_webhook_deliveries(&self, webhook: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "webhooks", webhook, "deliveries"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Redrives a single failed delivery
+    /// (`POST /v1/webhooks/{webhook}/deliveries/{delivery}/redrive`, scope
+    /// `webhooks:write`).
+    pub async fn redrive_webhook_delivery(
+        &self,
+        webhook: &str,
+        delivery: &str,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "webhooks", webhook, "deliveries", delivery, "redrive"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Pauses a webhook subscription (`POST /v1/webhooks/{webhook}/pause`, scope
+    /// `webhooks:write`). Returns the updated webhook object.
+    pub async fn pause_webhook(&self, webhook: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "webhooks", webhook, "pause"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Sends a test (ping) event to a webhook (`POST /v1/webhooks/{webhook}/ping`,
+    /// scope `webhooks:write`).
+    pub async fn ping_webhook(&self, webhook: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "webhooks", webhook, "ping"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Resumes a paused webhook (`POST /v1/webhooks/{webhook}/resume`, scope
+    /// `webhooks:write`). Returns the updated webhook object.
+    pub async fn resume_webhook(&self, webhook: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "webhooks", webhook, "resume"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
     /// Lists API keys (`GET /v1/api-keys`, scope `keys:read`).
     pub async fn list_api_keys(&self) -> Result<ListEnvelope<ApiKey>> {
         self.execute_json(self.build_request(Method::GET, &["v1", "api-keys"], None::<&()>)?)
@@ -984,6 +1059,39 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
+    /// Creates an agent passport (`POST /v1/agents`, scope `agents:write`). The
+    /// body carries a required `display` name and an optional `description`.
+    pub async fn create_agent(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "agents"], Some(body))?)
+            .await
+    }
+
+    /// Fetches the public agent-provenance JWKS (`GET /v1/agents/jwks`; public,
+    /// no scope). The bearer key is still sent but ignored server-side.
+    pub async fn get_agent_jwks(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "agents", "jwks"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Binds an API key and/or inbox to an agent
+    /// (`POST /v1/agents/{id}/bindings`, scope `agents:write`).
+    pub async fn bind_agent(
+        &self,
+        id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "agents", id, "bindings"],
+            Some(body),
+        )?)
+        .await
+    }
+
     // --- Reputation (agent_reputation.rs) ---------------------------------
 
     /// Fleet view of every agent's circuit-breaker state, newest-tripped first
@@ -993,6 +1101,28 @@ impl ApiClient {
         self.execute_json(self.build_request(
             Method::GET,
             &["v1", "agents", "reputation"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Gets a single agent's reputation / circuit-breaker state
+    /// (`GET /v1/agents/{id}/reputation`, scope `agents:read`).
+    pub async fn get_agent_reputation(&self, id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "agents", id, "reputation"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Clears (resets) an agent's reputation state
+    /// (`DELETE /v1/agents/{id}/reputation`, scope `agents:write`).
+    pub async fn clear_agent_reputation(&self, id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "agents", id, "reputation"],
             None::<&()>,
         )?)
         .await

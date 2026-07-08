@@ -392,6 +392,50 @@ async fn run(cli: Cli) -> Result<()> {
                         client.delete_webhook(&webhook).await?;
                         output::print_deleted("webhook", format)
                     }
+                    WebhookCommand::Update {
+                        webhook,
+                        url,
+                        events,
+                    } => {
+                        let mut body = serde_json::Map::new();
+                        if let Some(url) = url {
+                            body.insert("url".to_string(), json!(url));
+                        }
+                        if !events.is_empty() {
+                            let events: Vec<String> =
+                                events.into_iter().map(|e| e.as_str().to_string()).collect();
+                            body.insert("events".to_string(), json!(events));
+                        }
+                        anyhow::ensure!(
+                            !body.is_empty(),
+                            "webhook update requires --url and/or at least one --event"
+                        );
+                        let response = client
+                            .update_webhook(&webhook, &serde_json::Value::Object(body))
+                            .await?;
+                        output::print_json(&response, format)
+                    }
+                    WebhookCommand::Deliveries { webhook } => {
+                        let response = client.list_webhook_deliveries(&webhook).await?;
+                        output::print_json(&response, format)
+                    }
+                    WebhookCommand::Redrive { webhook, delivery } => {
+                        let response =
+                            client.redrive_webhook_delivery(&webhook, &delivery).await?;
+                        output::print_json(&response, format)
+                    }
+                    WebhookCommand::Pause { webhook } => {
+                        let response = client.pause_webhook(&webhook).await?;
+                        output::print_json(&response, format)
+                    }
+                    WebhookCommand::Ping { webhook } => {
+                        let response = client.ping_webhook(&webhook).await?;
+                        output::print_json(&response, format)
+                    }
+                    WebhookCommand::Resume { webhook } => {
+                        let response = client.resume_webhook(&webhook).await?;
+                        output::print_json(&response, format)
+                    }
                     WebhookCommand::Verify { .. } => {
                         unreachable!("webhook verify is handled before API client construction")
                     }
@@ -673,10 +717,57 @@ async fn run(cli: Cli) -> Result<()> {
                         let response = client.verify_agent(&query).await?;
                         output::print_json(&response, format)
                     }
+                    AgentCommand::Create {
+                        display,
+                        description,
+                    } => {
+                        let mut body = serde_json::Map::new();
+                        body.insert("display".to_string(), json!(display));
+                        if let Some(description) = description {
+                            body.insert("description".to_string(), json!(description));
+                        }
+                        let response = client
+                            .create_agent(&serde_json::Value::Object(body))
+                            .await?;
+                        output::print_json(&response, format)
+                    }
+                    AgentCommand::Jwks => {
+                        let response = client.get_agent_jwks().await?;
+                        output::print_json(&response, format)
+                    }
+                    AgentCommand::Bind {
+                        id,
+                        api_key_id,
+                        inbox_id,
+                    } => {
+                        let mut body = serde_json::Map::new();
+                        if let Some(api_key_id) = api_key_id {
+                            body.insert("apiKeyId".to_string(), json!(api_key_id));
+                        }
+                        if let Some(inbox_id) = inbox_id {
+                            body.insert("inboxId".to_string(), json!(inbox_id));
+                        }
+                        anyhow::ensure!(
+                            !body.is_empty(),
+                            "agents bind requires --api-key-id and/or --inbox-id"
+                        );
+                        let response = client
+                            .bind_agent(&id, &serde_json::Value::Object(body))
+                            .await?;
+                        output::print_json(&response, format)
+                    }
                 },
                 Command::Reputation { command } => match command {
                     ReputationCommand::List => {
                         let response = client.list_reputation().await?;
+                        output::print_json(&response, format)
+                    }
+                    ReputationCommand::Get { id } => {
+                        let response = client.get_agent_reputation(&id).await?;
+                        output::print_json(&response, format)
+                    }
+                    ReputationCommand::Clear { id } => {
+                        let response = client.clear_agent_reputation(&id).await?;
                         output::print_json(&response, format)
                     }
                 },

@@ -2,7 +2,7 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 102,
+  "operationCount": 113,
   "operations": [
     {
       "method": "GET",
@@ -1472,6 +1472,165 @@
       "path": "/v1/messages/{messageId}/unreact",
       "scopes": [
         "messages:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listWebhookDeliveries",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/deliveries",
+      "scopes": [
+        "webhooks:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "redriveWebhookDelivery",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        },
+        {
+          "in": "path",
+          "name": "delivery"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/deliveries/{delivery}/redrive",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "pauseWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/pause",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "pingWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/ping",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "resumeWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/resume",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createAgent",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/agents",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAgentJwks",
+      "parameters": [],
+      "path": "/v1/agents/jwks",
+      "scopes": [],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "bindAgent",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/bindings",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAgentReputation",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/reputation",
+      "scopes": [
+        "agents:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "clearAgentReputation",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/reputation",
+      "scopes": [
+        "agents:write"
       ],
       "contractSource": "openapi"
     }
