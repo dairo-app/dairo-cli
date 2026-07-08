@@ -2,7 +2,7 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 123,
+  "operationCount": 124,
   "operations": [
     {
       "method": "GET",
@@ -536,6 +536,21 @@
         }
       ],
       "path": "/v1/domains/{domain}/verify",
+      "scopes": [
+        "domains:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchDomain",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "domain"
+        }
+      ],
+      "path": "/v1/domains/{domain}",
       "scopes": [
         "domains:write"
       ],
