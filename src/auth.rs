@@ -32,10 +32,12 @@ use url::Url;
 
 use crate::config::Config;
 
-/// The human-friendly identity this client presents on the consent screen.
-/// The backend prefers an explicit `client_name` over the (DCR-issued, generic
-/// `dairo-mcp-*`) client_id, so the consent page reads "Dairo CLI" rather than
-/// "Dairo MCP" when you sign in from the CLI.
+/// The human-friendly identity this client presents on the consent screen,
+/// sent as `client_name` in the Dynamic Client Registration body (not on the
+/// `/authorize` URL — the backend only trusts what it learns directly from the
+/// registering process, since anything on `/authorize` is a query string
+/// anyone could put in a link). Without it the consent page would fall back to
+/// "Dairo MCP", humanized from the DCR-issued generic `dairo-mcp-*` client_id.
 const CLIENT_NAME: &str = "Dairo CLI";
 
 /// Default scope set for `dairo login`. The backend accepts the `admin`
@@ -237,6 +239,7 @@ async fn register_client(
         "grant_types": ["authorization_code"],
         "response_types": ["code"],
         "token_endpoint_auth_method": "none",
+        "client_name": CLIENT_NAME,
     });
     let response = client
         .post(endpoint)
@@ -277,7 +280,6 @@ fn build_authorize_url(
     url.query_pairs_mut()
         .append_pair("response_type", "code")
         .append_pair("client_id", client_id)
-        .append_pair("client_name", CLIENT_NAME)
         .append_pair("redirect_uri", redirect_uri)
         .append_pair("code_challenge", code_challenge)
         .append_pair("code_challenge_method", "S256")
@@ -707,10 +709,10 @@ mod tests {
             pairs.get("client_id").map(String::as_str),
             Some("dairo-mcp-abc")
         );
-        assert_eq!(
-            pairs.get("client_name").map(String::as_str),
-            Some("Dairo CLI")
-        );
+        // client_name is NOT on the authorize URL — it travels only in the DCR
+        // body (see `register_client`), which the backend trusts because it
+        // comes directly from this process rather than a shareable link.
+        assert!(!pairs.contains_key("client_name"));
         assert_eq!(
             pairs.get("redirect_uri").map(String::as_str),
             Some("http://127.0.0.1:54321/callback")
