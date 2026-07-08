@@ -2,7 +2,7 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 83,
+  "operationCount": 92,
   "operations": [
     {
       "method": "GET",
@@ -391,6 +391,101 @@
       "path": "/v1/budgets/{scope}",
       "scopes": [
         "budgets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listContacts",
+      "parameters": [],
+      "path": "/v1/contacts",
+      "scopes": [
+        "contacts:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createContact",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/contacts",
+      "scopes": [
+        "contacts:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getSelfContact",
+      "parameters": [],
+      "path": "/v1/contacts/me",
+      "scopes": [
+        "contacts:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteContact",
+      "parameters": [],
+      "path": "/v1/contacts/{contactId}",
+      "scopes": [
+        "contacts:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getContact",
+      "parameters": [],
+      "path": "/v1/contacts/{contactId}",
+      "scopes": [
+        "contacts:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "updateContact",
+      "parameters": [],
+      "path": "/v1/contacts/{contactId}",
+      "scopes": [
+        "contacts:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "addContactHandle",
+      "parameters": [],
+      "path": "/v1/contacts/{contactId}/handles",
+      "scopes": [
+        "contacts:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteContactHandle",
+      "parameters": [],
+      "path": "/v1/contacts/{contactId}/handles/{handleId}",
+      "scopes": [
+        "contacts:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listContactMessages",
+      "parameters": [
+        {},
+        {}
+      ],
+      "path": "/v1/contacts/{contactId}/messages",
+      "scopes": [
+        "contacts:read"
       ],
       "contractSource": "openapi"
     },

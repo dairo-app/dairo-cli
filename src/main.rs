@@ -27,11 +27,11 @@ use clap::Parser;
 use cli::{
     A2aCommand, AgentCommand, ApiKeyCommand, AttachmentCommand, AttachmentDelivery,
     AudienceCommand, AuditLogCommand, AuthCommand, BucketCommand, BudgetCommand, Cli, Command,
-    ComplianceCommand, DedicatedIpCommand, DomainCommand, ErasureJobCommand, EventsCommand,
-    InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode, LetterCommand, LetterPaymentArgs,
-    LetterPriceArgs, LetterPrintArgs, LetterSendArgs, LoginArgs, McpCommand, MessageCommand,
-    OutboundCommand, RecipientArgs, ReputationCommand, SenderArgs, ShareCommand, TemplateCommand,
-    ThreadCommand, VerificationWaitCommand, WebhookCommand,
+    ComplianceCommand, ContactCommand, ContactKind, DedicatedIpCommand, DomainCommand,
+    ErasureJobCommand, EventsCommand, InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode,
+    LetterCommand, LetterPaymentArgs, LetterPriceArgs, LetterPrintArgs, LetterSendArgs, LoginArgs,
+    McpCommand, MessageCommand, OutboundCommand, RecipientArgs, ReputationCommand, SenderArgs,
+    ShareCommand, TemplateCommand, ThreadCommand, VerificationWaitCommand, WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -328,6 +328,7 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_thread(&response.thread, format)
                     }
                 },
+                Command::Contact { command } => run_contact(&client, command, format).await,
                 Command::Webhook { command } => match command {
                     WebhookCommand::List => {
                         let response = client.list_webhooks().await?;
@@ -934,6 +935,171 @@ async fn run_letter(
             let response = client.price_letter(&request).await?;
             output::print_json(&response, format)
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Contacts (/v1/contacts)
+// ---------------------------------------------------------------------------
+
+/// Dispatches the `contacts` subcommands. Contact bodies carry free-form
+/// `metadata`, so requests are assembled as `serde_json::Value` and responses
+/// pass through `print_json` verbatim — matching the templates convention for
+/// the newer resource families.
+async fn run_contact(
+    client: &ApiClient,
+    command: ContactCommand,
+    format: OutputFormat,
+) -> Result<()> {
+    match command {
+        ContactCommand::List => {
+            let response = client.list_contacts().await?;
+            output::print_json(&response, format)
+        }
+        ContactCommand::Create {
+            display_name,
+            alias,
+            kind,
+            info,
+            avatar_url,
+            metadata,
+            handles,
+        } => {
+            let display_name = display_name.trim().to_string();
+            anyhow::ensure!(!display_name.is_empty(), "--display-name must not be empty");
+            let mut body = json!({ "displayName": display_name });
+            insert_opt_str(&mut body, "alias", alias.and_then(non_empty_trimmed));
+            insert_opt_contact_kind(&mut body, kind);
+            insert_opt_str(&mut body, "info", info);
+            insert_opt_str(
+                &mut body,
+                "avatarUrl",
+                avatar_url.and_then(non_empty_trimmed),
+            );
+            if let Some(metadata) = resolve_json_object_arg("--metadata", metadata, None)? {
+                body["metadata"] = metadata;
+            }
+            if !handles.is_empty() {
+                let handles: Vec<serde_json::Value> = handles
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, (channel, value))| {
+                        // Seed the first handle as primary so a freshly created
+                        // contact has a resolvable default for its channel.
+                        json!({ "channel": channel, "value": value, "isPrimary": index == 0 })
+                    })
+                    .collect();
+                body["handles"] = serde_json::Value::Array(handles);
+            }
+            let response = client.create_contact(&body).await?;
+            output::print_json(&response, format)
+        }
+        ContactCommand::Me => {
+            let response = client.get_self_contact().await?;
+            output::print_json(&response, format)
+        }
+        ContactCommand::Get { contact_id } => {
+            let response = client.get_contact(contact_id.trim()).await?;
+            output::print_json(&response, format)
+        }
+        ContactCommand::Update {
+            contact_id,
+            display_name,
+            alias,
+            kind,
+            info,
+            avatar_url,
+            metadata,
+        } => {
+            let mut body = json!({});
+            if let Some(display_name) = display_name {
+                let display_name = display_name.trim().to_string();
+                anyhow::ensure!(!display_name.is_empty(), "--display-name must not be empty");
+                body["displayName"] = serde_json::Value::String(display_name);
+            }
+            insert_opt_contact_kind(&mut body, kind);
+            // `alias`, `info`, and `avatarUrl` are nullable: an explicit empty
+            // string clears them, matching the contract's `string | null` fields.
+            insert_opt_nullable_str(&mut body, "alias", alias);
+            insert_opt_nullable_str(&mut body, "info", info);
+            insert_opt_nullable_str(&mut body, "avatarUrl", avatar_url);
+            if let Some(metadata) = resolve_json_object_arg("--metadata", metadata, None)? {
+                body["metadata"] = metadata;
+            }
+            let response = client.update_contact(contact_id.trim(), &body).await?;
+            output::print_json(&response, format)
+        }
+        ContactCommand::Delete { contact_id } => {
+            let response = client.delete_contact(contact_id.trim()).await?;
+            output::print_json(&response, format)
+        }
+        ContactCommand::AddHandle {
+            contact_id,
+            channel,
+            value,
+            label,
+            is_primary,
+            metadata,
+        } => {
+            let channel = channel.trim().to_string();
+            let value = value.trim().to_string();
+            anyhow::ensure!(!channel.is_empty(), "--channel must not be empty");
+            anyhow::ensure!(!value.is_empty(), "--value must not be empty");
+            let mut body = json!({ "channel": channel, "value": value });
+            insert_opt_str(&mut body, "label", label);
+            if is_primary {
+                body["isPrimary"] = serde_json::Value::Bool(true);
+            }
+            if let Some(metadata) = resolve_json_object_arg("--metadata", metadata, None)? {
+                body["metadata"] = metadata;
+            }
+            let response = client.add_contact_handle(contact_id.trim(), &body).await?;
+            output::print_json(&response, format)
+        }
+        ContactCommand::RemoveHandle {
+            contact_id,
+            handle_id,
+        } => {
+            let response = client
+                .delete_contact_handle(contact_id.trim(), handle_id.trim())
+                .await?;
+            output::print_json(&response, format)
+        }
+        ContactCommand::Messages {
+            contact_id,
+            limit,
+            cursor,
+        } => {
+            let response = client
+                .list_contact_messages(
+                    contact_id.trim(),
+                    limit,
+                    cursor.as_deref().map(str::trim).filter(|s| !s.is_empty()),
+                )
+                .await?;
+            output::print_json(&response, format)
+        }
+    }
+}
+
+/// Inserts the `kind` field only when a `--kind` was provided, mapping the CLI
+/// enum onto the contract's lowercase string.
+fn insert_opt_contact_kind(body: &mut serde_json::Value, kind: Option<ContactKind>) {
+    if let Some(kind) = kind {
+        body["kind"] = serde_json::Value::String(kind.as_str().to_string());
+    }
+}
+
+/// Inserts a nullable string field: absent leaves the field off (unchanged),
+/// an empty string sends JSON `null` to clear it, and any other value is sent
+/// verbatim. Mirrors the SDKs' `string | null` optional-update fields.
+fn insert_opt_nullable_str(body: &mut serde_json::Value, key: &str, value: Option<String>) {
+    if let Some(value) = value {
+        body[key] = if value.trim().is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::Value::String(value)
+        };
     }
 }
 

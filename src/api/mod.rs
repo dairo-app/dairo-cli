@@ -647,6 +647,135 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
+    // --- Contacts (contacts.rs) -------------------------------------------
+    // Channel-agnostic address book (people, agents, and the workspace `@me`
+    // self contact) plus per-contact delivery handles. Reads use
+    // `contacts:read`; create/update/delete and handle mutations use
+    // `contacts:write`. Bodies carry free-form `metadata`, so requests are
+    // assembled as `serde_json::Value` and responses pass through verbatim —
+    // matching the templates/outbound precedent.
+
+    /// Lists the address book's contacts (`GET /v1/contacts`, scope
+    /// `contacts:read`). Returns the contact-list envelope (`{ contacts: [...] }`)
+    /// passed through verbatim.
+    pub async fn list_contacts(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::GET, &["v1", "contacts"], None::<&()>)?)
+            .await
+    }
+
+    /// Creates a contact (`POST /v1/contacts`, scope `contacts:write`). Returns
+    /// the created contact including any seeded handles.
+    pub async fn create_contact(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(Method::POST, &["v1", "contacts"], Some(body))?)
+            .await
+    }
+
+    /// Gets the workspace self contact / `@me` recipient with its handles
+    /// (`GET /v1/contacts/me`, scope `contacts:read`).
+    pub async fn get_self_contact(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "contacts", "me"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Gets one contact including its handles (`GET /v1/contacts/{contactId}`,
+    /// scope `contacts:read`).
+    pub async fn get_contact(&self, contact_id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "contacts", contact_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Updates a contact's metadata (`PATCH /v1/contacts/{contactId}`, scope
+    /// `contacts:write`). `alias`/`info`/`avatarUrl` are nullable.
+    pub async fn update_contact(
+        &self,
+        contact_id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::PATCH,
+            &["v1", "contacts", contact_id],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Deletes a contact (`DELETE /v1/contacts/{contactId}`, scope
+    /// `contacts:write`). Returns the delete-acknowledgement body.
+    pub async fn delete_contact(&self, contact_id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "contacts", contact_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Adds a delivery handle to a contact
+    /// (`POST /v1/contacts/{contactId}/handles`, scope `contacts:write`).
+    pub async fn add_contact_handle(
+        &self,
+        contact_id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "contacts", contact_id, "handles"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Removes a handle from a contact
+    /// (`DELETE /v1/contacts/{contactId}/handles/{handleId}`, scope
+    /// `contacts:write`). Returns the delete-acknowledgement body.
+    pub async fn delete_contact_handle(
+        &self,
+        contact_id: &str,
+        handle_id: &str,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::DELETE,
+            &["v1", "contacts", contact_id, "handles", handle_id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Lists messages exchanged with a contact
+    /// (`GET /v1/contacts/{contactId}/messages`, scope `contacts:read`) with
+    /// keyset pagination. Passes the unified message-list envelope through
+    /// verbatim.
+    pub async fn list_contact_messages(
+        &self,
+        contact_id: &str,
+        limit: Option<u32>,
+        cursor: Option<&str>,
+    ) -> Result<serde_json::Value> {
+        let mut request = self.build_request(
+            Method::GET,
+            &["v1", "contacts", contact_id, "messages"],
+            None::<&()>,
+        )?;
+        {
+            let mut pairs = request.url_mut().query_pairs_mut();
+            if let Some(limit) = limit {
+                pairs.append_pair("limit", &limit.to_string());
+            }
+            if let Some(cursor) = cursor {
+                pairs.append_pair("cursor", cursor);
+            }
+        }
+        self.execute_json(request).await
+    }
+
     // --- Templates (templates.rs) -----------------------------------------
     // Named container + immutable, append-only versions. Reads use
     // `templates:read`; create/patch/delete/version-publish use `templates:write`

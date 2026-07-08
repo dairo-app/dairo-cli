@@ -26,6 +26,7 @@ Messaging:
   audiences      Broadcast audiences and audience sends
   templates      Reusable message templates
   attachments    Download message attachments
+  contacts       Channel-agnostic address book (people, agents, @me)
 
 Realtime and webhooks:
   listen         Stream live events to your terminal (like `stripe listen`)
@@ -154,6 +155,12 @@ pub enum Command {
     Thread {
         #[command(subcommand)]
         command: ThreadCommand,
+    },
+    /// Manage the channel-agnostic address book (people, agents, and the `@me` self contact).
+    #[command(name = "contacts", alias = "contact")]
+    Contact {
+        #[command(subcommand)]
+        command: ContactCommand,
     },
     /// Manage webhook subscriptions.
     Webhook {
@@ -623,6 +630,133 @@ pub enum A2aCommand {
     },
     /// Get a single A2A hop receipt.
     Get { id: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ContactCommand {
+    /// List the address book's contacts (scope `contacts:read`).
+    List,
+    /// Create a contact (scope `contacts:write`).
+    Create {
+        /// Human-readable display name (1..=200 chars).
+        #[arg(long = "display-name")]
+        display_name: String,
+        /// Optional `@`-referenceable handle, unique per workspace.
+        #[arg(long)]
+        alias: Option<String>,
+        /// Contact kind.
+        #[arg(long, value_enum)]
+        kind: Option<ContactKind>,
+        /// Free-text notes (up to 10000 chars).
+        #[arg(long)]
+        info: Option<String>,
+        /// Avatar image URL.
+        #[arg(long = "avatar-url")]
+        avatar_url: Option<String>,
+        /// Structured extras as a JSON object.
+        #[arg(long)]
+        metadata: Option<String>,
+        /// Seed handle(s) as `channel=value` (repeatable). The first is marked primary.
+        #[arg(long = "handle", value_parser = parse_handle_pair)]
+        handles: Vec<(String, String)>,
+    },
+    /// Show the workspace self contact / `@me` recipient with its handles (scope `contacts:read`).
+    Me,
+    /// Get one contact including its handles (scope `contacts:read`).
+    Get { contact_id: String },
+    /// Update a contact's metadata (scope `contacts:write`).
+    ///
+    /// `--alias`, `--info`, and `--avatar-url` are nullable: pass an empty string to clear them.
+    Update {
+        contact_id: String,
+        /// New display name (1..=200 chars).
+        #[arg(long = "display-name")]
+        display_name: Option<String>,
+        /// New alias; empty string clears it.
+        #[arg(long)]
+        alias: Option<String>,
+        /// Contact kind.
+        #[arg(long, value_enum)]
+        kind: Option<ContactKind>,
+        /// New free-text notes; empty string clears them.
+        #[arg(long)]
+        info: Option<String>,
+        /// New avatar URL; empty string clears it.
+        #[arg(long = "avatar-url")]
+        avatar_url: Option<String>,
+        /// Structured extras as a JSON object.
+        #[arg(long)]
+        metadata: Option<String>,
+    },
+    /// Delete a contact (scope `contacts:write`).
+    Delete { contact_id: String },
+    /// Add a delivery handle to a contact (scope `contacts:write`).
+    AddHandle {
+        contact_id: String,
+        /// Channel of this handle (email / a2a / telegram / postal / …).
+        #[arg(long)]
+        channel: String,
+        /// The channel address (email address, chat id, agent id, or a one-line postal address).
+        #[arg(long)]
+        value: String,
+        /// Optional label for this handle.
+        #[arg(long)]
+        label: Option<String>,
+        /// Mark this handle as the contact's primary for its channel.
+        #[arg(long = "primary")]
+        is_primary: bool,
+        /// Structured extras as a JSON object (required for postal handles).
+        #[arg(long)]
+        metadata: Option<String>,
+    },
+    /// Remove a handle from a contact (scope `contacts:write`).
+    RemoveHandle {
+        contact_id: String,
+        handle_id: String,
+    },
+    /// List messages exchanged with a contact (scope `contacts:read`).
+    Messages {
+        contact_id: String,
+        /// Max rows to return (1..=100).
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: Option<u32>,
+        /// Opaque keyset cursor from a prior page's `pagination.nextCursor`.
+        #[arg(long)]
+        cursor: Option<String>,
+    },
+}
+
+/// Contact kind, mirroring the contract's `Contact.kind` enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum ContactKind {
+    Person,
+    Agent,
+    #[value(name = "self")]
+    Self_,
+}
+
+impl ContactKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Person => "person",
+            Self::Agent => "agent",
+            Self::Self_ => "self",
+        }
+    }
+}
+
+/// Parses a `--handle channel=value` pair for `contacts create`. Splits on the
+/// first `=` so the value may itself contain `=` (e.g. a postal address).
+fn parse_handle_pair(raw: &str) -> std::result::Result<(String, String), String> {
+    let (channel, value) = raw
+        .split_once('=')
+        .ok_or_else(|| format!("expected channel=value, got `{raw}`"))?;
+    let channel = channel.trim();
+    let value = value.trim();
+    if channel.is_empty() || value.is_empty() {
+        return Err(format!("both channel and value are required in `{raw}`"));
+    }
+    Ok((channel.to_string(), value.to_string()))
 }
 
 #[derive(Debug, Subcommand)]
