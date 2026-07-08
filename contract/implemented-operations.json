@@ -2,7 +2,7 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 92,
+  "operationCount": 102,
   "operations": [
     {
       "method": "GET",
@@ -1337,6 +1337,141 @@
       "path": "/v1/share-links/{shareLinkId}/opens",
       "scopes": [
         "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createLetterBatch",
+      "parameters": [],
+      "path": "/v1/letters/batches",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getLetterBatch",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/batches/{id}",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listLetterTemplates",
+      "parameters": [],
+      "path": "/v1/letters/templates",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createLetterTemplate",
+      "parameters": [],
+      "path": "/v1/letters/templates",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getLetterTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/templates/{id}",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "updateLetterTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/templates/{id}",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "previewLetterTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/templates/{id}/preview",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "editTelegramMessage",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}/edit",
+      "scopes": [
+        "messages:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "reactTelegramMessage",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}/react",
+      "scopes": [
+        "messages:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "unreactTelegramMessage",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}/unreact",
+      "scopes": [
+        "messages:send"
       ],
       "contractSource": "openapi"
     }

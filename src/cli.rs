@@ -1374,6 +1374,146 @@ pub enum LetterCommand {
     /// Provide either `--page-count` (cheap preview) or `--pdf <PATH>` (exact,
     /// since page count drives the price).
     Price(LetterPriceArgs),
+    /// Create and inspect bulk letter batches rendered once per recipient.
+    Batch {
+        #[command(subcommand)]
+        command: LetterBatchCommand,
+    },
+    /// Manage reusable letter templates (branded HTML + declared variables).
+    Template {
+        #[command(subcommand)]
+        command: LetterTemplateCommand,
+    },
+}
+
+/// Subcommands under `dairo letter batch` — the bulk `/v1/letters/batches`
+/// surface. A batch renders one stored template per recipient in a single call.
+#[derive(Debug, Subcommand)]
+pub enum LetterBatchCommand {
+    /// Create a letter batch: render one stored template per recipient (scope `letters:send`).
+    ///
+    /// Recipients are a JSON array of `{ "to": <PostalAddress>, "templateData": {..} }`
+    /// objects, supplied inline with `--recipients` or from a file with
+    /// `--recipients-file`. Batches auto-send by default; pass `--draft` to queue
+    /// them without dispatching.
+    Create {
+        /// Stored letter template id rendered once per recipient.
+        #[arg(long = "template-id")]
+        template_id: String,
+        /// Recipients as an inline JSON array of `{to, templateData}` objects.
+        #[arg(long, value_name = "JSON", conflicts_with = "recipients_file")]
+        recipients: Option<String>,
+        /// Read the recipients JSON array from a file.
+        #[arg(long = "recipients-file", value_name = "PATH")]
+        recipients_file: Option<PathBuf>,
+        /// Optional sender return address as a JSON object.
+        #[arg(long, value_name = "JSON")]
+        from: Option<String>,
+        /// Optional print options as a JSON object (mode/sides/addressPlacement).
+        #[arg(long, value_name = "JSON")]
+        print: Option<String>,
+        /// Delivery class applied to every letter in the batch.
+        #[arg(long)]
+        delivery: Option<LetterDelivery>,
+        /// Payment-slip overlay applied to every letter (qr|sepaDe|sepaAt).
+        #[arg(long = "payment-slip")]
+        payment_slip: Option<LetterPaymentSlip>,
+        /// Queue the batch as drafts instead of auto-sending (sets autoSend=false).
+        #[arg(long)]
+        draft: bool,
+        /// Disable per-letter delivery notifications for the batch.
+        #[arg(long = "no-notifications")]
+        no_notifications: bool,
+        /// Free-form metadata recorded on the batch, as a JSON object.
+        #[arg(long, value_name = "JSON")]
+        metadata: Option<String>,
+    },
+    /// Get a letter batch by id, including its per-letter roll-up (scope `letters:read`).
+    Get { id: String },
+}
+
+/// Subcommands under `dairo letter template` — the `/v1/letters/templates`
+/// surface: reusable branded letter HTML with declared `{{placeholders}}`.
+#[derive(Debug, Subcommand)]
+pub enum LetterTemplateCommand {
+    /// List letter templates, most recent first (scope `letters:read`).
+    List,
+    /// Create a letter template from branded HTML (scope `letters:send`).
+    ///
+    /// The HTML is read inline with `--html` or from a file with `--html-file`
+    /// (exactly one is required). Use `{{placeholders}}` where values vary per
+    /// recipient and declare them with `--variables` (a JSON array of names or a
+    /// JSON object).
+    Create {
+        /// Human-readable template name.
+        #[arg(long)]
+        name: String,
+        /// Branded letter HTML (mutually exclusive with --html-file).
+        #[arg(long, conflicts_with = "html_file")]
+        html: Option<String>,
+        /// Read the letter HTML from this file.
+        #[arg(long = "html-file", value_name = "PATH")]
+        html_file: Option<PathBuf>,
+        /// Declared template variables: a JSON array of names or a JSON object.
+        #[arg(long, value_name = "JSON")]
+        variables: Option<String>,
+        /// Initial status (active|archived; server default active).
+        #[arg(long)]
+        status: Option<LetterTemplateStatus>,
+    },
+    /// Get one letter template by id (scope `letters:read`).
+    Get { id: String },
+    /// Update a letter template's name, HTML, variables, or status (scope `letters:send`).
+    ///
+    /// Provide at least one of --name, --html/--html-file, --variables, or --status.
+    Update {
+        id: String,
+        /// New template name.
+        #[arg(long)]
+        name: Option<String>,
+        /// New letter HTML (mutually exclusive with --html-file).
+        #[arg(long, conflicts_with = "html_file")]
+        html: Option<String>,
+        /// Read the replacement letter HTML from this file.
+        #[arg(long = "html-file", value_name = "PATH")]
+        html_file: Option<PathBuf>,
+        /// Replacement declared variables: a JSON array of names or a JSON object.
+        #[arg(long, value_name = "JSON")]
+        variables: Option<String>,
+        /// New status (active|archived).
+        #[arg(long)]
+        status: Option<LetterTemplateStatus>,
+    },
+    /// Render a proof of a letter template without sending (scope `letters:send`).
+    ///
+    /// Fills the template's `{{placeholders}}` with `--data` (a JSON object) and
+    /// returns a preview; `--address-placement` moves the recipient window.
+    Preview {
+        id: String,
+        /// Values that fill the template's placeholders, as a JSON object.
+        #[arg(long, value_name = "JSON")]
+        data: Option<String>,
+        /// Recipient address-window placement (left|right).
+        #[arg(long = "address-placement")]
+        address_placement: Option<LetterAddressPlacement>,
+    },
+}
+
+/// Lifecycle status of a letter template. Maps to the contract's
+/// `LetterTemplateStatus`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum LetterTemplateStatus {
+    Active,
+    Archived,
+}
+
+impl LetterTemplateStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Archived => "archived",
+        }
+    }
 }
 
 /// Letter status filter values for `letter list --status`. Mirrors the
@@ -2065,6 +2205,34 @@ pub enum MessageCommand {
         #[arg(long, default_value = ".")]
         out: PathBuf,
     },
+    /// Edit a Telegram message you sent: replace its body and inline keyboard
+    /// (scope `messages:send`).
+    ///
+    /// Pass exactly one of --text or --html. `--buttons` replaces the inline
+    /// keyboard (a JSON array of button rows); pass `[]` to clear it.
+    Edit {
+        message_id: String,
+        /// New plain-text body (mutually exclusive with --html).
+        #[arg(long, conflicts_with = "html")]
+        text: Option<String>,
+        /// New rich-HTML body (mutually exclusive with --text).
+        #[arg(long)]
+        html: Option<String>,
+        /// Replacement inline keyboard as a JSON array of button rows ([] clears it).
+        #[arg(long, value_name = "JSON")]
+        buttons: Option<String>,
+    },
+    /// Set the bot's emoji reaction on a Telegram message (scope `messages:send`).
+    React {
+        message_id: String,
+        /// A single Telegram-allowed reaction emoji (e.g. 👍 👎 ❤ 🔥).
+        emoji: String,
+        /// Play the big-reaction animation.
+        #[arg(long)]
+        big: bool,
+    },
+    /// Remove the bot's emoji reaction from a Telegram message (scope `messages:send`).
+    Unreact { message_id: String },
 }
 
 #[derive(Debug, Subcommand)]

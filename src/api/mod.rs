@@ -438,6 +438,49 @@ impl ApiClient {
         .await
     }
 
+    /// Edits a Telegram message you sent, replacing its body and inline keyboard
+    /// (`POST /v1/messages/{messageId}/edit`, scope `messages:send`).
+    pub async fn edit_message(
+        &self,
+        message_id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "messages", message_id, "edit"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Sets the bot's emoji reaction on a Telegram message
+    /// (`POST /v1/messages/{messageId}/react`, scope `messages:send`).
+    pub async fn react_message(
+        &self,
+        message_id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "messages", message_id, "react"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Removes the bot's emoji reaction from a Telegram message
+    /// (`POST /v1/messages/{messageId}/unreact`, scope `messages:send`). The
+    /// endpoint takes no body; an empty object gives the default idempotency key a
+    /// stable body to fold in.
+    pub async fn unreact_message(&self, message_id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "messages", message_id, "unreact"],
+            Some(&serde_json::json!({})),
+        )?)
+        .await
+    }
+
     /// Bulk-deletes up to 1000 mailbox messages in a single call (`POST
     /// /v1/messages/batch-delete`, scope `messages:read`). Removes the message rows
     /// and their stored bytes. Ownership is enforced per id; a bad/foreign/unknown
@@ -1149,6 +1192,96 @@ impl ApiClient {
         self.execute_json(self.build_request(
             Method::POST,
             &["v1", "letters", "price"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Creates a bulk letter batch, rendering one stored template per recipient
+    /// (`POST /v1/letters/batches`, scope `letters:send`). The body is assembled
+    /// as `serde_json::Value` (the recipient array carries free-form
+    /// `templateData`), matching the templates convention.
+    pub async fn create_letter_batch(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "letters", "batches"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Gets one letter batch plus its per-letter roll-up
+    /// (`GET /v1/letters/batches/{id}`, scope `letters:read`).
+    pub async fn get_letter_batch(&self, id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "letters", "batches", id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Lists reusable letter templates (`GET /v1/letters/templates`, scope
+    /// `letters:read`).
+    pub async fn list_letter_templates(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "letters", "templates"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Creates a letter template from branded HTML (`POST /v1/letters/templates`,
+    /// scope `letters:send`).
+    pub async fn create_letter_template(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "letters", "templates"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Gets one letter template by id (`GET /v1/letters/templates/{id}`, scope
+    /// `letters:read`).
+    pub async fn get_letter_template(&self, id: &str) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "letters", "templates", id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Partially updates a letter template's name/HTML/variables/status
+    /// (`PATCH /v1/letters/templates/{id}`, scope `letters:send`).
+    pub async fn update_letter_template(
+        &self,
+        id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::PATCH,
+            &["v1", "letters", "templates", id],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Renders a proof of a letter template without sending
+    /// (`POST /v1/letters/templates/{id}/preview`, scope `letters:send`).
+    pub async fn preview_letter_template(
+        &self,
+        id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "letters", "templates", id, "preview"],
             Some(body),
         )?)
         .await

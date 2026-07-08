@@ -29,9 +29,10 @@ use cli::{
     AudienceCommand, AuditLogCommand, AuthCommand, BucketCommand, BudgetCommand, Cli, Command,
     ComplianceCommand, ContactCommand, ContactKind, DedicatedIpCommand, DomainCommand,
     ErasureJobCommand, EventsCommand, InboxCommand, InboxSchemaCommand, InboxSchemaValidationMode,
-    LetterCommand, LetterPaymentArgs, LetterPriceArgs, LetterPrintArgs, LetterSendArgs, LoginArgs,
-    McpCommand, MessageCommand, OutboundCommand, RecipientArgs, ReputationCommand, SenderArgs,
-    ShareCommand, TemplateCommand, ThreadCommand, VerificationWaitCommand, WebhookCommand,
+    LetterBatchCommand, LetterCommand, LetterPaymentArgs, LetterPriceArgs, LetterPrintArgs,
+    LetterSendArgs, LetterTemplateCommand, LoginArgs, McpCommand, MessageCommand, OutboundCommand,
+    RecipientArgs, ReputationCommand, SenderArgs, ShareCommand, TemplateCommand, ThreadCommand,
+    VerificationWaitCommand, WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -272,6 +273,49 @@ async fn run(cli: Cli) -> Result<()> {
                             }
                             Ok(())
                         }
+                    }
+                    MessageCommand::Edit {
+                        message_id,
+                        text,
+                        html,
+                        buttons,
+                    } => {
+                        let mut body = json!({});
+                        insert_opt_str(&mut body, "text", text);
+                        insert_opt_str(&mut body, "html", html);
+                        if let Some(buttons) = buttons {
+                            let value: serde_json::Value = serde_json::from_str(&buttons)
+                                .context("--buttons must be valid JSON")?;
+                            anyhow::ensure!(
+                                value.is_array(),
+                                "--buttons must be a JSON array of button rows"
+                            );
+                            body["buttons"] = value;
+                        }
+                        anyhow::ensure!(
+                            body.get("text").is_some() || body.get("html").is_some(),
+                            "provide the new message body with --text or --html"
+                        );
+                        let response = client.edit_message(&message_id, &body).await?;
+                        output::print_json(&response, format)
+                    }
+                    MessageCommand::React {
+                        message_id,
+                        emoji,
+                        big,
+                    } => {
+                        let emoji = emoji.trim().to_string();
+                        anyhow::ensure!(!emoji.is_empty(), "emoji must not be empty");
+                        let mut body = json!({ "emoji": emoji });
+                        if big {
+                            body["big"] = serde_json::Value::Bool(true);
+                        }
+                        let response = client.react_message(&message_id, &body).await?;
+                        output::print_json(&response, format)
+                    }
+                    MessageCommand::Unreact { message_id } => {
+                        let response = client.unreact_message(&message_id).await?;
+                        output::print_json(&response, format)
                     }
                 },
                 Command::Attachment { command } => match command {
@@ -935,7 +979,187 @@ async fn run_letter(
             let response = client.price_letter(&request).await?;
             output::print_json(&response, format)
         }
+        LetterCommand::Batch { command } => run_letter_batch(client, command, format).await,
+        LetterCommand::Template { command } => run_letter_template(client, command, format).await,
     }
+}
+
+/// Dispatches the `letter batch` subcommands (`/v1/letters/batches`). A batch
+/// renders one stored template per recipient; the request is assembled as
+/// `serde_json::Value` and responses pass through `print_json` verbatim.
+async fn run_letter_batch(
+    client: &ApiClient,
+    command: LetterBatchCommand,
+    format: OutputFormat,
+) -> Result<()> {
+    match command {
+        LetterBatchCommand::Create {
+            template_id,
+            recipients,
+            recipients_file,
+            from,
+            print,
+            delivery,
+            payment_slip,
+            draft,
+            no_notifications,
+            metadata,
+        } => {
+            let template_id = template_id.trim().to_string();
+            anyhow::ensure!(!template_id.is_empty(), "--template-id must not be empty");
+            let recipients =
+                resolve_json_array_arg("--recipients", recipients, recipients_file)?
+                    .context("provide recipients with --recipients or --recipients-file")?;
+            let mut body = json!({
+                "templateId": template_id,
+                "recipients": recipients,
+            });
+            if let Some(from) = resolve_json_object_arg("--from", from, None)? {
+                body["from"] = from;
+            }
+            if let Some(print) = resolve_json_object_arg("--print", print, None)? {
+                body["print"] = print;
+            }
+            if let Some(delivery) = delivery {
+                body["delivery"] = serde_json::Value::String(delivery.as_str().to_string());
+            }
+            if let Some(slip) = payment_slip {
+                body["paymentSlip"] = serde_json::Value::String(slip.as_str().to_string());
+            }
+            // autoSend/notifications default to true server-side; only send the
+            // field when opting out, mirroring the single-letter send path.
+            if draft {
+                body["autoSend"] = serde_json::Value::Bool(false);
+            }
+            if no_notifications {
+                body["notifications"] = serde_json::Value::Bool(false);
+            }
+            if let Some(metadata) = resolve_json_object_arg("--metadata", metadata, None)? {
+                body["metadata"] = metadata;
+            }
+            let response = client.create_letter_batch(&body).await?;
+            output::print_json(&response, format)
+        }
+        LetterBatchCommand::Get { id } => {
+            let response = client.get_letter_batch(id.trim()).await?;
+            output::print_json(&response, format)
+        }
+    }
+}
+
+/// Dispatches the `letter template` subcommands (`/v1/letters/templates`):
+/// reusable branded letter HTML with declared `{{placeholders}}`.
+async fn run_letter_template(
+    client: &ApiClient,
+    command: LetterTemplateCommand,
+    format: OutputFormat,
+) -> Result<()> {
+    match command {
+        LetterTemplateCommand::List => {
+            let response = client.list_letter_templates().await?;
+            output::print_json(&response, format)
+        }
+        LetterTemplateCommand::Create {
+            name,
+            html,
+            html_file,
+            variables,
+            status,
+        } => {
+            let name = name.trim().to_string();
+            anyhow::ensure!(!name.is_empty(), "--name must not be empty");
+            let html = resolve_letter_template_html(html, html_file)?;
+            let mut body = json!({ "name": name, "html": html });
+            insert_opt_letter_variables(&mut body, variables)?;
+            if let Some(status) = status {
+                body["status"] = serde_json::Value::String(status.as_str().to_string());
+            }
+            let response = client.create_letter_template(&body).await?;
+            output::print_json(&response, format)
+        }
+        LetterTemplateCommand::Get { id } => {
+            let response = client.get_letter_template(id.trim()).await?;
+            output::print_json(&response, format)
+        }
+        LetterTemplateCommand::Update {
+            id,
+            name,
+            html,
+            html_file,
+            variables,
+            status,
+        } => {
+            let mut body = json!({});
+            insert_opt_str(&mut body, "name", name.and_then(non_empty_trimmed));
+            if html.is_some() || html_file.is_some() {
+                body["html"] =
+                    serde_json::Value::String(resolve_letter_template_html(html, html_file)?);
+            }
+            insert_opt_letter_variables(&mut body, variables)?;
+            if let Some(status) = status {
+                body["status"] = serde_json::Value::String(status.as_str().to_string());
+            }
+            anyhow::ensure!(
+                body.as_object().map(|o| !o.is_empty()).unwrap_or(false),
+                "provide at least one of --name, --html/--html-file, --variables, or --status"
+            );
+            let response = client.update_letter_template(id.trim(), &body).await?;
+            output::print_json(&response, format)
+        }
+        LetterTemplateCommand::Preview {
+            id,
+            data,
+            address_placement,
+        } => {
+            let mut body = json!({});
+            if let Some(data) = resolve_json_object_arg("--data", data, None)? {
+                body["templateData"] = data;
+            }
+            if let Some(placement) = address_placement {
+                body["addressPlacement"] =
+                    serde_json::Value::String(placement.as_str().to_string());
+            }
+            let response = client.preview_letter_template(id.trim(), &body).await?;
+            output::print_json(&response, format)
+        }
+    }
+}
+
+/// Resolves a letter template's HTML from either `--html` or `--html-file`.
+/// Exactly one must be provided (they are `conflicts_with` at the clap layer, so
+/// this only rejects the both-absent case).
+fn resolve_letter_template_html(
+    html: Option<String>,
+    html_file: Option<PathBuf>,
+) -> Result<String> {
+    match (html, html_file) {
+        (Some(html), _) => Ok(html),
+        (None, Some(path)) => std::fs::read_to_string(&path)
+            .with_context(|| format!("failed to read letter template HTML {}", path.display())),
+        (None, None) => {
+            anyhow::bail!("provide the letter HTML with --html or --html-file")
+        }
+    }
+}
+
+/// Parses `--variables` for a letter template and inserts it under `variables`.
+/// The contract accepts either a JSON array of placeholder names or a JSON
+/// object, so both shapes are permitted (unlike the email-template `variables`,
+/// which must be an object).
+fn insert_opt_letter_variables(
+    body: &mut serde_json::Value,
+    variables: Option<String>,
+) -> Result<()> {
+    if let Some(variables) = variables {
+        let value: serde_json::Value =
+            serde_json::from_str(&variables).context("--variables must be valid JSON")?;
+        anyhow::ensure!(
+            value.is_object() || value.is_array(),
+            "--variables must be a JSON array of names or a JSON object"
+        );
+        body["variables"] = value;
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -2140,6 +2364,32 @@ fn resolve_json_object_arg(
     let value: serde_json::Value =
         serde_json::from_str(&raw).with_context(|| format!("{flag_name} must be valid JSON"))?;
     anyhow::ensure!(value.is_object(), "{flag_name} must be a JSON object");
+    Ok(Some(value))
+}
+
+/// Reads a JSON *array* argument from an inline value or a file. Used for the
+/// letter-batch `recipients` array; mirrors [`resolve_json_object_arg`] but
+/// enforces an array shape.
+fn resolve_json_array_arg(
+    flag_name: &str,
+    inline: Option<String>,
+    file: Option<PathBuf>,
+) -> Result<Option<serde_json::Value>> {
+    let Some(raw) = inline
+        .map(Ok)
+        .or_else(|| {
+            file.map(|path| {
+                std::fs::read_to_string(&path)
+                    .with_context(|| format!("failed to read JSON array {}", path.display()))
+            })
+        })
+        .transpose()?
+    else {
+        return Ok(None);
+    };
+    let value: serde_json::Value =
+        serde_json::from_str(&raw).with_context(|| format!("{flag_name} must be valid JSON"))?;
+    anyhow::ensure!(value.is_array(), "{flag_name} must be a JSON array");
     Ok(Some(value))
 }
 
