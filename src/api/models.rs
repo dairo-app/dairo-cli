@@ -1061,6 +1061,264 @@ pub struct Thread {
     pub updated_at: Option<String>,
 }
 
+// ---------------------------------------------------------------------------
+// Dairo Phone (/v1/phone/*): outbound AI calls + phone-number provisioning
+// ---------------------------------------------------------------------------
+
+/// One provisioned phone number (`object: "phone_number"`). Unlike the rest of
+/// the surface, number rows are served snake_case straight from the store, so
+/// the Rust field names match the wire without renames.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PhoneNumber {
+    #[serde(default = "default_phone_number_object")]
+    pub object: String,
+    pub id: String,
+    pub phone_number: String,
+    #[serde(default)]
+    pub country_code: Option<String>,
+    #[serde(default)]
+    pub number_type: Option<String>,
+    #[serde(default)]
+    pub capabilities: Option<Vec<String>>,
+    /// `active | pending | releasing | released | failed`. `pending` is a
+    /// success: some countries (e.g. DE) hold the number until regulatory
+    /// documents clear — see `requirements`.
+    pub status: String,
+    #[serde(default)]
+    pub inbox_id: Option<String>,
+    #[serde(default)]
+    pub agent_id: Option<String>,
+    #[serde(default)]
+    pub monthly_cost_usd: Option<f64>,
+    #[serde(default)]
+    pub setup_cost_usd: Option<f64>,
+    /// Outstanding regulatory requirements (`{ status, items }`).
+    #[serde(default)]
+    pub requirements: serde_json::Value,
+    #[serde(default)]
+    pub metadata: serde_json::Value,
+    #[serde(default)]
+    pub purchased_at: Option<String>,
+    #[serde(default)]
+    pub released_at: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+}
+
+fn default_phone_number_object() -> String {
+    "phone_number".to_string()
+}
+
+/// One provider-inventory row from `GET /v1/phone/numbers/available`
+/// (`object: "phone_number.available"`). `purchasable: false` plus a masked
+/// `phoneNumber` means the provider account is not verified enough to buy the
+/// number yet — the contract requires surfacing those rows, never hiding them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AvailablePhoneNumber {
+    #[serde(default = "default_available_phone_number_object")]
+    pub object: String,
+    #[serde(rename = "phoneNumber")]
+    pub phone_number: String,
+    #[serde(default, rename = "countryCode")]
+    pub country_code: Option<String>,
+    #[serde(default, rename = "numberType")]
+    pub number_type: Option<String>,
+    #[serde(default)]
+    pub locality: Option<String>,
+    #[serde(default)]
+    pub region: Option<String>,
+    #[serde(default)]
+    pub capabilities: Option<Vec<String>>,
+    #[serde(default, rename = "monthlyCostUsd")]
+    pub monthly_cost_usd: Option<f64>,
+    #[serde(default, rename = "setupCostUsd")]
+    pub setup_cost_usd: Option<f64>,
+    pub purchasable: bool,
+}
+
+fn default_available_phone_number_object() -> String {
+    "phone_number.available".to_string()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BuyPhoneNumberRequest {
+    /// The exact E.164 number a prior availability search returned.
+    #[serde(rename = "phoneNumber")]
+    pub phone_number: String,
+}
+
+/// Body for `POST /v1/phone/calls`. Only `to`, `from`, and `instructions` are
+/// required; every omitted optional falls back to its server default.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreatePhoneCallRequest {
+    pub to: String,
+    /// Caller id. Must be an active number the account owns.
+    pub from: String,
+    pub instructions: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub greeting: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    /// `silence | office | none` (there is no `cafe`).
+    #[serde(rename = "backgroundAudio", skip_serializing_if = "Option::is_none")]
+    pub background_audio: Option<String>,
+    #[serde(rename = "maxDurationSeconds", skip_serializing_if = "Option::is_none")]
+    pub max_duration_seconds: Option<u32>,
+    /// Recording defaults to on server-side; only sent when opting out.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub record: Option<bool>,
+    /// `{{handlebars}}` variables substituted into instructions/greeting.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variables: Option<serde_json::Value>,
+    #[serde(rename = "webhookUrl", skip_serializing_if = "Option::is_none")]
+    pub webhook_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+    #[serde(rename = "idempotencyKey", skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<String>,
+}
+
+/// One outbound call (`object: "phone_call"`). Served snake_case from the
+/// store, like [`PhoneNumber`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PhoneCall {
+    #[serde(default = "default_phone_call_object")]
+    pub object: String,
+    pub id: String,
+    #[serde(default)]
+    pub direction: String,
+    pub status: String,
+    pub from_number: String,
+    pub to_number: String,
+    #[serde(default)]
+    pub instructions: Option<String>,
+    #[serde(default)]
+    pub greeting: Option<String>,
+    #[serde(default)]
+    pub voice: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub language: Option<String>,
+    #[serde(default)]
+    pub background_audio: Option<String>,
+    #[serde(default)]
+    pub max_duration_seconds: Option<u32>,
+    #[serde(default)]
+    pub queued_at: Option<String>,
+    #[serde(default)]
+    pub started_at: Option<String>,
+    #[serde(default)]
+    pub answered_at: Option<String>,
+    #[serde(default)]
+    pub ended_at: Option<String>,
+    #[serde(default)]
+    pub duration_seconds: Option<i64>,
+    #[serde(default)]
+    pub hangup_cause: Option<String>,
+    #[serde(default)]
+    pub answered_by: Option<String>,
+    #[serde(default)]
+    pub summary: Option<String>,
+    #[serde(default)]
+    pub cost_usd: Option<f64>,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub webhook_url: Option<String>,
+    #[serde(default)]
+    pub metadata: serde_json::Value,
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+}
+
+fn default_phone_call_object() -> String {
+    "phone_call".to_string()
+}
+
+impl PhoneCall {
+    /// Whether the call reached one of the contract's terminal statuses, i.e.
+    /// polling it further can never observe another transition.
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self.status.as_str(),
+            "completed" | "failed" | "no_answer" | "busy" | "canceled"
+        )
+    }
+}
+
+/// `GET /v1/phone/calls/{id}/transcript`. `turns` is empty (and `status`
+/// carries the live call status) while the call is still in flight.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PhoneCallTranscript {
+    #[serde(default = "default_phone_call_transcript_object")]
+    pub object: String,
+    #[serde(rename = "callId")]
+    pub call_id: String,
+    #[serde(default)]
+    pub turns: Vec<PhoneCallTranscriptTurn>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+}
+
+fn default_phone_call_transcript_object() -> String {
+    "phone_call.transcript".to_string()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PhoneCallTranscriptTurn {
+    /// `agent | caller | tool`.
+    #[serde(default)]
+    pub role: String,
+    #[serde(default)]
+    pub content: String,
+    #[serde(default)]
+    pub timestamp: Option<String>,
+}
+
+/// `GET /v1/phone/calls/{id}/recording`: the Dairo storage object holding the
+/// call audio (the API never exposes a raw provider URL).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PhoneCallRecording {
+    #[serde(default = "default_phone_call_recording_object")]
+    pub object: String,
+    #[serde(rename = "callId")]
+    pub call_id: String,
+    #[serde(rename = "objectId")]
+    pub object_id: String,
+}
+
+fn default_phone_call_recording_object() -> String {
+    "phone_call.recording".to_string()
+}
+
+/// Query for `GET /v1/phone/numbers/available`. All filters are optional; the
+/// server defaults `country` to `US` and clamps `limit` to 1..=100 (default 10).
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct AvailablePhoneNumbersQuery {
+    pub country: Option<String>,
+    pub area_code: Option<String>,
+    pub contains: Option<String>,
+    /// `local | toll_free | national | mobile`.
+    pub number_type: Option<String>,
+    pub limit: Option<u32>,
+}
+
+/// Query for `GET /v1/phone/calls`. `limit` is clamped server-side to 1..=100
+/// (default 50).
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PhoneCallListQuery {
+    pub status: Option<String>,
+    pub to: Option<String>,
+    pub limit: Option<u32>,
+}
+
 pub(crate) fn apply_message_query(url: &mut Url, query: &MessageListQuery) {
     let mut pairs = url.query_pairs_mut();
     if let Some(value) = &query.inbox_id {
@@ -1159,6 +1417,41 @@ pub(crate) fn apply_verify_query(url: &mut Url, query: &VerifyAgentQuery) {
         if let Some(value) = value {
             pairs.append_pair(key, value);
         }
+    }
+}
+
+pub(crate) fn apply_available_phone_numbers_query(
+    url: &mut Url,
+    query: &AvailablePhoneNumbersQuery,
+) {
+    let mut pairs = url.query_pairs_mut();
+    if let Some(value) = &query.country {
+        pairs.append_pair("country", value);
+    }
+    if let Some(value) = &query.area_code {
+        pairs.append_pair("areaCode", value);
+    }
+    if let Some(value) = &query.contains {
+        pairs.append_pair("contains", value);
+    }
+    if let Some(value) = &query.number_type {
+        pairs.append_pair("type", value);
+    }
+    if let Some(value) = query.limit {
+        pairs.append_pair("limit", &value.to_string());
+    }
+}
+
+pub(crate) fn apply_phone_call_query(url: &mut Url, query: &PhoneCallListQuery) {
+    let mut pairs = url.query_pairs_mut();
+    if let Some(value) = &query.status {
+        pairs.append_pair("status", value);
+    }
+    if let Some(value) = &query.to {
+        pairs.append_pair("to", value);
+    }
+    if let Some(value) = query.limit {
+        pairs.append_pair("limit", &value.to_string());
     }
 }
 

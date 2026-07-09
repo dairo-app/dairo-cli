@@ -83,6 +83,20 @@ fn implemented_operations_are_an_honest_canonical_subset() {
         "listBucketObjects",
         "getBucketObjectDownloadUrl",
         "deleteBucketObject",
+        // The `dairo phone` command group (calls + number provisioning) — pinned
+        // so the voice surface cannot silently drop out of the projection.
+        "listPhoneNumbers",
+        "listAvailablePhoneNumbers",
+        "buyPhoneNumber",
+        "getPhoneNumber",
+        "updatePhoneNumber",
+        "releasePhoneNumber",
+        "createPhoneCall",
+        "listPhoneCalls",
+        "getPhoneCall",
+        "getPhoneCallTranscript",
+        "getPhoneCallRecording",
+        "hangupPhoneCall",
     ] {
         assert!(
             implemented_ops

@@ -2195,6 +2195,165 @@ impl ApiClient {
         self.execute_json(request).await
     }
 
+    // --- Dairo Phone (/v1/phone/*) ------------------------------------------
+    // Outbound AI phone calls + phone-number provisioning.
+
+    /// Searches the provider's purchasable inventory
+    /// (`GET /v1/phone/numbers/available`, scope `phone:read`). Rows with
+    /// `purchasable: false` and a masked number mean the provider account needs
+    /// more identity verification before buying — surfaced, never hidden.
+    pub async fn search_available_phone_numbers(
+        &self,
+        query: &AvailablePhoneNumbersQuery,
+    ) -> Result<ListEnvelope<AvailablePhoneNumber>> {
+        let mut request = self.build_request(
+            Method::GET,
+            &["v1", "phone", "numbers", "available"],
+            None::<&()>,
+        )?;
+        apply_available_phone_numbers_query(request.url_mut(), query);
+        self.execute_json(request).await
+    }
+
+    /// Lists the account's phone numbers (`GET /v1/phone/numbers`, scope
+    /// `phone:read`). Released numbers stay on their rows for the audit trail
+    /// and are excluded unless `include_released` is set.
+    pub async fn list_phone_numbers(
+        &self,
+        include_released: bool,
+    ) -> Result<ListEnvelope<PhoneNumber>> {
+        let mut request =
+            self.build_request(Method::GET, &["v1", "phone", "numbers"], None::<&()>)?;
+        if include_released {
+            request
+                .url_mut()
+                .query_pairs_mut()
+                .append_pair("includeReleased", "true");
+        }
+        self.execute_json(request).await
+    }
+
+    /// Provisions a number returned by an availability search
+    /// (`POST /v1/phone/numbers`, scope `phone:write`). A `status: "pending"`
+    /// response with `requirements` is a success — some countries (e.g. DE)
+    /// hold the number until regulatory documents clear. 409 when the number is
+    /// already provisioned.
+    pub async fn buy_phone_number(&self, body: &BuyPhoneNumberRequest) -> Result<PhoneNumber> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "phone", "numbers"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Gets one phone number (`GET /v1/phone/numbers/{id}`, scope `phone:read`).
+    pub async fn get_phone_number(&self, id: &str) -> Result<PhoneNumber> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "phone", "numbers", id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Updates a number's inbox/agent binding and/or metadata
+    /// (`PATCH /v1/phone/numbers/{id}`, scope `phone:write`). `inboxId` and
+    /// `agentId` accept an explicit JSON `null` to unbind, so the caller
+    /// assembles the body as a raw value.
+    pub async fn update_phone_number(
+        &self,
+        id: &str,
+        body: &serde_json::Value,
+    ) -> Result<PhoneNumber> {
+        self.execute_json(self.build_request(
+            Method::PATCH,
+            &["v1", "phone", "numbers", id],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Releases a number back to the provider pool
+    /// (`DELETE /v1/phone/numbers/{id}`, scope `phone:write`). Irreversible —
+    /// the backend requires `{"confirm": true}` in the body. Returns 204.
+    pub async fn release_phone_number(&self, id: &str) -> Result<()> {
+        self.execute_no_content(self.build_request(
+            Method::DELETE,
+            &["v1", "phone", "numbers", id],
+            Some(&serde_json::json!({ "confirm": true })),
+        )?)
+        .await
+    }
+
+    /// Places an outbound AI phone call (`POST /v1/phone/calls`, scope
+    /// `phone:call`). Asynchronous: the response is the call with
+    /// `status: "initiating"`; poll [`Self::get_phone_call`] for the outcome.
+    /// 409 on a duplicate `idempotencyKey`.
+    pub async fn create_phone_call(&self, body: &CreatePhoneCallRequest) -> Result<PhoneCall> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "phone", "calls"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Lists calls, newest first (`GET /v1/phone/calls`, scope `phone:read`).
+    pub async fn list_phone_calls(
+        &self,
+        query: &PhoneCallListQuery,
+    ) -> Result<ListEnvelope<PhoneCall>> {
+        let mut request =
+            self.build_request(Method::GET, &["v1", "phone", "calls"], None::<&()>)?;
+        apply_phone_call_query(request.url_mut(), query);
+        self.execute_json(request).await
+    }
+
+    /// Gets one call (`GET /v1/phone/calls/{id}`, scope `phone:read`).
+    pub async fn get_phone_call(&self, id: &str) -> Result<PhoneCall> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "phone", "calls", id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Reads a call's transcript (`GET /v1/phone/calls/{id}/transcript`, scope
+    /// `phone:read`). `turns` is empty while the call is still in flight.
+    pub async fn get_phone_call_transcript(&self, id: &str) -> Result<PhoneCallTranscript> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "phone", "calls", id, "transcript"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Resolves the Dairo storage object holding a call's audio
+    /// (`GET /v1/phone/calls/{id}/recording`, scope `phone:read`). 404 when the
+    /// call has no recording.
+    pub async fn get_phone_call_recording(&self, id: &str) -> Result<PhoneCallRecording> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "phone", "calls", id, "recording"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
+    /// Hangs up a live call (`POST /v1/phone/calls/{id}/hangup`, scope
+    /// `phone:call`). 409 when the call already reached a terminal status.
+    pub async fn hangup_phone_call(&self, id: &str) -> Result<PhoneCall> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "phone", "calls", id, "hangup"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
     pub(crate) fn build_request<T: Serialize>(
         &self,
         method: Method,
@@ -2658,6 +2817,201 @@ mod tests {
             request.url().as_str(),
             "https://api.example.test/v1/audiences/list_123"
         );
+    }
+
+    #[test]
+    fn available_phone_numbers_query_uses_contract_parameter_names() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let mut request = client
+            .build_request(
+                Method::GET,
+                &["v1", "phone", "numbers", "available"],
+                None::<&()>,
+            )
+            .unwrap();
+        apply_available_phone_numbers_query(
+            request.url_mut(),
+            &AvailablePhoneNumbersQuery {
+                country: Some("US".to_string()),
+                area_code: Some("415".to_string()),
+                contains: Some("555".to_string()),
+                number_type: Some("toll_free".to_string()),
+                limit: Some(10),
+            },
+        );
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/phone/numbers/available?country=US&areaCode=415&contains=555&type=toll_free&limit=10"
+        );
+    }
+
+    #[test]
+    fn phone_call_list_query_only_sends_present_filters() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let mut request = client
+            .build_request(Method::GET, &["v1", "phone", "calls"], None::<&()>)
+            .unwrap();
+        apply_phone_call_query(
+            request.url_mut(),
+            &PhoneCallListQuery {
+                status: Some("completed".to_string()),
+                to: None,
+                limit: None,
+            },
+        );
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/phone/calls?status=completed"
+        );
+    }
+
+    #[test]
+    fn phone_number_release_sends_confirm_body_to_number_resource() {
+        // Release is irreversible, so the backend refuses a DELETE without an
+        // explicit `{"confirm": true}` body — the client must always send it.
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::DELETE,
+                &["v1", "phone", "numbers", "num_123"],
+                Some(&serde_json::json!({ "confirm": true })),
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::DELETE);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/phone/numbers/num_123"
+        );
+        let body = request.body().unwrap().as_bytes().unwrap();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(body).unwrap(),
+            serde_json::json!({ "confirm": true })
+        );
+    }
+
+    #[test]
+    fn phone_call_hangup_targets_call_subresource() {
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::POST,
+                &["v1", "phone", "calls", "call_123", "hangup"],
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/phone/calls/call_123/hangup"
+        );
+    }
+
+    #[test]
+    fn serializes_phone_call_body_with_contract_wire_names() {
+        let body = CreatePhoneCallRequest {
+            to: "+4915112345678".to_string(),
+            from: "+13125550100".to_string(),
+            instructions: "Tell Luka the API recovered.".to_string(),
+            greeting: Some("Hallo Luka.".to_string()),
+            voice: None,
+            model: None,
+            language: Some("de".to_string()),
+            background_audio: Some("office".to_string()),
+            max_duration_seconds: Some(120),
+            record: Some(false),
+            variables: Some(serde_json::json!({ "customerName": "Luka" })),
+            webhook_url: None,
+            metadata: None,
+            idempotency_key: Some("call-1".to_string()),
+        };
+
+        let value = serde_json::to_value(body).unwrap();
+
+        assert_eq!(value["to"], "+4915112345678");
+        assert_eq!(value["from"], "+13125550100");
+        assert_eq!(value["instructions"], "Tell Luka the API recovered.");
+        assert_eq!(value["greeting"], "Hallo Luka.");
+        assert_eq!(value["language"], "de");
+        assert_eq!(value["backgroundAudio"], "office");
+        assert_eq!(value["maxDurationSeconds"], 120);
+        assert_eq!(value["record"], false);
+        assert_eq!(value["variables"]["customerName"], "Luka");
+        assert_eq!(value["idempotencyKey"], "call-1");
+        // Omitted optionals fall back to server defaults, never null on the wire.
+        assert!(value.get("voice").is_none());
+        assert!(value.get("model").is_none());
+        assert!(value.get("webhookUrl").is_none());
+        assert!(value.get("metadata").is_none());
+    }
+
+    #[test]
+    fn deserializes_phone_objects_from_contract_wire_shapes() {
+        // Number rows are snake_case straight from the store (per the contract
+        // note), while availability rows are camelCase — both must round-trip.
+        let number: PhoneNumber = serde_json::from_value(serde_json::json!({
+            "object": "phone_number",
+            "id": "0d7c8c3e-0000-0000-0000-000000000001",
+            "phone_number": "+14155550123",
+            "country_code": "US",
+            "number_type": "local",
+            "capabilities": ["voice", "sms"],
+            "status": "pending",
+            "inbox_id": null,
+            "agent_id": null,
+            "monthly_cost_usd": 1.0,
+            "setup_cost_usd": 1.0,
+            "requirements": { "status": "pending", "items": ["proof_of_address"] },
+            "metadata": {},
+            "purchased_at": "2026-07-09T22:00:00Z",
+            "released_at": null,
+            "created_at": "2026-07-09T22:00:00Z"
+        }))
+        .unwrap();
+        assert_eq!(number.phone_number, "+14155550123");
+        assert_eq!(number.status, "pending");
+        assert_eq!(number.requirements["items"][0], "proof_of_address");
+
+        let available: AvailablePhoneNumber = serde_json::from_value(serde_json::json!({
+            "object": "phone_number.available",
+            "phoneNumber": "+16313------",
+            "countryCode": "US",
+            "numberType": "local",
+            "locality": "SAN FRANCISCO",
+            "region": "CA",
+            "capabilities": ["voice", "sms"],
+            "monthlyCostUsd": 1.0,
+            "setupCostUsd": 1.0,
+            "purchasable": false
+        }))
+        .unwrap();
+        assert_eq!(available.phone_number, "+16313------");
+        assert!(!available.purchasable);
+
+        let call: PhoneCall = serde_json::from_value(serde_json::json!({
+            "object": "phone_call",
+            "id": "0d7c8c3e-0000-0000-0000-000000000002",
+            "direction": "outbound",
+            "status": "in_progress",
+            "from_number": "+13125550100",
+            "to_number": "+4915112345678",
+            "instructions": "Say hi.",
+            "voice": "Rime.Coda.lorelei",
+            "model": "anthropic/claude-haiku-4-5",
+            "background_audio": "silence",
+            "max_duration_seconds": 600,
+            "metadata": {},
+            "created_at": "2026-07-09T22:00:00Z"
+        }))
+        .unwrap();
+        assert_eq!(call.to_number, "+4915112345678");
+        assert!(!call.is_terminal());
+        for terminal in ["completed", "failed", "no_answer", "busy", "canceled"] {
+            let call = PhoneCall {
+                status: terminal.to_string(),
+                ..call.clone()
+            };
+            assert!(call.is_terminal(), "{terminal} must be terminal");
+        }
     }
 
     #[test]

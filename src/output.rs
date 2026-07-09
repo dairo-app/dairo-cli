@@ -5,9 +5,10 @@ use crate::mcp_install::McpInstallReport;
 
 use crate::api::{
     ApiKey, AttachmentDownloadUrlResponse, Audience, AudienceDetailResponse,
-    AudienceImportResponse, AudienceSendResponse, BatchDeleteResult, CreateApiKeyResponse,
-    CreateWebhookResponse, Domain, Inbox, LedgerEvent, Message, SendMessageResponse,
-    SendMessageWarning, Thread, Webhook, WhoamiResponse,
+    AudienceImportResponse, AudienceSendResponse, AvailablePhoneNumber, BatchDeleteResult,
+    CreateApiKeyResponse, CreateWebhookResponse, Domain, Inbox, LedgerEvent, Message, PhoneCall,
+    PhoneCallRecording, PhoneCallTranscript, PhoneNumber, SendMessageResponse, SendMessageWarning,
+    Thread, Webhook, WhoamiResponse,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -345,6 +346,219 @@ pub fn print_audience_send(response: &AudienceSendResponse, format: OutputFormat
         print_send_warnings(&message.warnings);
     }
     Ok(())
+}
+
+pub fn print_phone_numbers(numbers: &[PhoneNumber], format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(numbers)?);
+        return Ok(());
+    }
+    if numbers.is_empty() {
+        println!("No phone numbers found.");
+        return Ok(());
+    }
+    println!(
+        "{:<38} {:<17} {:<8} {:<10} {:<10} INBOX",
+        "ID", "NUMBER", "COUNTRY", "TYPE", "STATUS"
+    );
+    for number in numbers {
+        println!(
+            "{:<38} {:<17} {:<8} {:<10} {:<10} {}",
+            number.id,
+            number.phone_number,
+            number.country_code.as_deref().unwrap_or("-"),
+            number.number_type.as_deref().unwrap_or("-"),
+            number.status,
+            number.inbox_id.as_deref().unwrap_or("-")
+        );
+    }
+    Ok(())
+}
+
+pub fn print_available_phone_numbers(
+    numbers: &[AvailablePhoneNumber],
+    format: OutputFormat,
+) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(numbers)?);
+        return Ok(());
+    }
+    if numbers.is_empty() {
+        println!("No available numbers matched.");
+        return Ok(());
+    }
+    println!(
+        "{:<17} {:<10} {:<20} {:<8} {:<14} {:<10} PURCHASABLE",
+        "NUMBER", "TYPE", "LOCALITY", "REGION", "CAPABILITIES", "MONTHLY"
+    );
+    for number in numbers {
+        println!(
+            "{:<17} {:<10} {:<20} {:<8} {:<14} {:<10} {}",
+            number.phone_number,
+            number.number_type.as_deref().unwrap_or("-"),
+            number.locality.as_deref().unwrap_or("-"),
+            number.region.as_deref().unwrap_or("-"),
+            number
+                .capabilities
+                .as_deref()
+                .map(|caps| caps.join(","))
+                .unwrap_or_else(|| "-".to_string()),
+            format_usd(number.monthly_cost_usd),
+            if number.purchasable { "yes" } else { "no" }
+        );
+    }
+    if numbers.iter().any(|number| !number.purchasable) {
+        println!(
+            "Masked numbers marked purchasable=no need more provider account verification before they can be bought."
+        );
+    }
+    Ok(())
+}
+
+pub fn print_phone_number_detail(number: &PhoneNumber, format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(number)?);
+        return Ok(());
+    }
+    println!("Phone number {}: {}", number.phone_number, number.status);
+    println!("  id: {}", number.id);
+    println!(
+        "  country: {}",
+        number.country_code.as_deref().unwrap_or("-")
+    );
+    println!("  type: {}", number.number_type.as_deref().unwrap_or("-"));
+    if let Some(capabilities) = &number.capabilities {
+        println!("  capabilities: {}", capabilities.join(","));
+    }
+    println!("  inbox: {}", number.inbox_id.as_deref().unwrap_or("-"));
+    println!("  agent: {}", number.agent_id.as_deref().unwrap_or("-"));
+    println!(
+        "  cost: {}/month, {} setup",
+        format_usd(number.monthly_cost_usd),
+        format_usd(number.setup_cost_usd)
+    );
+    if let Some(purchased_at) = &number.purchased_at {
+        println!("  purchased: {purchased_at}");
+    }
+    if let Some(released_at) = &number.released_at {
+        println!("  released: {released_at}");
+    }
+    // A pending number is reserved but not yet usable: the outstanding
+    // regulatory requirements are the caller's next step, so show them.
+    if number.status == "pending" && !number.requirements.is_null() {
+        println!("  requirements: {}", number.requirements);
+        println!("This number is reserved; it activates once the outstanding regulatory requirements clear.");
+    }
+    Ok(())
+}
+
+pub fn print_phone_calls(calls: &[PhoneCall], format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(calls)?);
+        return Ok(());
+    }
+    if calls.is_empty() {
+        println!("No calls found.");
+        return Ok(());
+    }
+    println!(
+        "{:<38} {:<12} {:<17} {:<17} {:<9} CREATED",
+        "ID", "STATUS", "FROM", "TO", "DURATION"
+    );
+    for call in calls {
+        println!(
+            "{:<38} {:<12} {:<17} {:<17} {:<9} {}",
+            call.id,
+            call.status,
+            call.from_number,
+            call.to_number,
+            call.duration_seconds
+                .map(|seconds| format!("{seconds}s"))
+                .unwrap_or_else(|| "-".to_string()),
+            call.created_at.as_deref().unwrap_or("-")
+        );
+    }
+    Ok(())
+}
+
+pub fn print_phone_call_detail(call: &PhoneCall, format: OutputFormat) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(call)?);
+        return Ok(());
+    }
+    println!("Call {}: {}", call.id, call.status);
+    println!("  from: {}", call.from_number);
+    println!("  to: {}", call.to_number);
+    if let Some(voice) = &call.voice {
+        println!("  voice: {voice}");
+    }
+    if let Some(model) = &call.model {
+        println!("  model: {model}");
+    }
+    if let Some(answered_by) = &call.answered_by {
+        println!("  answered by: {answered_by}");
+    }
+    if let Some(duration) = call.duration_seconds {
+        println!("  duration: {duration}s");
+    }
+    if let Some(hangup_cause) = &call.hangup_cause {
+        println!("  hangup cause: {hangup_cause}");
+    }
+    if let Some(cost) = call.cost_usd {
+        println!("  cost: ${cost:.2}");
+    }
+    if let Some(summary) = &call.summary {
+        println!("  summary: {summary}");
+    }
+    if let Some(error) = &call.error {
+        println!("  error: {error}");
+    }
+    Ok(())
+}
+
+pub fn print_phone_call_transcript(
+    transcript: &PhoneCallTranscript,
+    format: OutputFormat,
+) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(transcript)?);
+        return Ok(());
+    }
+    if transcript.turns.is_empty() {
+        match &transcript.status {
+            Some(status) => println!("No transcript yet (call is {status})."),
+            None => println!("No transcript."),
+        }
+        return Ok(());
+    }
+    for turn in &transcript.turns {
+        match &turn.timestamp {
+            Some(timestamp) => println!("[{timestamp}] {}: {}", turn.role, turn.content),
+            None => println!("{}: {}", turn.role, turn.content),
+        }
+    }
+    Ok(())
+}
+
+pub fn print_phone_call_recording(
+    recording: &PhoneCallRecording,
+    format: OutputFormat,
+) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(recording)?);
+        return Ok(());
+    }
+    println!(
+        "Recording for call {} is stored as Dairo storage object {}.",
+        recording.call_id, recording.object_id
+    );
+    Ok(())
+}
+
+fn format_usd(value: Option<f64>) -> String {
+    value
+        .map(|value| format!("${value:.2}"))
+        .unwrap_or_else(|| "-".to_string())
 }
 
 fn print_send_warnings(warnings: &[SendMessageWarning]) {

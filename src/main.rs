@@ -15,10 +15,11 @@ mod webhook;
 use anyhow::{Context, Result};
 use api::{
     A2aMessageQuery, ApiClient, AudienceMemberInput, AudienceMembersRequest, AuditExportQuery,
-    AuditLogQuery, BucketObjectListQuery, CreateApiKeyRequest, CreateAudienceRequest,
-    CreateBucketRequest, CreateDomainRequest, CreateInboxRequest, CreateLetterRequest,
-    CreateWebhookRequest, EventsQuery, LetterCreditor, LetterDebtor, LetterFileRef,
-    LetterListQuery, LetterPayment, LetterPriceRequest, LetterPrintOptions, MessageListQuery,
+    AuditLogQuery, AvailablePhoneNumbersQuery, BucketObjectListQuery, BuyPhoneNumberRequest,
+    CreateApiKeyRequest, CreateAudienceRequest, CreateBucketRequest, CreateDomainRequest,
+    CreateInboxRequest, CreateLetterRequest, CreatePhoneCallRequest, CreateWebhookRequest,
+    EventsQuery, LetterCreditor, LetterDebtor, LetterFileRef, LetterListQuery, LetterPayment,
+    LetterPriceRequest, LetterPrintOptions, MessageListQuery, PhoneCall, PhoneCallListQuery,
     PostalAddress, SendMessageAttachment, SendMessageReact, SendMessageRequest,
     TelegramVoicesQuery, ThreadListQuery, VerifyAgentQuery,
 };
@@ -33,8 +34,9 @@ use cli::{
     InboxSchemaCommand, InboxSchemaValidationMode, LetterBatchCommand, LetterCommand,
     LetterPaymentArgs, LetterPriceArgs, LetterPrintArgs, LetterSendArgs, LetterTemplateCommand,
     LoginArgs, McpCommand, MessageCommand, NotificationCommand, NotificationPrefCommand,
-    OutboundCommand, RecipientArgs, ReputationCommand, SenderArgs, ShareCommand, TelegramCommand,
-    TemplateCommand, ThreadCommand, VerificationWaitCommand, WebhookCommand,
+    OutboundCommand, PhoneCallArgs, PhoneCallsCommand, PhoneCommand, PhoneNumberCommand,
+    RecipientArgs, ReputationCommand, SenderArgs, ShareCommand, TelegramCommand, TemplateCommand,
+    ThreadCommand, VerificationWaitCommand, WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -44,6 +46,7 @@ use std::{
     ffi::OsString,
     path::{Path, PathBuf},
     process::ExitCode,
+    time::Duration,
 };
 
 #[tokio::main]
@@ -997,6 +1000,7 @@ async fn run(cli: Cli) -> Result<()> {
                         output::print_json(&response, format)
                     }
                 },
+                Command::Phone { command } => run_phone(&client, command, format).await,
                 Command::Listen(args) => {
                     // `listen` does its own rendering and its errors are already
                     // descriptive, so it bypasses the generic "failed to print
@@ -1561,6 +1565,219 @@ fn insert_opt_nullable_str(body: &mut serde_json::Value, key: &str, value: Optio
             serde_json::Value::String(value)
         };
     }
+}
+
+// ---------------------------------------------------------------------------
+// Dairo Phone (/v1/phone)
+// ---------------------------------------------------------------------------
+
+/// Dispatches the `phone` command family: outbound AI calls
+/// (`/v1/phone/calls`) and phone-number provisioning (`/v1/phone/numbers`).
+async fn run_phone(client: &ApiClient, command: PhoneCommand, format: OutputFormat) -> Result<()> {
+    match command {
+        PhoneCommand::Numbers { command } => run_phone_numbers(client, command, format).await,
+        PhoneCommand::Call(args) => run_phone_call(client, args, format).await,
+        PhoneCommand::Calls { command } => run_phone_calls(client, command, format).await,
+    }
+}
+
+async fn run_phone_numbers(
+    client: &ApiClient,
+    command: PhoneNumberCommand,
+    format: OutputFormat,
+) -> Result<()> {
+    match command {
+        PhoneNumberCommand::List { include_released } => {
+            let response = client.list_phone_numbers(include_released).await?;
+            output::print_phone_numbers(&response.data, format)
+        }
+        PhoneNumberCommand::Search {
+            country,
+            area_code,
+            contains,
+            number_type,
+            limit,
+        } => {
+            let response = client
+                .search_available_phone_numbers(&AvailablePhoneNumbersQuery {
+                    country: country.and_then(non_empty_trimmed),
+                    area_code: area_code.and_then(non_empty_trimmed),
+                    contains: contains.and_then(non_empty_trimmed),
+                    number_type: number_type.map(|value| value.as_str().to_string()),
+                    limit,
+                })
+                .await?;
+            output::print_available_phone_numbers(&response.data, format)
+        }
+        PhoneNumberCommand::Buy { phone_number } => {
+            let number = client
+                .buy_phone_number(&BuyPhoneNumberRequest {
+                    phone_number: phone_number.trim().to_string(),
+                })
+                .await?;
+            output::print_phone_number_detail(&number, format)
+        }
+        PhoneNumberCommand::Get { id } => {
+            let number = client.get_phone_number(id.trim()).await?;
+            output::print_phone_number_detail(&number, format)
+        }
+        PhoneNumberCommand::Update {
+            id,
+            inbox,
+            agent,
+            metadata,
+        } => {
+            let body = build_update_phone_number_request(inbox, agent, metadata)?;
+            let number = client.update_phone_number(id.trim(), &body).await?;
+            output::print_phone_number_detail(&number, format)
+        }
+        PhoneNumberCommand::Release { id, confirm } => {
+            anyhow::ensure!(
+                confirm,
+                "releasing a phone number is irreversible (anyone may buy it afterwards); \
+                 re-run with --confirm to proceed"
+            );
+            client.release_phone_number(id.trim()).await?;
+            output::print_deleted("phone number", format)
+        }
+    }
+}
+
+/// Places `dairo phone call` and, with `--wait`, polls the call to a terminal
+/// status and prints the transcript at the end.
+async fn run_phone_call(
+    client: &ApiClient,
+    args: PhoneCallArgs,
+    format: OutputFormat,
+) -> Result<()> {
+    let wait = args.wait;
+    let request = build_phone_call_request(args)?;
+    let call = client.create_phone_call(&request).await?;
+    if !wait {
+        return output::print_phone_call_detail(&call, format);
+    }
+    let call = wait_for_phone_call(client, call).await?;
+    let transcript = client.get_phone_call_transcript(&call.id).await?;
+    if format == OutputFormat::Json {
+        // One combined document so `--json --wait` stdout stays a single
+        // parseable value.
+        return output::print_json(&json!({ "call": call, "transcript": transcript }), format);
+    }
+    output::print_phone_call_detail(&call, format)?;
+    println!("Transcript:");
+    output::print_phone_call_transcript(&transcript, format)
+}
+
+/// Polls `GET /v1/phone/calls/{id}` until the call reaches a terminal status.
+/// Progress lines go to stderr so a `--json` stdout stream stays parseable.
+/// The poll budget is the call's own max duration plus a finalize margin, so a
+/// call the backend never settles cannot hold the CLI open forever.
+async fn wait_for_phone_call(client: &ApiClient, mut call: PhoneCall) -> Result<PhoneCall> {
+    const POLL_INTERVAL: Duration = Duration::from_secs(2);
+    const FINALIZE_MARGIN: Duration = Duration::from_secs(120);
+    let budget =
+        Duration::from_secs(u64::from(call.max_duration_seconds.unwrap_or(600))) + FINALIZE_MARGIN;
+    let deadline = std::time::Instant::now() + budget;
+    let mut last_status = String::new();
+    loop {
+        if call.status != last_status {
+            eprintln!("call {}: {}", call.id, call.status);
+            last_status.clone_from(&call.status);
+        }
+        if call.is_terminal() {
+            return Ok(call);
+        }
+        anyhow::ensure!(
+            std::time::Instant::now() < deadline,
+            "call {} did not reach a terminal status within {}s; check it later with \
+             `dairo phone calls get {}`",
+            call.id,
+            budget.as_secs(),
+            call.id
+        );
+        tokio::time::sleep(POLL_INTERVAL).await;
+        call = client.get_phone_call(&call.id).await?;
+    }
+}
+
+async fn run_phone_calls(
+    client: &ApiClient,
+    command: PhoneCallsCommand,
+    format: OutputFormat,
+) -> Result<()> {
+    match command {
+        PhoneCallsCommand::List { status, to, limit } => {
+            let response = client
+                .list_phone_calls(&PhoneCallListQuery {
+                    status: status.and_then(non_empty_trimmed),
+                    to: to.and_then(non_empty_trimmed),
+                    limit,
+                })
+                .await?;
+            output::print_phone_calls(&response.data, format)
+        }
+        PhoneCallsCommand::Get { call_id } => {
+            let call = client.get_phone_call(call_id.trim()).await?;
+            output::print_phone_call_detail(&call, format)
+        }
+        PhoneCallsCommand::Transcript { call_id } => {
+            let transcript = client.get_phone_call_transcript(call_id.trim()).await?;
+            output::print_phone_call_transcript(&transcript, format)
+        }
+        PhoneCallsCommand::Recording { call_id } => {
+            let recording = client.get_phone_call_recording(call_id.trim()).await?;
+            output::print_phone_call_recording(&recording, format)
+        }
+        PhoneCallsCommand::Hangup { call_id } => {
+            let call = client.hangup_phone_call(call_id.trim()).await?;
+            output::print_phone_call_detail(&call, format)
+        }
+    }
+}
+
+/// Assembles the `POST /v1/phone/calls` body. Recording defaults to on
+/// server-side, so `record` is only sent when `--no-record` opts out.
+fn build_phone_call_request(args: PhoneCallArgs) -> Result<CreatePhoneCallRequest> {
+    Ok(CreatePhoneCallRequest {
+        to: args.to.trim().to_string(),
+        from: args.from.trim().to_string(),
+        instructions: args.instructions,
+        greeting: args.greeting,
+        voice: args.voice.and_then(non_empty_trimmed),
+        model: args.model.and_then(non_empty_trimmed),
+        language: args.language.and_then(non_empty_trimmed),
+        background_audio: args
+            .background_audio
+            .map(|value| value.as_str().to_string()),
+        max_duration_seconds: args.max_duration,
+        record: if args.no_record { Some(false) } else { None },
+        variables: resolve_json_object_arg("--variables", args.variables, None)?,
+        webhook_url: args.webhook_url.and_then(non_empty_trimmed),
+        metadata: resolve_json_object_arg("--metadata", args.metadata, None)?,
+        idempotency_key: args.idempotency_key.and_then(non_empty_trimmed),
+    })
+}
+
+/// Assembles the `PATCH /v1/phone/numbers/{id}` body. `inboxId`/`agentId` are
+/// nullable — an explicit empty string maps to JSON `null` so the backend
+/// unbinds — and the backend requires at least one field, enforced client-side
+/// so an empty PATCH never goes out.
+fn build_update_phone_number_request(
+    inbox: Option<String>,
+    agent: Option<String>,
+    metadata: Option<String>,
+) -> Result<serde_json::Value> {
+    let mut body = json!({});
+    insert_opt_nullable_str(&mut body, "inboxId", inbox);
+    insert_opt_nullable_str(&mut body, "agentId", agent);
+    if let Some(metadata) = resolve_json_object_arg("--metadata", metadata, None)? {
+        body["metadata"] = metadata;
+    }
+    anyhow::ensure!(
+        body.as_object().is_some_and(|map| !map.is_empty()),
+        "phone numbers update requires at least one of --inbox, --agent, --metadata"
+    );
+    Ok(body)
 }
 
 // ---------------------------------------------------------------------------
@@ -3205,6 +3422,88 @@ mod tests {
             .expect_err("array schema should be rejected");
 
         assert!(error.to_string().contains("--schema must be a JSON object"));
+    }
+
+    fn phone_call_args(no_record: bool) -> PhoneCallArgs {
+        PhoneCallArgs {
+            to: " +4915112345678 ".to_string(),
+            from: "+13125550100".to_string(),
+            instructions: "Tell Luka the API recovered.".to_string(),
+            greeting: Some("Hallo Luka.".to_string()),
+            voice: None,
+            model: Some("anthropic/claude-haiku-4-5".to_string()),
+            language: Some("de".to_string()),
+            background_audio: Some(cli::PhoneBackgroundAudio::Office),
+            max_duration: Some(120),
+            no_record,
+            variables: Some(r#"{"customerName":"Luka"}"#.to_string()),
+            webhook_url: None,
+            metadata: None,
+            idempotency_key: Some("call-1".to_string()),
+            wait: false,
+        }
+    }
+
+    #[test]
+    fn builds_phone_call_request_with_contract_wire_names() {
+        let body = serde_json::to_value(build_phone_call_request(phone_call_args(false)).unwrap())
+            .unwrap();
+
+        assert_eq!(body["to"], "+4915112345678");
+        assert_eq!(body["from"], "+13125550100");
+        assert_eq!(body["instructions"], "Tell Luka the API recovered.");
+        assert_eq!(body["greeting"], "Hallo Luka.");
+        assert_eq!(body["model"], "anthropic/claude-haiku-4-5");
+        assert_eq!(body["language"], "de");
+        assert_eq!(body["backgroundAudio"], "office");
+        assert_eq!(body["maxDurationSeconds"], 120);
+        assert_eq!(body["variables"]["customerName"], "Luka");
+        assert_eq!(body["idempotencyKey"], "call-1");
+        // Recording defaults to on server-side; the field is only sent when
+        // opting out, so the default invocation must omit it entirely.
+        assert!(body.get("record").is_none());
+        assert!(body.get("voice").is_none());
+        assert!(body.get("webhookUrl").is_none());
+        assert!(body.get("metadata").is_none());
+    }
+
+    #[test]
+    fn phone_call_no_record_sends_explicit_false() {
+        let body =
+            serde_json::to_value(build_phone_call_request(phone_call_args(true)).unwrap()).unwrap();
+        assert_eq!(body["record"], false);
+    }
+
+    #[test]
+    fn rejects_phone_call_variables_that_are_not_an_object() {
+        let mut args = phone_call_args(false);
+        args.variables = Some(r#"["Luka"]"#.to_string());
+        let error = build_phone_call_request(args).expect_err("array variables must be rejected");
+        assert!(error
+            .to_string()
+            .contains("--variables must be a JSON object"));
+    }
+
+    #[test]
+    fn phone_number_update_maps_empty_string_to_null_unbind() {
+        let body = build_update_phone_number_request(
+            Some("".to_string()),
+            Some("agt_1".to_string()),
+            None,
+        )
+        .unwrap();
+        assert_eq!(body["inboxId"], serde_json::Value::Null);
+        assert_eq!(body["agentId"], "agt_1");
+        assert!(body.get("metadata").is_none());
+    }
+
+    #[test]
+    fn phone_number_update_requires_at_least_one_change() {
+        let error = build_update_phone_number_request(None, None, None)
+            .expect_err("an empty PATCH must be rejected client-side");
+        assert!(error
+            .to_string()
+            .contains("at least one of --inbox, --agent, --metadata"));
     }
 
     #[test]

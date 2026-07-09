@@ -37,6 +37,9 @@ Realtime and webhooks:
 Physical mail:
   letter         Send and track physical-mail letters from a PDF
 
+Phone:
+  phone          Outbound AI phone calls and phone numbers
+
 Storage:
   bucket         Store and retrieve files in named storage buckets
   share          Secure share links over stored objects (single or bundle)
@@ -288,6 +291,12 @@ pub enum Command {
         #[command(subcommand)]
         command: TelegramCommand,
     },
+    /// Outbound AI phone calls and phone-number provisioning.
+    #[command(name = "phone")]
+    Phone {
+        #[command(subcommand)]
+        command: PhoneCommand,
+    },
     /// Stream live events to your terminal (the Dairo `stripe listen`).
     ///
     /// Streams live inbound-email (and delivery) events to the terminal and,
@@ -494,6 +503,217 @@ pub enum TelegramCommand {
 pub enum DedicatedIpCommand {
     /// Show the dedicated IP pool status for the account.
     Status,
+}
+
+// `PhoneCommand::Call` carries the flattened `PhoneCallArgs` inline, which clap
+// requires to be the concrete Args type, so the variant-size difference is
+// inherent and benign — matching the `AudienceCommand::Send` precedent.
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Subcommand)]
+pub enum PhoneCommand {
+    /// Manage the account's phone numbers (search, buy, bind, release).
+    #[command(name = "numbers", alias = "number")]
+    Numbers {
+        #[command(subcommand)]
+        command: PhoneNumberCommand,
+    },
+    /// Place an outbound AI phone call (scope `phone:call`).
+    ///
+    /// The call is asynchronous: the command returns the created call with
+    /// `status: "initiating"`. Pass `--wait` to poll until the call reaches a
+    /// terminal status and print the transcript at the end.
+    Call(PhoneCallArgs),
+    /// Inspect and control outbound calls.
+    #[command(name = "calls")]
+    Calls {
+        #[command(subcommand)]
+        command: PhoneCallsCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PhoneNumberCommand {
+    /// List the account's phone numbers (scope `phone:read`).
+    List {
+        /// Include released numbers (kept on their rows for the audit trail).
+        #[arg(long = "include-released")]
+        include_released: bool,
+    },
+    /// Search the provider's purchasable inventory (scope `phone:read`).
+    ///
+    /// Rows with `purchasable: no` and a masked number mean the provider
+    /// account needs more identity verification before that number can be
+    /// bought.
+    Search {
+        /// ISO 3166-1 alpha-2 country code (server default US).
+        #[arg(long)]
+        country: Option<String>,
+        /// Restrict to an area code (e.g. 415).
+        #[arg(long = "area-code")]
+        area_code: Option<String>,
+        /// Restrict to numbers containing this digit sequence.
+        #[arg(long)]
+        contains: Option<String>,
+        /// Number type.
+        #[arg(long = "type", value_enum)]
+        number_type: Option<PhoneNumberType>,
+        /// Max rows to return (1..=100; server default 10).
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: Option<u32>,
+    },
+    /// Buy (provision) a number from a prior search (scope `phone:write`).
+    ///
+    /// A `pending` status with outstanding `requirements` is a success — some
+    /// countries (e.g. DE) need regulatory documents before the number
+    /// activates.
+    Buy {
+        /// The number to provision, in E.164 format (e.g. +14155550123).
+        phone_number: String,
+    },
+    /// Get one phone number (scope `phone:read`).
+    Get { id: String },
+    /// Bind a number to an inbox and/or agent, or edit metadata (scope `phone:write`).
+    ///
+    /// Binding an inbox makes the number's inbound SMS land in that inbox.
+    /// `--inbox` and `--agent` are nullable: pass an empty string to unbind.
+    Update {
+        id: String,
+        /// Inbox id whose mailbox receives the number's SMS; empty string unbinds.
+        #[arg(long)]
+        inbox: Option<String>,
+        /// Agent id to attribute the number to; empty string unbinds.
+        #[arg(long)]
+        agent: Option<String>,
+        /// Replacement metadata as a JSON object.
+        #[arg(long, value_name = "JSON")]
+        metadata: Option<String>,
+    },
+    /// Release a number back to the provider pool (scope `phone:write`).
+    ///
+    /// Irreversible: anyone may buy the number afterwards, so `--confirm` is
+    /// required.
+    Release {
+        id: String,
+        /// Acknowledge that the release is irreversible.
+        #[arg(long)]
+        confirm: bool,
+    },
+}
+
+#[derive(Debug, Args)]
+pub struct PhoneCallArgs {
+    /// Destination number in E.164 format (e.g. +4915112345678).
+    pub to: String,
+    /// Caller-id number in E.164 format. Must be an active number this account
+    /// owns.
+    #[arg(long)]
+    pub from: String,
+    /// What the agent should accomplish on the call (up to 8000 chars).
+    #[arg(long)]
+    pub instructions: String,
+    /// Opening line spoken as soon as the callee answers.
+    #[arg(long)]
+    pub greeting: Option<String>,
+    /// TTS voice (e.g. `Rime.Coda.lorelei`, the default).
+    #[arg(long)]
+    pub voice: Option<String>,
+    /// Conversation model (e.g. `anthropic/claude-haiku-4-5`, the default).
+    #[arg(long)]
+    pub model: Option<String>,
+    /// Conversation language hint (e.g. `de`).
+    #[arg(long)]
+    pub language: Option<String>,
+    /// Background sound bed behind the agent's voice.
+    #[arg(long = "background-audio", value_enum)]
+    pub background_audio: Option<PhoneBackgroundAudio>,
+    /// Hard cap on the call length in seconds (10..=1800; server default 600).
+    #[arg(long = "max-duration", value_parser = clap::value_parser!(u32).range(10..=1800))]
+    pub max_duration: Option<u32>,
+    /// Disable call recording (it is on by default).
+    #[arg(long = "no-record")]
+    pub no_record: bool,
+    /// `{{handlebars}}` variables for instructions/greeting, as a JSON object.
+    #[arg(long, value_name = "JSON")]
+    pub variables: Option<String>,
+    /// Webhook URL notified as the call changes status.
+    #[arg(long = "webhook-url")]
+    pub webhook_url: Option<String>,
+    /// Free-form metadata recorded on the call, as a JSON object.
+    #[arg(long, value_name = "JSON")]
+    pub metadata: Option<String>,
+    /// Idempotency key so a retried invocation never dials twice.
+    #[arg(long = "idempotency-key")]
+    pub idempotency_key: Option<String>,
+    /// Poll the call until it reaches a terminal status, then print the
+    /// transcript.
+    #[arg(long)]
+    pub wait: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PhoneCallsCommand {
+    /// List calls, newest first (scope `phone:read`).
+    List {
+        /// Filter to one status (e.g. `completed`, `in_progress`).
+        #[arg(long)]
+        status: Option<String>,
+        /// Filter to calls placed to this E.164 number.
+        #[arg(long)]
+        to: Option<String>,
+        /// Max rows to return (1..=100; server default 50).
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: Option<u32>,
+    },
+    /// Get one call (scope `phone:read`).
+    Get { call_id: String },
+    /// Print a call's transcript (scope `phone:read`).
+    Transcript { call_id: String },
+    /// Resolve the Dairo storage object holding a call's recording (scope `phone:read`).
+    Recording { call_id: String },
+    /// Hang up a live call (scope `phone:call`).
+    Hangup { call_id: String },
+}
+
+/// Number-type filter for `dairo phone numbers search`. Maps to the contract's
+/// `type` query value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum PhoneNumberType {
+    Local,
+    #[value(name = "toll_free")]
+    TollFree,
+    National,
+    Mobile,
+}
+
+impl PhoneNumberType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::TollFree => "toll_free",
+            Self::National => "national",
+            Self::Mobile => "mobile",
+        }
+    }
+}
+
+/// Background sound bed for a call. `silence` is quiet phone-line hiss (the
+/// server default), `office` is room tone, `none` disables the bed. These are
+/// the only provider values — there is no `cafe`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum PhoneBackgroundAudio {
+    Silence,
+    Office,
+    None,
+}
+
+impl PhoneBackgroundAudio {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Silence => "silence",
+            Self::Office => "office",
+            Self::None => "none",
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -2680,6 +2900,148 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn parses_phone_call_arguments() {
+        let cli = Cli::try_parse_from([
+            "dairo",
+            "phone",
+            "call",
+            "+4915112345678",
+            "--from",
+            "+13125550100",
+            "--instructions",
+            "Tell Luka the API recovered. Under 20 seconds.",
+            "--background-audio",
+            "office",
+            "--max-duration",
+            "120",
+            "--wait",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Phone {
+                command: PhoneCommand::Call(args),
+            } => {
+                assert_eq!(args.to, "+4915112345678");
+                assert_eq!(args.from, "+13125550100");
+                assert_eq!(
+                    args.instructions,
+                    "Tell Luka the API recovered. Under 20 seconds."
+                );
+                assert_eq!(args.background_audio, Some(PhoneBackgroundAudio::Office));
+                assert_eq!(args.max_duration, Some(120));
+                assert!(args.wait);
+                assert!(!args.no_record);
+                assert_eq!(args.greeting, None);
+                assert_eq!(args.voice, None);
+                assert_eq!(args.model, None);
+                assert_eq!(args.language, None);
+                assert_eq!(args.variables, None);
+                assert_eq!(args.webhook_url, None);
+                assert_eq!(args.metadata, None);
+                assert_eq!(args.idempotency_key, None);
+            }
+            _ => panic!("expected phone call command"),
+        }
+    }
+
+    #[test]
+    fn phone_call_requires_from_and_instructions() {
+        assert!(Cli::try_parse_from(["dairo", "phone", "call", "+4915112345678"]).is_err());
+        assert!(Cli::try_parse_from([
+            "dairo",
+            "phone",
+            "call",
+            "+4915112345678",
+            "--from",
+            "+13125550100",
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn parses_phone_numbers_search_filters() {
+        let cli = Cli::try_parse_from([
+            "dairo",
+            "phone",
+            "numbers",
+            "search",
+            "--country",
+            "US",
+            "--area-code",
+            "415",
+            "--contains",
+            "555",
+            "--type",
+            "toll_free",
+            "--limit",
+            "10",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Command::Phone {
+                command:
+                    PhoneCommand::Numbers {
+                        command:
+                            PhoneNumberCommand::Search {
+                                country,
+                                area_code,
+                                contains,
+                                number_type,
+                                limit,
+                            },
+                    },
+            } => {
+                assert_eq!(country.as_deref(), Some("US"));
+                assert_eq!(area_code.as_deref(), Some("415"));
+                assert_eq!(contains.as_deref(), Some("555"));
+                assert_eq!(number_type, Some(PhoneNumberType::TollFree));
+                assert_eq!(limit, Some(10));
+            }
+            _ => panic!("expected phone numbers search command"),
+        }
+    }
+
+    #[test]
+    fn phone_numbers_release_confirm_flag_is_explicit() {
+        // Release is irreversible; the flag must never default on, and it must
+        // parse when supplied so main.rs can gate on it.
+        let cli = Cli::try_parse_from(["dairo", "phone", "numbers", "release", "num_123"]).unwrap();
+        match cli.command {
+            Command::Phone {
+                command:
+                    PhoneCommand::Numbers {
+                        command: PhoneNumberCommand::Release { id, confirm },
+                    },
+            } => {
+                assert_eq!(id, "num_123");
+                assert!(!confirm);
+            }
+            _ => panic!("expected phone numbers release command"),
+        }
+
+        let cli = Cli::try_parse_from([
+            "dairo",
+            "phone",
+            "numbers",
+            "release",
+            "num_123",
+            "--confirm",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Phone {
+                command:
+                    PhoneCommand::Numbers {
+                        command: PhoneNumberCommand::Release { confirm, .. },
+                    },
+            } => assert!(confirm),
+            _ => panic!("expected phone numbers release command"),
+        }
+    }
+
     #[test]
     fn parses_send_arguments() {
         let cli = Cli::try_parse_from([

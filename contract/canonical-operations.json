@@ -3,7 +3,7 @@
   "description": "Derived from the canonical dairo.openapi.json. Regenerate via scripts/gen-canonical-operations.py; do not hand-edit.",
   "openapiVersion": "3.1.0",
   "specVersion": "1.0.0",
-  "operationCount": 124,
+  "operationCount": 137,
   "operations": [
     {
       "method": "GET",
@@ -94,6 +94,21 @@
       ],
       "path": "/v1/agents/verify",
       "scopes": [],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteAgent",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}",
+      "scopes": [
+        "agents:write"
+      ],
       "contractSource": "openapi"
     },
     {
@@ -354,7 +369,7 @@
       ],
       "path": "/v1/audiences/{audienceId}/send",
       "scopes": [
-        "audiences:write"
+        "messages:send"
       ],
       "contractSource": "openapi"
     },
@@ -1458,6 +1473,200 @@
       "path": "/v1/notifications/preferences",
       "scopes": [
         "account:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listPhoneCalls",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "status"
+        },
+        {
+          "in": "query",
+          "name": "to"
+        },
+        {
+          "in": "query",
+          "name": "limit"
+        }
+      ],
+      "path": "/v1/phone/calls",
+      "scopes": [
+        "phone:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createPhoneCall",
+      "parameters": [],
+      "path": "/v1/phone/calls",
+      "scopes": [
+        "phone:call"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getPhoneCall",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/phone/calls/{id}",
+      "scopes": [
+        "phone:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "hangupPhoneCall",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/phone/calls/{id}/hangup",
+      "scopes": [
+        "phone:call"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getPhoneCallRecording",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/phone/calls/{id}/recording",
+      "scopes": [
+        "phone:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getPhoneCallTranscript",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/phone/calls/{id}/transcript",
+      "scopes": [
+        "phone:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listPhoneNumbers",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "includeReleased"
+        }
+      ],
+      "path": "/v1/phone/numbers",
+      "scopes": [
+        "phone:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "buyPhoneNumber",
+      "parameters": [],
+      "path": "/v1/phone/numbers",
+      "scopes": [
+        "phone:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listAvailablePhoneNumbers",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "country"
+        },
+        {
+          "in": "query",
+          "name": "areaCode"
+        },
+        {
+          "in": "query",
+          "name": "contains"
+        },
+        {
+          "in": "query",
+          "name": "type"
+        },
+        {
+          "in": "query",
+          "name": "limit"
+        }
+      ],
+      "path": "/v1/phone/numbers/available",
+      "scopes": [
+        "phone:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "releasePhoneNumber",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/phone/numbers/{id}",
+      "scopes": [
+        "phone:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getPhoneNumber",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/phone/numbers/{id}",
+      "scopes": [
+        "phone:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "updatePhoneNumber",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/phone/numbers/{id}",
+      "scopes": [
+        "phone:write"
       ],
       "contractSource": "openapi"
     },

@@ -1535,6 +1535,121 @@
             }
           }
         }
+      },
+      "delete": {
+        "operationId": "deleteAgent",
+        "summary": "Delete an agent",
+        "description": "Deprovision an agent identity (Agent Passport) by internal id or portable agt_… id. Every reference to the passport (API keys, inboxes, sent mail, audit log) is kept with its agent attribution cleared — nothing cascades. Returns the deleted agent.",
+        "tags": [
+          "Agents"
+        ],
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "agents:write"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agent UUID or portable agentId (agt_...)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deleted agent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "enum": [
+                        "agent"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "agentId": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No agent with that id in the caller's organization."
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/agents/{id}/bindings": {
@@ -2693,7 +2808,7 @@
           "Compliance"
         ],
         "summary": "Export the tamper-evident hash-chained audit ledger.",
-        "description": "Returns the caller's own audit-log rows in ascending chainSeq order, each carrying prevHash/rowHash, plus an Ed25519-signed manifest committing to the chain head. An auditor verifies the manifest against JWKS and independently re-derives every rowHash from the rows to detect any insert/delete/edit \u2014 no server trust required. With NO from/to the export defaults to the last 30 days (not the entire history) to avoid accidental over-disclosure; supply either bound to request an explicit, full-history-capable window. A single page is capped at 5000 rows: when more rows remain, pagination.nextCursor carries the head chainSeq \u2014 pass it back as ?after=<cursor> to drain the next page. Each page's manifest commits to that page's exact window, so every page is independently verifiable. Requires the messages:read scope.",
+        "description": "Returns the caller's own audit-log rows in ascending chainSeq order, each carrying prevHash/rowHash, plus an Ed25519-signed manifest committing to the chain head. An auditor verifies the manifest against JWKS and independently re-derives every rowHash from the rows to detect any insert/delete/edit — no server trust required. With NO from/to the export defaults to the last 30 days (not the entire history) to avoid accidental over-disclosure; supply either bound to request an explicit, full-history-capable window. A single page is capped at 5000 rows: when more rows remain, pagination.nextCursor carries the head chainSeq — pass it back as ?after=<cursor> to drain the next page. Each page's manifest commits to that page's exact window, so every page is independently verifiable. Requires the messages:read scope.",
         "operationId": "exportAuditLedger",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -6130,7 +6245,7 @@
           }
         },
         "x-dairo-scopes": [
-          "audiences:write"
+          "messages:send"
         ],
         "parameters": [
           {
@@ -6312,7 +6427,7 @@
           "Messages"
         ],
         "summary": "Send an email from a Dairo inbox.",
-        "description": "Sends a single email from a Dairo inbox. An immediate send (no sendAt) performs the SES SendEmail synchronously and returns status 'sent' (with providerMessageId) \u2014 or a precise error at submit time (413 for an oversized attachment, 4xx/403 otherwise). A scheduled send (sendAt in the future) returns status 'scheduled' after passing every upfront gate. The response is never accepted as 'queued' here; 'queued' is reserved for the bulk list-broadcast endpoint.",
+        "description": "Sends a single email from a Dairo inbox. An immediate send (no sendAt) performs the SES SendEmail synchronously and returns status 'sent' (with providerMessageId) — or a precise error at submit time (413 for an oversized attachment, 4xx/403 otherwise). A scheduled send (sendAt in the future) returns status 'scheduled' after passing every upfront gate. The response is never accepted as 'queued' here; 'queued' is reserved for the bulk list-broadcast endpoint.",
         "operationId": "sendMessage",
         "x-dairo-status": "live",
         "responses": {
@@ -11509,7 +11624,7 @@
           "Organizations"
         ],
         "summary": "List the organizations the authenticated dashboard user belongs to, with their role in each.",
-        "description": "Dashboard (JWT) surface. Returns every workspace the caller is a member of plus their role \u2014 the org switcher list. Honors the X-Dairo-Org active-org selector header on the dashboard surface generally; this list endpoint itself is membership-derived and not org-scoped.",
+        "description": "Dashboard (JWT) surface. Returns every workspace the caller is a member of plus their role — the org switcher list. Honors the X-Dairo-Org active-org selector header on the dashboard surface generally; this list endpoint itself is membership-derived and not org-scoped.",
         "operationId": "listDashboardOrganizations",
         "x-dairo-status": "internal",
         "security": [
@@ -12818,7 +12933,7 @@
           "Messages"
         ],
         "summary": "Edit a Telegram message you sent.",
-        "description": "Edits a Telegram message you sent, by messageId. Body is exactly one of text or html, plus optional buttons (a 2-D array of {text, url|callback}); pass buttons:[] to clear the inline keyboard. Only telegram outbound messages are editable \u2014 a non-telegram/non-outbound or cross-tenant id returns 404. Requires the messages:send scope.",
+        "description": "Edits a Telegram message you sent, by messageId. Body is exactly one of text or html, plus optional buttons (a 2-D array of {text, url|callback}); pass buttons:[] to clear the inline keyboard. Only telegram outbound messages are editable — a non-telegram/non-outbound or cross-tenant id returns 404. Requires the messages:send scope.",
         "operationId": "editTelegramMessage",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -13471,6 +13586,1394 @@
             }
           }
         }
+      }
+    },
+    "/v1/phone/numbers": {
+      "get": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "List the account's phone numbers.",
+        "operationId": "listPhoneNumbers",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "includeReleased",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Include released numbers (kept for the audit trail)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneNumberList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:read"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "Buy (provision) a phone number.",
+        "operationId": "buyPhoneNumber",
+        "x-dairo-status": "live",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneNumberBuyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneNumber"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:write"
+        ]
+      }
+    },
+    "/v1/phone/numbers/available": {
+      "get": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "Search the provider's purchasable number inventory.",
+        "operationId": "listAvailablePhoneNumbers",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "US"
+            },
+            "description": "ISO 3166-1 alpha-2 country code."
+          },
+          {
+            "name": "areaCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to an area code (e.g. 415)."
+          },
+          {
+            "name": "contains",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restrict to numbers containing this digit sequence."
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "local",
+                "toll_free",
+                "national",
+                "mobile"
+              ]
+            },
+            "description": "Number type."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailablePhoneNumberList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:read"
+        ]
+      }
+    },
+    "/v1/phone/numbers/{id}": {
+      "get": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "Get one phone number.",
+        "operationId": "getPhoneNumber",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Phone number id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneNumber"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:read"
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "Bind a phone number to an inbox and/or agent, or edit metadata.",
+        "operationId": "updatePhoneNumber",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Phone number id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneNumberUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneNumber"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:write"
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "Release a phone number back to the provider pool (irreversible; requires confirm).",
+        "operationId": "releasePhoneNumber",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Phone number id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneNumberReleaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Released"
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:write"
+        ]
+      }
+    },
+    "/v1/phone/calls": {
+      "get": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "List outbound calls, newest first.",
+        "operationId": "listPhoneCalls",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter to one call status."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter to calls placed to this E.164 number."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneCallList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:read"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "Place an outbound AI phone call.",
+        "operationId": "createPhoneCall",
+        "x-dairo-status": "live",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneCallCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneCall"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:call"
+        ]
+      }
+    },
+    "/v1/phone/calls/{id}": {
+      "get": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "Get one call.",
+        "operationId": "getPhoneCall",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Call id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneCall"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:read"
+        ]
+      }
+    },
+    "/v1/phone/calls/{id}/transcript": {
+      "get": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "Read a call's transcript.",
+        "operationId": "getPhoneCallTranscript",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Call id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneCallTranscript"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:read"
+        ]
+      }
+    },
+    "/v1/phone/calls/{id}/recording": {
+      "get": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "Resolve the Dairo storage object holding a call's recording.",
+        "operationId": "getPhoneCallRecording",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Call id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneCallRecording"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:read"
+        ]
+      }
+    },
+    "/v1/phone/calls/{id}/hangup": {
+      "post": {
+        "tags": [
+          "Phone"
+        ],
+        "summary": "Hang up a live call.",
+        "operationId": "hangupPhoneCall",
+        "x-dairo-status": "live",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Call id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneCall"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-dairo-scopes": [
+          "phone:call"
+        ]
       }
     }
   },
@@ -14919,7 +16422,7 @@
                 "letter.status_changed",
                 "domain.verified"
               ],
-              "description": "A subscribable event type. webhook.ping is NOT valid here \u2014 it is a synthetic connectivity-test action delivered by POST /v1/webhooks/{id}/ping, not a subscribable event."
+              "description": "A subscribable event type. webhook.ping is NOT valid here — it is a synthetic connectivity-test action delivered by POST /v1/webhooks/{id}/ping, not a subscribable event."
             },
             "minItems": 1
           },
@@ -15252,7 +16755,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Set when this member was added as a contact (\u00a712); the email is derived from the contact's primary email handle. Null for a raw-email member."
+            "description": "Set when this member was added as a contact (§12); the email is derived from the contact's primary email handle. Null for a raw-email member."
           },
           "name": {
             "type": [
@@ -15292,7 +16795,7 @@
             "maxItems": 2000,
             "items": {
               "type": "object",
-              "description": "A member is EITHER a contactId (the email is derived from the contact's primary email handle) OR a raw email (\u00a712). Exactly one is required.",
+              "description": "A member is EITHER a contactId (the email is derived from the contact's primary email handle) OR a raw email (§12). Exactly one is required.",
               "properties": {
                 "email": {
                   "type": "string",
@@ -15712,7 +17215,7 @@
             "enum": [
               "list"
             ],
-            "description": "Always \"list\" \u2014 the unified list envelope discriminator."
+            "description": "Always \"list\" — the unified list envelope discriminator."
           },
           "data": {
             "type": "array",
@@ -15729,7 +17232,7 @@
             "items": {
               "$ref": "#/components/schemas/LedgerGap"
             },
-            "description": "Per-partition seq gaps detected within this page's window. An empty array means no gap was detected in the returned window \u2014 detection is window-local (only the seq range present on this page), not whole-history."
+            "description": "Per-partition seq gaps detected within this page's window. An empty array means no gap was detected in the returned window — detection is window-local (only the seq range present on this page), not whole-history."
           }
         }
       },
@@ -15932,7 +17435,7 @@
               "email",
               "a2a"
             ],
-            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, \u2026) are not yet wired."
+            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, …) are not yet wired."
           }
         },
         "additionalProperties": false
@@ -16457,7 +17960,7 @@
       },
       "LetterFileRef": {
         "type": "object",
-        "description": "Reuse a PDF already stored in Dairo as the letter \u2014 no re-upload. Provide EXACTLY ONE of `attachmentId` (an email attachment) or `objectId` (a storage object from the buckets API). Providing both, or neither, is a 400.",
+        "description": "Reuse a PDF already stored in Dairo as the letter — no re-upload. Provide EXACTLY ONE of `attachmentId` (an email attachment) or `objectId` (a storage object from the buckets API). Providing both, or neither, is a 400.",
         "properties": {
           "attachmentId": {
             "type": "string",
@@ -16785,7 +18288,7 @@
               "email",
               "a2a"
             ],
-            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, \u2026) are not yet wired."
+            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, …) are not yet wired."
           },
           "channelMetadata": {
             "type": [
@@ -16793,7 +18296,7 @@
               "null"
             ],
             "additionalProperties": true,
-            "description": "Channel-specific metadata bag (per-channel extension point). Inbound email: {sesMessageId, spfVerdict, dkimVerdict, dmarcVerdict, \u2026}. A2A: {receiptId, provenance, provenanceVerified}. A folded outbound send: {providerMessageId, provider, lastEventType, lastEventAt, bouncedAt, complainedAt}."
+            "description": "Channel-specific metadata bag (per-channel extension point). Inbound email: {sesMessageId, spfVerdict, dkimVerdict, dmarcVerdict, …}. A2A: {receiptId, provenance, provenanceVerified}. A folded outbound send: {providerMessageId, provider, lastEventType, lastEventAt, bouncedAt, complainedAt}."
           }
         },
         "additionalProperties": false
@@ -17594,7 +19097,7 @@
       },
       "SendMessageAttachment": {
         "type": "object",
-        "description": "An outbound attachment. Provide EITHER inline bytes (contentBase64) OR a storage reference (objectId) \u2014 exactly one, never both. Inline attachments require filename and are capped at 8 MiB decoded (API Gateway JSON/base64 envelope). A storage-reference attachment names a Dairo storage object you own (the objectId returned by a bucket upload's finalize, or any owned storage object); Dairo fetches its bytes server-side and native-attaches up to 24 MiB, deriving filename and contentType from the object unless you override them here. Over 24 MiB the send fails with a 413 (create a share link and place it in the body yourself; Dairo never auto-edits the body).",
+        "description": "An outbound attachment. Provide EITHER inline bytes (contentBase64) OR a storage reference (objectId) — exactly one, never both. Inline attachments require filename and are capped at 8 MiB decoded (API Gateway JSON/base64 envelope). A storage-reference attachment names a Dairo storage object you own (the objectId returned by a bucket upload's finalize, or any owned storage object); Dairo fetches its bytes server-side and native-attaches up to 24 MiB, deriving filename and contentType from the object unless you override them here. Over 24 MiB the send fails with a 413 (create a share link and place it in the body yourself; Dairo never auto-edits the body).",
         "oneOf": [
           {
             "required": [
@@ -17749,7 +19252,7 @@
           },
           "buttons": {
             "type": "array",
-            "description": "Telegram inline keyboard (Telegram-channel inbox only): rows of {text, url|callback} buttons. A URL button opens a link; a callback button surfaces the tap back to you as an inbound button_tap event and shows a feedback toast on tap (default: \u2713 + the button label; set alert:true for a modal).",
+            "description": "Telegram inline keyboard (Telegram-channel inbox only): rows of {text, url|callback} buttons. A URL button opens a link; a callback button surfaces the tap back to you as an inbound button_tap event and shows a feedback toast on tap (default: ✓ + the button label; set alert:true for a modal).",
             "items": {
               "type": "array",
               "items": {
@@ -17802,7 +19305,7 @@
               "failed",
               "queued"
             ],
-            "description": "A single immediate send (POST /v1/emails without sendAt) is performed synchronously and returns 'sent' (with providerMessageId) or 'failed' \u2014 it is never accepted as 'queued' only to fail later on something knowable at submit time (oversized attachment, unverified sender, etc.). A scheduled send (sendAt in the future) returns 'scheduled'. 'queued' is returned ONLY for a bulk list broadcast (POST /v1/audiences/{id}/send), whose batches are delivered asynchronously by the worker fleet."
+            "description": "A single immediate send (POST /v1/emails without sendAt) is performed synchronously and returns 'sent' (with providerMessageId) or 'failed' — it is never accepted as 'queued' only to fail later on something knowable at submit time (oversized attachment, unverified sender, etc.). A scheduled send (sendAt in the future) returns 'scheduled'. 'queued' is returned ONLY for a bulk list broadcast (POST /v1/audiences/{id}/send), whose batches are delivered asynchronously by the worker fleet."
           },
           "providerMessageId": {
             "type": [
@@ -17830,7 +19333,7 @@
               "email",
               "a2a"
             ],
-            "description": "The channel this send transited: \"email\" (SES) or \"a2a\" (internal Dairo-to-Dairo, delivered as a receipt, providerMessageId 'a2a_\u2026')."
+            "description": "The channel this send transited: \"email\" (SES) or \"a2a\" (internal Dairo-to-Dairo, delivered as a receipt, providerMessageId 'a2a_…')."
           },
           "channelMetadata": {
             "type": [
@@ -18423,7 +19926,7 @@
               "email",
               "a2a"
             ],
-            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, \u2026) are not yet wired."
+            "description": "The channel this message transited: \"email\" (external, over SES) or \"a2a\" (internal Dairo-to-Dairo, which skips SES). Reserved future values (sms, whatsapp, …) are not yet wired."
           }
         },
         "additionalProperties": false
@@ -19663,7 +21166,7 @@
           },
           "channel": {
             "type": "string",
-            "description": "Delivery channel of this handle (email/a2a/telegram/postal/\u2026)."
+            "description": "Delivery channel of this handle (email/a2a/telegram/postal/…)."
           },
           "value": {
             "type": "string",
@@ -19782,7 +21285,7 @@
         "properties": {
           "channel": {
             "type": "string",
-            "description": "email / a2a / telegram / postal / \u2026"
+            "description": "email / a2a / telegram / postal / …"
           },
           "value": {
             "type": "string",
@@ -19923,7 +21426,7 @@
       },
       "TelegramButton": {
         "type": "object",
-        "description": "A Telegram inline-keyboard button: a text label plus exactly one of url (a http/https/tg link) or callback (an opaque action string surfaced back to you as an inbound button_tap event). A callback button shows a feedback toast on tap (default: \u2713 + the button label); set alert:true for a modal. feedback/alert are ignored on a url button.",
+        "description": "A Telegram inline-keyboard button: a text label plus exactly one of url (a http/https/tg link) or callback (an opaque action string surfaced back to you as an inbound button_tap event). A callback button shows a feedback toast on tap (default: ✓ + the button label); set alert:true for a modal. feedback/alert are ignored on a url button.",
         "properties": {
           "text": {
             "type": "string",
@@ -19939,7 +21442,7 @@
           },
           "feedback": {
             "type": "string",
-            "description": "Callback-button only: the toast text shown to the tapping user (answerCallbackQuery text, max 200 chars). Defaults to '\u2713 <button label>' when omitted, so every tap gives visible feedback. Ignored on a url button."
+            "description": "Callback-button only: the toast text shown to the tapping user (answerCallbackQuery text, max 200 chars). Defaults to '✓ <button label>' when omitted, so every tap gives visible feedback. Ignored on a url button."
           },
           "alert": {
             "type": "boolean",
@@ -19961,7 +21464,7 @@
           },
           "buttons": {
             "type": "array",
-            "description": "Optional replacement inline keyboard (rows of buttons). Pass [] to clear the keyboard. Callback buttons show a feedback toast on tap (default: \u2713 + the button label; set alert:true for a modal).",
+            "description": "Optional replacement inline keyboard (rows of buttons). Pass [] to clear the keyboard. Callback buttons show a feedback toast on tap (default: ✓ + the button label; set alert:true for a modal).",
             "items": {
               "type": "array",
               "items": {
@@ -19980,7 +21483,7 @@
         "properties": {
           "emoji": {
             "type": "string",
-            "description": "A single Telegram-allowed reaction emoji (e.g. \ud83d\udc4d \ud83d\udc4e \u2764 \ud83d\udd25)."
+            "description": "A single Telegram-allowed reaction emoji (e.g. 👍 👎 ❤ 🔥)."
           },
           "big": {
             "type": "boolean",
@@ -20066,6 +21569,626 @@
           "name",
           "featured"
         ]
+      },
+      "PhoneNumber": {
+        "type": "object",
+        "required": [
+          "object",
+          "id",
+          "phone_number",
+          "status"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "phone_number"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phone_number": {
+            "type": "string",
+            "description": "E.164."
+          },
+          "country_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "capabilities": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "pending",
+              "releasing",
+              "released",
+              "failed"
+            ]
+          },
+          "inbox_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "agent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "monthly_cost_usd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "setup_cost_usd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "requirements": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Outstanding regulatory requirements ({ status, items })."
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "purchased_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "released_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "PhoneNumberList": {
+        "type": "object",
+        "required": [
+          "object",
+          "data"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PhoneNumber"
+            }
+          }
+        }
+      },
+      "AvailablePhoneNumber": {
+        "type": "object",
+        "required": [
+          "object",
+          "phoneNumber",
+          "purchasable"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "phone_number.available"
+            ]
+          },
+          "phoneNumber": {
+            "type": "string",
+            "description": "E.164; masked (e.g. +16313------) when purchasable is false."
+          },
+          "countryCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "numberType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locality": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "capabilities": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "monthlyCostUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "setupCostUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "purchasable": {
+            "type": "boolean",
+            "description": "False when the provider account needs more verification before buying."
+          }
+        }
+      },
+      "AvailablePhoneNumberList": {
+        "type": "object",
+        "required": [
+          "object",
+          "data"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailablePhoneNumber"
+            }
+          }
+        }
+      },
+      "PhoneNumberBuyRequest": {
+        "type": "object",
+        "required": [
+          "phoneNumber"
+        ],
+        "properties": {
+          "phoneNumber": {
+            "type": "string",
+            "description": "E.164 number returned by an availability search."
+          }
+        }
+      },
+      "PhoneNumberUpdateRequest": {
+        "type": "object",
+        "description": "At least one field is required. inboxId/agentId accept null to unbind.",
+        "properties": {
+          "inboxId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "agentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "PhoneNumberReleaseRequest": {
+        "type": "object",
+        "required": [
+          "confirm"
+        ],
+        "properties": {
+          "confirm": {
+            "type": "boolean",
+            "description": "Must be true; release is irreversible."
+          }
+        }
+      },
+      "PhoneCall": {
+        "type": "object",
+        "required": [
+          "object",
+          "id",
+          "status",
+          "from_number",
+          "to_number"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "phone_call"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "outbound"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "initiating",
+              "ringing",
+              "in_progress",
+              "completed",
+              "failed",
+              "no_answer",
+              "busy",
+              "canceled"
+            ]
+          },
+          "from_number": {
+            "type": "string"
+          },
+          "to_number": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "greeting": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "voice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "background_audio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "queued_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "answered_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ended_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "hangup_cause": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "answered_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_usd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "webhook_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "PhoneCallList": {
+        "type": "object",
+        "required": [
+          "object",
+          "data"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PhoneCall"
+            }
+          }
+        }
+      },
+      "PhoneCallCreateRequest": {
+        "type": "object",
+        "required": [
+          "to",
+          "from",
+          "instructions"
+        ],
+        "properties": {
+          "to": {
+            "type": "string",
+            "description": "E.164 destination."
+          },
+          "from": {
+            "type": "string",
+            "description": "E.164 caller id; must be an active number the account owns."
+          },
+          "instructions": {
+            "type": "string",
+            "maxLength": 8000
+          },
+          "greeting": {
+            "type": "string"
+          },
+          "voice": {
+            "type": "string",
+            "default": "Rime.Coda.lorelei"
+          },
+          "model": {
+            "type": "string",
+            "default": "anthropic/claude-haiku-4-5"
+          },
+          "language": {
+            "type": "string"
+          },
+          "backgroundAudio": {
+            "type": "string",
+            "enum": [
+              "silence",
+              "office",
+              "none"
+            ],
+            "default": "silence"
+          },
+          "maxDurationSeconds": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 1800,
+            "default": 600
+          },
+          "record": {
+            "type": "boolean",
+            "default": true
+          },
+          "variables": {
+            "type": "object",
+            "description": "{{handlebars}} variables for instructions/greeting."
+          },
+          "webhookUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Also accepted as an Idempotency-Key header."
+          }
+        }
+      },
+      "PhoneCallTranscript": {
+        "type": "object",
+        "required": [
+          "object",
+          "callId",
+          "turns"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "phone_call.transcript"
+            ]
+          },
+          "callId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "turns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PhoneCallTranscriptTurn"
+            }
+          },
+          "status": {
+            "type": "string",
+            "description": "Present (with empty turns) while the call is still in flight."
+          }
+        }
+      },
+      "PhoneCallTranscriptTurn": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "caller",
+              "tool"
+            ]
+          },
+          "content": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "PhoneCallRecording": {
+        "type": "object",
+        "required": [
+          "object",
+          "callId",
+          "objectId"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "phone_call.recording"
+            ]
+          },
+          "callId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "objectId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Dairo storage object holding the call audio."
+          }
+        }
       }
     }
   }
