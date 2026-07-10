@@ -97,6 +97,10 @@ fn implemented_operations_are_an_honest_canonical_subset() {
         "getPhoneCallTranscript",
         "getPhoneCallRecording",
         "hangupPhoneCall",
+        // The `dairo slack connect` command — the only public Slack operation
+        // ("Add to Slack" install-URL minting). Pinned so the channel-connect
+        // surface cannot silently drop out of the projection.
+        "slackOauthStart",
     ] {
         assert!(
             implemented_ops

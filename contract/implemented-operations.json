@@ -2,7 +2,7 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 136,
+  "operationCount": 138,
   "operations": [
     {
       "method": "GET",
@@ -1650,6 +1650,21 @@
       "contractSource": "openapi"
     },
     {
+      "method": "DELETE",
+      "operationId": "deleteAgent",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
       "method": "PATCH",
       "operationId": "patchApiKey",
       "parameters": [
@@ -1998,6 +2013,16 @@
       "path": "/v1/phone/numbers/{id}",
       "scopes": [
         "phone:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "slackOauthStart",
+      "parameters": [],
+      "path": "/v1/slack/oauth/start",
+      "scopes": [
+        "inboxes:write"
       ],
       "contractSource": "openapi"
     }

@@ -35,8 +35,8 @@ use cli::{
     LetterPaymentArgs, LetterPriceArgs, LetterPrintArgs, LetterSendArgs, LetterTemplateCommand,
     LoginArgs, McpCommand, MessageCommand, NotificationCommand, NotificationPrefCommand,
     OutboundCommand, PhoneCallArgs, PhoneCallsCommand, PhoneCommand, PhoneNumberCommand,
-    RecipientArgs, ReputationCommand, SenderArgs, ShareCommand, TelegramCommand, TemplateCommand,
-    ThreadCommand, VerificationWaitCommand, WebhookCommand,
+    RecipientArgs, ReputationCommand, SenderArgs, ShareCommand, SlackCommand, TelegramCommand,
+    TemplateCommand, ThreadCommand, VerificationWaitCommand, WebhookCommand,
 };
 use config::Config;
 use output::OutputFormat;
@@ -830,6 +830,10 @@ async fn run(cli: Cli) -> Result<()> {
                             .await?;
                         output::print_json(&response, format)
                     }
+                    AgentCommand::Delete { id } => {
+                        client.delete_agent(&id).await?;
+                        output::print_deleted("agent", format)
+                    }
                 },
                 Command::Reputation { command } => match command {
                     ReputationCommand::List => {
@@ -1001,6 +1005,7 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                 },
                 Command::Phone { command } => run_phone(&client, command, format).await,
+                Command::Slack { command } => run_slack(&client, command, format).await,
                 Command::Listen(args) => {
                     // `listen` does its own rendering and its errors are already
                     // descriptive, so it bypasses the generic "failed to print
@@ -1573,6 +1578,23 @@ fn insert_opt_nullable_str(body: &mut serde_json::Value, key: &str, value: Optio
 
 /// Dispatches the `phone` command family: outbound AI calls
 /// (`/v1/phone/calls`) and phone-number provisioning (`/v1/phone/numbers`).
+/// Mints a Slack "Add to Slack" install URL and prints it (or opens it in the
+/// browser with `--open`). This is the whole client surface for Slack: Dairo is
+/// the rails, not the brain — the workspace binds to this account as a
+/// `channel: "slack"` inbox and inbound events flow over the existing
+/// `message.received` webhook.
+async fn run_slack(client: &ApiClient, command: SlackCommand, format: OutputFormat) -> Result<()> {
+    match command {
+        SlackCommand::Connect { open } => {
+            let response = client.slack_oauth_start().await?;
+            // Best-effort browser open; a headless/failed open must not fail the
+            // command, since the URL is still printed for manual use.
+            let opened = open && webbrowser::open(&response.url).is_ok();
+            output::print_slack_connect(&response, opened, format)
+        }
+    }
+}
+
 async fn run_phone(client: &ApiClient, command: PhoneCommand, format: OutputFormat) -> Result<()> {
     match command {
         PhoneCommand::Numbers { command } => run_phone_numbers(client, command, format).await,

@@ -3,7 +3,7 @@
   "description": "Derived from the canonical dairo.openapi.json. Regenerate via scripts/gen-canonical-operations.py; do not hand-edit.",
   "openapiVersion": "3.1.0",
   "specVersion": "1.0.0",
-  "operationCount": 137,
+  "operationCount": 138,
   "operations": [
     {
       "method": "GET",
@@ -1701,6 +1701,16 @@
       "path": "/v1/share-links/{shareLinkId}/opens",
       "scopes": [
         "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "slackOauthStart",
+      "parameters": [],
+      "path": "/v1/slack/oauth/start",
+      "scopes": [
+        "inboxes:write"
       ],
       "contractSource": "openapi"
     },

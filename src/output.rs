@@ -8,7 +8,7 @@ use crate::api::{
     AudienceImportResponse, AudienceSendResponse, AvailablePhoneNumber, BatchDeleteResult,
     CreateApiKeyResponse, CreateWebhookResponse, Domain, Inbox, LedgerEvent, Message, PhoneCall,
     PhoneCallRecording, PhoneCallTranscript, PhoneNumber, SendMessageResponse, SendMessageWarning,
-    Thread, Webhook, WhoamiResponse,
+    SlackOauthStart, Thread, Webhook, WhoamiResponse,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -856,6 +856,25 @@ pub fn print_deleted(resource: &str, format: OutputFormat) -> Result<()> {
     }
 
     println!("Deleted {resource}.");
+    Ok(())
+}
+
+/// Renders the minted Slack install URL. In JSON mode the raw `{ url }` envelope
+/// is echoed; in text mode the URL is printed with a short "Add to Slack" hint.
+pub fn print_slack_connect(
+    response: &SlackOauthStart,
+    opened: bool,
+    format: OutputFormat,
+) -> Result<()> {
+    if format == OutputFormat::Json {
+        println!("{}", serde_json::to_string_pretty(response)?);
+        return Ok(());
+    }
+    if opened {
+        println!("Opened the Slack install URL in your browser.");
+    }
+    println!("{}", response.url);
+    println!("Open this \"Add to Slack\" URL to connect a workspace (expires in 10 minutes).");
     Ok(())
 }
 

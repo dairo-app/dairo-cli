@@ -1298,6 +1298,23 @@ fn default_phone_call_recording_object() -> String {
     "phone_call.recording".to_string()
 }
 
+// ---------------------------------------------------------------------------
+// Slack (/v1/slack/*): "Add to Slack" install-URL minting
+// ---------------------------------------------------------------------------
+
+/// Response for `POST /v1/slack/oauth/start`: the signed Slack "Add to Slack"
+/// install URL. Embed it as an "Add to Slack" button — when the customer
+/// approves the install, the OAuth callback binds their workspace to this
+/// account as a `channel: "slack"` inbox and inbound @mentions/DMs then fire the
+/// existing `message.received` webhook. The signed state expires after 10
+/// minutes, so mint one per click.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SlackOauthStart {
+    /// `https://slack.com/oauth/v2/authorize` URL carrying the app's bot scopes
+    /// and a signed, single-use state (10-minute expiry).
+    pub url: String,
+}
+
 /// Query for `GET /v1/phone/numbers/available`. All filters are optional; the
 /// server defaults `country` to `US` and clamps `limit` to 1..=100 (default 10).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

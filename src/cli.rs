@@ -28,6 +28,7 @@ Messaging:
   attachments    Download message attachments
   contacts       Channel-agnostic address book (people, agents, @me)
   telegram       Browse the Telegram TTS voice catalog
+  slack          Connect a Slack workspace (\"Add to Slack\")
 
 Realtime and webhooks:
   listen         Stream live events to your terminal (like `stripe listen`)
@@ -297,6 +298,12 @@ pub enum Command {
         #[command(subcommand)]
         command: PhoneCommand,
     },
+    /// Connect a Slack workspace to Dairo (mint an "Add to Slack" install URL).
+    #[command(name = "slack")]
+    Slack {
+        #[command(subcommand)]
+        command: SlackCommand,
+    },
     /// Stream live events to your terminal (the Dairo `stripe listen`).
     ///
     /// Streams live inbound-email (and delivery) events to the terminal and,
@@ -496,6 +503,25 @@ pub enum TelegramCommand {
         /// Number of voices to skip for pagination.
         #[arg(long)]
         offset: Option<u32>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SlackCommand {
+    /// Mint a Slack "Add to Slack" install URL and print it (scope `inboxes:write`).
+    ///
+    /// Dairo is the rails for Slack agents, not the brain: there is no built-in
+    /// responder. Embed the printed URL as your product's "Add to Slack" button.
+    /// When a customer approves the install, their workspace binds to this
+    /// account as a `channel: "slack"` inbox; inbound @mentions and DMs then
+    /// land on the unified inbox and fire the existing `message.received`
+    /// webhook. Your agent replies with `dairo send` (or `POST /v1/messages`)
+    /// to a `slack:{channelId}[:{threadTs}]` or `slack:{userId}` target. The
+    /// signed state expires after 10 minutes, so mint one per click.
+    Connect {
+        /// Open the install URL in the default browser instead of just printing it.
+        #[arg(long)]
+        open: bool,
     },
 }
 
@@ -918,6 +944,11 @@ pub enum AgentCommand {
         /// Inbox id to bind to the agent.
         #[arg(long = "inbox-id")]
         inbox_id: Option<String>,
+    },
+    /// Delete (revoke) an agent passport (`DELETE /v1/agents/{id}`, scope `agents:write`).
+    Delete {
+        /// Agent id (uuid or `agt_…`) to delete.
+        id: String,
     },
 }
 
@@ -2086,7 +2117,12 @@ pub struct SendArgs {
     /// Alias: `--inbox`.
     #[arg(long = "from", visible_alias = "inbox", value_name = "ADDRESS")]
     pub from: Option<String>,
-    /// Recipient address, e.g. `max@example.com` (or `Name <max@example.com>`). Required; repeatable.
+    /// Recipient. Required; repeatable. For email, an address like
+    /// `max@example.com` (or `Name <max@example.com>`). For other channels, a
+    /// channel-prefixed target: Slack `slack:{channelId}[:{threadTs}]` or
+    /// `slack:{userId}` (ids are case-sensitive, e.g. `slack:C123ABC:169…`),
+    /// Telegram `telegram:{chatId}`, A2A `a2a:{handle}`. Recipients are sent
+    /// verbatim (only trimmed), so any channel target form is accepted.
     #[arg(long, required = true, action = clap::ArgAction::Append)]
     pub to: Vec<String>,
     /// CC recipient(s). Repeatable.
@@ -2900,6 +2936,29 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn parses_slack_connect_command() {
+        let cli = Cli::try_parse_from(["dairo", "slack", "connect"]).unwrap();
+        match cli.command {
+            Command::Slack {
+                command: SlackCommand::Connect { open },
+            } => assert!(!open, "connect defaults to printing, not opening"),
+            _ => panic!("expected slack connect command"),
+        }
+    }
+
+    #[test]
+    fn slack_connect_accepts_open_flag() {
+        let cli = Cli::try_parse_from(["dairo", "slack", "connect", "--open"]).unwrap();
+        match cli.command {
+            Command::Slack {
+                command: SlackCommand::Connect { open },
+            } => assert!(open),
+            _ => panic!("expected slack connect command"),
+        }
+    }
+
     #[test]
     fn parses_phone_call_arguments() {
         let cli = Cli::try_parse_from([

@@ -1066,6 +1066,17 @@ impl ApiClient {
             .await
     }
 
+    /// Deletes (revokes) an agent passport (`DELETE /v1/agents/{id}`, scope
+    /// `agents:write`).
+    pub async fn delete_agent(&self, id: &str) -> Result<()> {
+        self.execute_no_content(self.build_request(
+            Method::DELETE,
+            &["v1", "agents", id],
+            None::<&()>,
+        )?)
+        .await
+    }
+
     /// Fetches the public agent-provenance JWKS (`GET /v1/agents/jwks`; public,
     /// no scope). The bearer key is still sent but ignored server-side.
     pub async fn get_agent_jwks(&self) -> Result<serde_json::Value> {
@@ -2354,6 +2365,27 @@ impl ApiClient {
         .await
     }
 
+    // --- Slack (/v1/slack/*) -------------------------------------------------
+    // "Add to Slack" install-URL minting. This is the ONLY public Slack
+    // operation; webhook delivery and the OAuth callback are infrastructure
+    // routes, not part of the client surface.
+
+    /// Mints a signed Slack "Add to Slack" install URL
+    /// (`POST /v1/slack/oauth/start`, scope `inboxes:write`). Embed the returned
+    /// `url` as an "Add to Slack" button: when the customer approves the
+    /// install, their workspace binds to this account as a `channel: "slack"`
+    /// inbox and inbound @mentions/DMs then fire the existing `message.received`
+    /// webhook. The signed state expires after 10 minutes; mint one per click.
+    /// Errors with a `slack_not_configured:` message when no Slack app is set up.
+    pub async fn slack_oauth_start(&self) -> Result<SlackOauthStart> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "slack", "oauth", "start"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
     pub(crate) fn build_request<T: Serialize>(
         &self,
         method: Method,
@@ -3012,6 +3044,38 @@ mod tests {
             };
             assert!(call.is_terminal(), "{terminal} must be terminal");
         }
+    }
+
+    #[test]
+    fn slack_oauth_start_targets_bodyless_start_route() {
+        // The only public Slack op: a bodyless POST that mints an install URL.
+        let client = ApiClient::new("https://api.example.test", "token").unwrap();
+        let request = client
+            .build_request(
+                Method::POST,
+                &["v1", "slack", "oauth", "start"],
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "https://api.example.test/v1/slack/oauth/start"
+        );
+        // No request body is required (the contract declares no requestBody).
+        assert!(request.body().is_none());
+    }
+
+    #[test]
+    fn deserializes_slack_oauth_start_response() {
+        let response: SlackOauthStart = serde_json::from_value(serde_json::json!({
+            "url": "https://slack.com/oauth/v2/authorize?client_id=1&scope=app_mentions:read&state=signed"
+        }))
+        .unwrap();
+        assert_eq!(
+            response.url,
+            "https://slack.com/oauth/v2/authorize?client_id=1&scope=app_mentions:read&state=signed"
+        );
     }
 
     #[test]

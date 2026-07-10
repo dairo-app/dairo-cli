@@ -92,6 +92,82 @@
     }
   ],
   "paths": {
+    "/v1/slack/oauth/start": {
+      "post": {
+        "tags": [
+          "Slack"
+        ],
+        "summary": "Mint a Slack \"Add to Slack\" install URL.",
+        "description": "Returns a signed https://slack.com/oauth/v2/authorize URL to embed as an \"Add to Slack\" button. The signed state ties the resulting workspace binding to the calling account: when the customer approves the install, the OAuth callback creates (or reconnects) a channel:\"slack\" inbox bound to that workspace, and inbound @mentions/DMs then fire the existing message.received webhook. The state expires after 10 minutes; mint per click. Requires a configured Slack app (slack_not_configured otherwise).",
+        "operationId": "slackOauthStart",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "inboxes:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackOauthStartResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/letters/templates": {
       "get": {
         "tags": [
@@ -15026,6 +15102,19 @@
       }
     },
     "schemas": {
+      "SlackOauthStartResponse": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "description": "The signed Slack OAuth install URL to present as an \"Add to Slack\" button.",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "https://slack.com/oauth/v2/authorize URL carrying the app's bot scopes and a signed, single-use state (10-minute expiry)."
+          }
+        }
+      },
       "LetterTemplate": {
         "type": "object",
         "required": [
