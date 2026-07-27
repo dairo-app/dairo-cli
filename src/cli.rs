@@ -2457,10 +2457,12 @@ impl std::fmt::Display for AttachmentDelivery {
 
 #[derive(Debug, Args)]
 pub struct LoginArgs {
-    /// Scopes to request, space- or comma-separated. Defaults to the `admin`
-    /// bundle, which the backend expands to every scope so the CLI is fully
-    /// functional. Pass a narrower set (e.g. `--scope "messages:read messages:send"`) to
-    /// mint a least-privilege token.
+    /// Scopes to request, space- or comma-separated. Defaults to the messaging
+    /// scope set the MCP consent screen pre-selects (send/read, inboxes,
+    /// templates, audiences, contacts, files, events, account:read). Pass a
+    /// wider set to reach setup commands — e.g.
+    /// `--scope "messages:send domains:read domains:write"` for `dairo domain`.
+    /// The `admin` bundle is not accepted over OAuth; name the scopes you need.
     #[arg(long = "scope", default_value = crate::auth::DEFAULT_LOGIN_SCOPE)]
     pub scope: String,
     /// Override the Dairo API base URL for the OAuth flow. With the default API
