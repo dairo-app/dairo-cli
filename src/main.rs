@@ -1154,7 +1154,7 @@ async fn run_logout(global_api_url: &Option<String>, config_path: &Path) -> Resu
         }
         println!(
             "If the token may still be active, revoke it in the Dairo dashboard \
-             (https://platform.dairo.app/app) to be safe."
+             (https://platform.dairo.app/api-keys) to be safe."
         );
     }
     Ok(())
