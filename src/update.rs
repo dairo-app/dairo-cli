@@ -408,6 +408,13 @@ fn platform_asset_for(os: &str, arch: &str, env: &str) -> Result<PlatformAsset> 
             binary_name: "dairo",
             kind: ArchiveKind::TarGz,
         }),
+        // 32-bit x86 (e.g. iSH on iOS) only ships as a static musl build, so
+        // every libc flavor self-updates to the musl asset.
+        ("linux", "x86", _) => Ok(PlatformAsset {
+            name: "dairo-i686-unknown-linux-musl.tar.gz",
+            binary_name: "dairo",
+            kind: ArchiveKind::TarGz,
+        }),
         ("windows", "x86_64", _) => Ok(PlatformAsset {
             name: "dairo-x86_64-pc-windows-msvc.zip",
             binary_name: "dairo.exe",
@@ -460,6 +467,10 @@ mod tests {
         assert_eq!(
             platform_asset_for("linux", "aarch64", "musl").unwrap().name,
             "dairo-aarch64-unknown-linux-musl.tar.gz"
+        );
+        assert_eq!(
+            platform_asset_for("linux", "x86", "musl").unwrap().name,
+            "dairo-i686-unknown-linux-musl.tar.gz"
         );
         assert_eq!(
             platform_asset_for("windows", "x86_64", "gnu").unwrap().name,

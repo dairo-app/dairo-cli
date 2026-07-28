@@ -98,6 +98,7 @@ esac
 case "$arch" in
   arm64|aarch64) cpu="arm64" ;;
   x86_64|amd64) cpu="x64" ;;
+  i686|i386) cpu="x86" ;;
   *) echo "Dairo CLI is not available for architecture: $arch" >&2; exit 1 ;;
 esac
 
@@ -129,6 +130,9 @@ case "$platform-$cpu" in
   darwin-x64) target="x86_64-apple-darwin" ;;
   linux-arm64) target="aarch64-unknown-linux-$(linux_flavor)" ;;
   linux-x64) target="x86_64-unknown-linux-$(linux_flavor)" ;;
+  # 32-bit x86 (e.g. iSH on iOS) ships as static musl only, which runs on
+  # any i686 Linux userland, so the libc probe is skipped.
+  linux-x86) target="i686-unknown-linux-musl" ;;
   *) echo "Dairo CLI is not available for $platform-$cpu" >&2; exit 1 ;;
 esac
 
