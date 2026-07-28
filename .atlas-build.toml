@@ -1,0 +1,10 @@
+# Remote build on atlas — see the `atlas` CLI (github.com/luka-loehr/atlas).
+#   atlas build   # cargo build --release on atlas, target/release synced back
+#
+# `lambda` is simply atlas' Rust image (rust:1-bookworm) — this is a plain
+# release build, no cargo-lambda involved. target/ stays on atlas between runs,
+# so rebuilds there are incremental.
+name = dairo-cli
+image = lambda
+build = cargo build --release --locked
+artifacts = target/release
