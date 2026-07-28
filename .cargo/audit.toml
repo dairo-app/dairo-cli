@@ -1,0 +1,26 @@
+# cargo-audit policy. CI runs `cargo audit --deny warnings`, so anything not
+# ignored here fails the release gate. Every entry must say WHY it is safe.
+[advisories]
+ignore = [
+    # rsa: Marvin timing side-channel on RSA *private-key* operations.
+    # Pulled in by rustls-rustcrypto (the 32-bit x86 TLS provider). The CLI
+    # is a TLS client: it only VERIFIES RSA signatures (public-key ops) and
+    # never performs an RSA private-key operation, so the side channel is
+    # not exposed. No fixed rsa release exists.
+    "RUSTSEC-2023-0071",
+    # rustls-webpki 0.102: four advisories in certificate VALIDATION code
+    # (name-constraint handling, CRL parsing/matching). The 0.102 copy is in
+    # the lock only through rustls-rustcrypto, which imports nothing from it
+    # but the `alg_id` OID constants for signature-algorithm glue.
+    # Certificate chains are validated by rustls itself against
+    # rustls-webpki 0.103.13 (fixed), also in this lock. Drop these ignores
+    # when rustls-rustcrypto cuts its next release: upstream master has
+    # already removed the webpki dependency entirely.
+    "RUSTSEC-2026-0049",
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0104",
+    # paste: unmaintained proc-macro, compile-time only (no runtime code),
+    # transitive via the RustCrypto stack.
+    "RUSTSEC-2024-0436",
+]
