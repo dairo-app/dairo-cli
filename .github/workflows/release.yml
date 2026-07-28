@@ -64,11 +64,23 @@ jobs:
           # bundles zig, and cargo-zigbuild finds it via `python3 -m ziglang`.
           # The x86_64 kernel runs the static 32-bit binary natively (ia32
           # emulation), so the smoke test still executes for real.
+          #
+          # iSH's emulator advertises SSE2 in CPUID but implements it only
+          # partially, so crypto that runtime-dispatches on SSE2 silently
+          # corrupts TLS records there. This build therefore targets i586
+          # (no compiler-emitted SSE), swaps ring for the pure-Rust
+          # RustCrypto provider, and forces chacha20's soft backend — the
+          # one RustCrypto path gated on bare SSE2. Verified equivalent to
+          # running on a no-SSE CPU (qemu -cpu pentium2). The published
+          # asset keeps the i686 slot name: it is the 32-bit x86 download.
           - os: ubuntu-latest
-            target: i686-unknown-linux-musl
+            target: i586-unknown-linux-musl
+            asset_target: i686-unknown-linux-musl
             exe: dairo
             setup: sudo pip3 install --break-system-packages cargo-zigbuild
             build_cmd: zigbuild
+            cargo_flags: --no-default-features --features tls-rustcrypto
+            rustflags: --cfg chacha20_force_soft
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             exe: dairo.exe
@@ -90,14 +102,16 @@ jobs:
           # Restore-only: tag-scoped caches can never be restored by future
           # tags; warm-release-cache.yml maintains these caches on main.
           save-if: "false"
-      - run: cargo ${{ matrix.build_cmd || 'build' }} --release --locked --target ${{ matrix.target }}
+      - run: cargo ${{ matrix.build_cmd || 'build' }} --release --locked --target ${{ matrix.target }} ${{ matrix.cargo_flags }}
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
       - name: Stage binary
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist/binaries/${{ matrix.target }}
-          cp target/${{ matrix.target }}/release/${{ matrix.exe }} dist/binaries/${{ matrix.target }}/${{ matrix.exe }}
-          if [ "${{ runner.os }}" != "Windows" ]; then chmod +x dist/binaries/${{ matrix.target }}/${{ matrix.exe }}; fi
+          mkdir -p dist/binaries/${{ matrix.asset_target || matrix.target }}
+          cp target/${{ matrix.target }}/release/${{ matrix.exe }} dist/binaries/${{ matrix.asset_target || matrix.target }}/${{ matrix.exe }}
+          if [ "${{ runner.os }}" != "Windows" ]; then chmod +x dist/binaries/${{ matrix.asset_target || matrix.target }}/${{ matrix.exe }}; fi
       # Every runner in the matrix is native for its target, so the staged
       # binary must run and report the Cargo.toml version before we ship it.
       - name: Smoke test binary
@@ -105,7 +119,7 @@ jobs:
         run: |
           set -euo pipefail
           cargo_version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
-          output="$(dist/binaries/${{ matrix.target }}/${{ matrix.exe }} --version)"
+          output="$(dist/binaries/${{ matrix.asset_target || matrix.target }}/${{ matrix.exe }} --version)"
           echo "$output"
           case "$output" in
             *"$cargo_version"*) ;;
@@ -116,8 +130,8 @@ jobs:
           esac
       - uses: actions/upload-artifact@v7
         with:
-          name: binary-${{ matrix.target }}
-          path: dist/binaries/${{ matrix.target }}
+          name: binary-${{ matrix.asset_target || matrix.target }}
+          path: dist/binaries/${{ matrix.asset_target || matrix.target }}
           if-no-files-found: error
 
   release:

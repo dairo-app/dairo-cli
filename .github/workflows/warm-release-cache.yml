@@ -42,12 +42,15 @@ jobs:
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
             setup: sudo apt-get update && sudo apt-get install -y musl-tools
-          # Mirrors the i686 zigbuild entry in release.yml; dispatching this
-          # workflow is also the harmless way to prove that recipe in CI.
+          # Mirrors the 32-bit x86 (iSH) zigbuild entry in release.yml;
+          # dispatching this workflow is also the harmless way to prove that
+          # recipe in CI.
           - os: ubuntu-latest
-            target: i686-unknown-linux-musl
+            target: i586-unknown-linux-musl
             setup: sudo pip3 install --break-system-packages cargo-zigbuild
             build_cmd: zigbuild
+            cargo_flags: --no-default-features --features tls-rustcrypto
+            rustflags: --cfg chacha20_force_soft
           - os: windows-latest
             target: x86_64-pc-windows-msvc
           - os: windows-11-arm
@@ -64,4 +67,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: release-${{ matrix.target }}
-      - run: cargo ${{ matrix.build_cmd || 'build' }} --release --locked --target ${{ matrix.target }}
+      - run: cargo ${{ matrix.build_cmd || 'build' }} --release --locked --target ${{ matrix.target }} ${{ matrix.cargo_flags }}
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}

@@ -28,7 +28,9 @@ interim = { version = "0.1", features = ["chrono"] }
 # Pure-Rust backends only (no system C deps): macOS Keychain, Windows Credential
 # Manager, and the Linux kernel keyutils — so CI/Linux builds need no libdbus.
 rand = "0.9"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+rustls = { version = "0.23", default-features = false, features = ["std"], optional = true }
+rustls-rustcrypto = { version = "0.0.2-alpha", optional = true }
 self-replace = "1.5"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -43,6 +45,20 @@ url = "2.5"
 uuid = { version = "1.17", features = ["v4", "v5"] }
 webbrowser = "1.0"
 zip = { version = "6", default-features = false, features = ["deflate-flate2"] }
+
+[features]
+default = ["tls-ring"]
+# Every mainstream target uses ring (the rustls default). The 32-bit x86
+# build opts into the pure-Rust RustCrypto provider instead: iSH's x86
+# emulator implements only part of SSE, and ring's runtime-dispatched SIMD
+# assembly silently computes wrong results there ("cannot decrypt peer's
+# message"). Root store is identical (compiled-in webpki roots).
+tls-ring = ["reqwest/rustls-tls"]
+tls-rustcrypto = [
+    "reqwest/rustls-tls-webpki-roots-no-provider",
+    "dep:rustls",
+    "dep:rustls-rustcrypto",
+]
 
 [dev-dependencies]
 assert_cmd = "2.0"

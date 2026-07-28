@@ -68,3 +68,5 @@ jobs:
       # --- Release build must compile with the same locked deps. ---------------
       - name: Release build
         run: cargo build --release --locked
+      - name: 32-bit x86 TLS provider combo still compiles
+        run: cargo check --locked --no-default-features --features tls-rustcrypto

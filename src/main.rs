@@ -51,6 +51,12 @@ use std::{
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    // Must run before the first TLS use anywhere in the process; reqwest's
+    // rustls picks up this process-default provider.
+    #[cfg(feature = "tls-rustcrypto")]
+    rustls::crypto::CryptoProvider::install_default(rustls_rustcrypto::provider())
+        .expect("no other rustls crypto provider is installed before this");
+
     let raw_args: Vec<OsString> = std::env::args_os().collect();
     let json_output = args_request_json(&raw_args);
 
