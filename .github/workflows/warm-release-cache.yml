@@ -28,10 +28,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
-            target: aarch64-apple-darwin
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
+          # NO macOS ENTRIES ON PURPOSE -- macOS runners bill at $0.062/min vs
+          # $0.006 for Linux (10x). In July 2026, 209 macOS minutes cost $12.96
+          # while 2,246 Linux minutes cost $13.48: macOS was ~45% of the org's
+          # entire Actions spend from 4% of the minutes, and exhausting the
+          # GitHub Free allowance blocks Actions across every repo in the org.
+          #
+          # The two Darwin targets (aarch64-apple-darwin, x86_64-apple-darwin)
+          # therefore build ONLY on release tags, in release.yml. The trade-off
+          # is accepted deliberately: those tag builds now compile their
+          # dependencies cold. That is the cheaper side of the trade, because
+          # dependency bumps to main are frequent while releases are rare -- a
+          # cold compile per release costs less than a full macOS compile on
+          # every Cargo.lock change. Revisit only if releases outpace dep bumps.
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
           - os: ubuntu-22.04-arm
