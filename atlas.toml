@@ -1,10 +1,7 @@
-# migrated from .atlas-build.toml by 'atlas migrate'
-# Remote build on atlas — see the `atlas` CLI (github.com/luka-loehr/atlas).
-#   atlas build   # cargo build --release on atlas, target/release synced back
-#
-# Plain release build, no cargo-lambda involved. Runs on the universal builder
-# image; target/ stays on atlas between runs, so rebuilds there are incremental.
+# Rust CLI binary (crates.io: dairo). No dev server — it's a command-line
+# tool, not a servable app — so no dev/port/health.
 name = dairo-cli
 image = universal
 build = cargo build --release --locked
+test = cargo test --locked
 artifacts = target/release
