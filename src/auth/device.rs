@@ -215,7 +215,13 @@ async fn poll_for_token(
     expires_in: u64,
 ) -> Result<super::TokenResponse> {
     let deadline = Instant::now() + Duration::from_secs(expires_in);
-    let mut interval = interval.clamp(1, 60);
+    // The server-advertised cadence, and the floor we return to. A `slow_down`
+    // raises the gap, but it must not raise it FOREVER: the previous version
+    // only ever ratcheted up, so one back-off (however transient) slowed every
+    // remaining poll of the sign-in, adding dead time after the user had
+    // already approved.
+    let base_interval = interval.clamp(1, 60);
+    let mut interval = base_interval;
     // Distinguish "the user never approved" from "we never got a usable answer"
     // — a full window of edge 429s/5xx would otherwise be reported as an expiry,
     // sending the user to re-run a command that is not the problem.
@@ -236,7 +242,10 @@ async fn poll_for_token(
             );
         }
         match poll_token_once(http, base, device_code, client_id).await? {
-            Poll::Pending => {}
+            // A clean answer means the earlier back-off is no longer needed;
+            // step back toward the advertised cadence so one blip cannot cost
+            // the rest of the sign-in.
+            Poll::Pending => interval = interval.saturating_sub(1).max(base_interval),
             // Back off as RFC 8628 §3.5 asks, but keep the ceiling low enough
             // that an approval the user already gave is still noticed promptly
             // — unbounded growth could stretch the gap to ~90s inside the
