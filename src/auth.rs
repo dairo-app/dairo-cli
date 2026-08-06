@@ -34,6 +34,10 @@ use url::Url;
 
 use crate::config::Config;
 
+mod device;
+
+pub use device::{is_headless_environment, login_device};
+
 /// The human-friendly identity this client presents on the consent screen,
 /// sent as `client_name` in the Dynamic Client Registration body (not on the
 /// `/authorize` URL — the backend only trusts what it learns directly from the
@@ -69,21 +73,7 @@ pub struct LoginOutcome {
 /// by default; see `resolve_mcp_base_url` in `main.rs`); `scope` is the
 /// space-or-comma list of requested scopes (defaults applied by the caller).
 pub async fn login(base_url: &str, scope: &str, config_path: &Path) -> Result<LoginOutcome> {
-    let base =
-        Url::parse(base_url).with_context(|| format!("invalid OAuth base URL: {base_url}"))?;
-
-    // Transport guard, mirroring the bearer-key path (`require_secure_base_url`):
-    // the OAuth legs carry the PKCE verifier and return a freshly minted key, so
-    // refuse a plaintext non-loopback base URL. http:// is allowed only for a
-    // local dev backend (localhost / 127.0.0.1 / ::1).
-    let host = base.host_str().unwrap_or_default();
-    let is_loopback = matches!(host, "localhost" | "127.0.0.1" | "::1");
-    if base.scheme() != "https" && !is_loopback {
-        bail!(
-            "refusing to run OAuth login over an insecure URL ({base_url}); \
-             use https:// (http:// is only allowed for a localhost backend)"
-        );
-    }
+    let base = require_secure_oauth_base(base_url)?;
 
     // 1. Bind the loopback listener FIRST so we know the redirect port. Bind ONLY
     //    to 127.0.0.1 — never 0.0.0.0 — so no other host can reach the callback.
@@ -115,7 +105,8 @@ pub async fn login(base_url: &str, scope: &str, config_path: &Path) -> Result<Lo
         .timeout(Duration::from_secs(30))
         .build()
         .context("failed to build OAuth HTTP client")?;
-    let client_id = register_client(&http, &base, &redirect_uri).await?;
+    let client_id =
+        register_client(&http, &base, Some(&redirect_uri), &["authorization_code"]).await?;
 
     // 5. Build the authorize URL and open the browser (also printed for manual
     //    paste). The backend 302s this to the dashboard authorize page.
@@ -129,13 +120,16 @@ pub async fn login(base_url: &str, scope: &str, config_path: &Path) -> Result<Lo
     )?;
 
     println!("Opening your browser to sign in to Dairo...");
-    println!(
-        "If it does not open automatically, paste this URL into your browser:\n  {authorize_url}\n"
-    );
-    // A failure to launch the browser is non-fatal: the user can paste the URL.
+    // No launchable browser (headless box, stripped container, ...): the PKCE
+    // loopback flow cannot complete from another device, so fall back to the
+    // device-code flow instead of printing a URL whose callback would point at
+    // an unreachable 127.0.0.1. The listener is dropped on return.
     if webbrowser::open(authorize_url.as_str()).is_err() {
-        eprintln!("(could not launch a browser automatically; use the URL above)");
+        eprintln!("Could not launch a browser; switching to device-code sign-in.");
+        drop(listener);
+        return login_device(base_url, scope, config_path).await;
     }
+    println!("If the browser did not open, paste this URL into your browser:\n  {authorize_url}\n");
     println!("Waiting for the sign-in to complete (up to 5 minutes)...");
 
     // 6. Accept exactly one callback, validate state, extract the code.
@@ -171,6 +165,24 @@ pub async fn login(base_url: &str, scope: &str, config_path: &Path) -> Result<Lo
         scopes: config.scopes.clone().unwrap_or(scopes),
         config_path: config_path.to_path_buf(),
     })
+}
+
+/// Transport guard shared by both login flows, mirroring the bearer-key path
+/// (`require_secure_base_url`): the OAuth legs carry secrets and return a
+/// freshly minted key, so refuse a plaintext non-loopback base URL. http:// is
+/// allowed only for a local dev backend (localhost / 127.0.0.1 / ::1).
+fn require_secure_oauth_base(base_url: &str) -> Result<Url> {
+    let base =
+        Url::parse(base_url).with_context(|| format!("invalid OAuth base URL: {base_url}"))?;
+    let host = base.host_str().unwrap_or_default();
+    let is_loopback = matches!(host, "localhost" | "127.0.0.1" | "::1");
+    if base.scheme() != "https" && !is_loopback {
+        bail!(
+            "refusing to run OAuth login over an insecure URL ({base_url}); \
+             use https:// (http:// is only allowed for a localhost backend)"
+        );
+    }
+    Ok(base)
 }
 
 /// PKCE verifier/challenge pair.
@@ -230,21 +242,27 @@ fn oauth_endpoint(base: &Url, segment: &str) -> Result<Url> {
     Ok(url)
 }
 
-/// Dynamic Client Registration: `POST /oauth/register` with our loopback
-/// redirect, returning the issued `client_id`.
+/// Dynamic Client Registration: `POST /oauth/register`, returning the issued
+/// `client_id`. The browser flow registers its loopback redirect +
+/// `authorization_code`; the device flow registers no redirect (it has none)
+/// and the RFC 8628 grant URN. Both carry [`CLIENT_NAME`] so the consent page
+/// shows "Dairo CLI".
 async fn register_client(
     client: &reqwest::Client,
     base: &Url,
-    redirect_uri: &str,
+    redirect_uri: Option<&str>,
+    grant_types: &[&str],
 ) -> Result<String> {
     let endpoint = oauth_endpoint(base, "register")?;
-    let body = serde_json::json!({
-        "redirect_uris": [redirect_uri],
-        "grant_types": ["authorization_code"],
+    let mut body = serde_json::json!({
+        "grant_types": grant_types,
         "response_types": ["code"],
         "token_endpoint_auth_method": "none",
         "client_name": CLIENT_NAME,
     });
+    if let Some(redirect_uri) = redirect_uri {
+        body["redirect_uris"] = serde_json::json!([redirect_uri]);
+    }
     let response = client
         .post(endpoint)
         .header("Accept", "application/json")
@@ -346,12 +364,19 @@ async fn exchange_code(
             oauth_error_message(&value)
         );
     }
+    token_from_success_body(&value)
+}
+
+/// Parses a successful `/oauth/token` response body into a [`TokenResponse`].
+/// Shared by the PKCE exchange and the device-grant poll so both flows accept
+/// the exact same contract.
+fn token_from_success_body(value: &serde_json::Value) -> Result<TokenResponse> {
     let access_token = value
         .get("access_token")
         .and_then(serde_json::Value::as_str)
         .filter(|token| !token.is_empty())
         .map(str::to_string)
-        .context("OAuth token exchange response did not contain an access_token")?;
+        .context("OAuth token response did not contain an access_token")?;
     let scope = value
         .get("scope")
         .and_then(serde_json::Value::as_str)

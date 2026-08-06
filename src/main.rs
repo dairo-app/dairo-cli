@@ -1092,7 +1092,19 @@ async fn run_login(
         args.api_url.as_deref().or(global_api_url.as_deref()),
         &config,
     );
-    let outcome = auth::login(&oauth_base_url, &args.scope, config_path).await?;
+    // Device-code flow when forced (--device-code) or when this is plainly a
+    // headless environment (SSH session / display-less Linux) where the
+    // browser PKCE loopback flow cannot work. The browser flow additionally
+    // falls back to the device flow on its own when launching a browser fails.
+    let use_device_flow = args.device_code || auth::is_headless_environment();
+    if use_device_flow && !args.device_code {
+        println!("No browser available here; using device-code sign-in.");
+    }
+    let outcome = if use_device_flow {
+        auth::login_device(&oauth_base_url, &args.scope, config_path).await?
+    } else {
+        auth::login(&oauth_base_url, &args.scope, config_path).await?
+    };
     // Never print the token; only the granted scopes and where it was stored.
     println!(
         "Signed in. Token saved to {}.",

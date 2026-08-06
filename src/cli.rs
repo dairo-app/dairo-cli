@@ -12,7 +12,7 @@ use std::{
 /// `root_help_lists_every_command` test fails if a command is added or renamed
 /// without updating this list.
 const ROOT_HELP_COMMANDS: &str = "Getting started:
-  login          Sign in with your browser (OAuth)
+  login          Sign in with your browser, or --device-code for headless machines
   whoami         Show the signed-in account, scopes, and plan
   init           Scaffold a Dairo starter into your project
   doctor         Check local config and connectivity
@@ -130,6 +130,11 @@ pub enum Command {
     /// to the Dairo authorize page, and the returned code is exchanged for a
     /// `dairo_live_*` API key saved to the local config. The manual key path
     /// (`dairo auth token set`) keeps working unchanged.
+    ///
+    /// On headless machines (SSH sessions, containers) — or with
+    /// `--device-code` — a one-time code is shown instead: enter it at
+    /// https://platform.dairo.app/activate from any device to approve the
+    /// sign-in (RFC 8628 device authorization).
     Login(LoginArgs),
     /// Revoke the stored OAuth token server-side and clear it from local config.
     Logout,
@@ -2470,6 +2475,11 @@ pub struct LoginArgs {
     /// serve `/oauth/*` itself, e.g. a local dev backend.
     #[arg(long = "api-url", value_name = "URL")]
     pub api_url: Option<String>,
+    /// Sign in with a one-time code entered on another device instead of a
+    /// browser on this machine (for SSH sessions, containers, and other
+    /// headless environments). Auto-selected when no browser can be opened.
+    #[arg(long = "device-code", visible_alias = "device")]
+    pub device_code: bool,
 }
 
 #[derive(Debug, Subcommand)]

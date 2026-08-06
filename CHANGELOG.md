@@ -2,6 +2,24 @@
 
 All notable Dairo CLI changes are tracked here.
 
+## 0.0.14 - 2026-08-06
+
+### Added
+
+- `dairo login --device-code` (alias `--device`) — sign in from headless
+  machines (SSH sessions, containers, CI) with a one-time code entered at
+  https://platform.dairo.app/activate from any device (RFC 8628 device
+  authorization). `dairo login` now auto-selects the device flow when it
+  detects a headless environment (SSH, display-less Linux) and falls back to
+  it when a browser cannot be launched.
+- `dairo agents delete` — delete an agent passport (full 138/138 API parity).
+- `dairo slack connect` — start the "Add to Slack" OAuth install flow.
+
+### Fixed
+
+- The i686 (iSH) binary's self-updater now knows its own release asset; `dairo
+  update` works on i686 from this release onward.
+
 ## 0.0.11 - 2026-07-08
 
 ### Changed
