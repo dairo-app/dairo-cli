@@ -1115,6 +1115,21 @@ async fn run_login(
             "Signed in as {email}. Token saved to {}.",
             outcome.config_path.display()
         ),
+        // The device flow ALWAYS tries to name the account, so a missing name
+        // there is a gap in the check itself — say so instead of printing a
+        // plain success. A safety signal the user has learned to expect must
+        // not be able to vanish quietly; its absence would otherwise read
+        // exactly like the all-clear it is not.
+        None if use_device_flow => {
+            println!(
+                "Signed in. Token saved to {}.",
+                outcome.config_path.display()
+            );
+            eprintln!(
+                "Warning: could not confirm which account this token belongs to. \
+                 Run `dairo whoami` and check it is yours before using it."
+            );
+        }
         None => println!(
             "Signed in. Token saved to {}.",
             outcome.config_path.display()

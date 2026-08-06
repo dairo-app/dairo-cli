@@ -195,7 +195,13 @@ async function generateWithVertex() {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 1400,
+        // A wide release (v0.0.13..v0.0.14 was 23 commits / ~12.7k inserted
+        // lines) overran the previous 1400 cap: the response was cut off
+        // mid-string and surfaced only as a confusing "Unterminated string in
+        // JSON" — after all nine target builds had already succeeded. Reasoning
+        // models also spend part of this budget before emitting any JSON, so
+        // keep generous headroom; the schema still bounds the useful output.
+        maxOutputTokens: 8192,
         responseMimeType: "application/json",
         responseSchema: releaseSchema,
       },
@@ -208,7 +214,17 @@ async function generateWithVertex() {
   }
 
   const json = await res.json();
-  const text = json.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("\n");
+  const candidate = json.candidates?.[0];
+  const text = candidate?.content?.parts?.map((part) => part.text || "").join("\n");
+  // Name a truncated response for what it is. Left to JSON.parse it reads as
+  // malformed model output, which sends the next person hunting for a parser
+  // bug instead of raising the token ceiling.
+  if (candidate?.finishReason && candidate.finishReason !== "STOP") {
+    throw new Error(
+      `Vertex AI stopped early (finishReason=${candidate.finishReason}); ` +
+        "the release notes were truncated. Raise maxOutputTokens or narrow the prompt.",
+    );
+  }
   if (!text) {
     throw new Error("Vertex AI returned no structured release-note payload.");
   }

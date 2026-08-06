@@ -84,11 +84,11 @@ pub async fn login_device(base_url: &str, scope: &str, config_path: &Path) -> Re
     // this flow targets — `webbrowser::open` runs the text browser in the
     // FOREGROUND and blocks until the user quits it, so the poll loop would
     // never start. The URL is already printed either way.
-    if !is_headless_environment() {
+    if !is_headless_environment() && !browser_env_is_text_browser() {
         if let Some(complete) = authorization
             .verification_uri_complete
             .as_deref()
-            .filter(|uri| is_same_origin_https(uri, &base))
+            .filter(|uri| is_launchable_verification_uri(uri, &base))
         {
             let _ = webbrowser::open(complete);
         }
@@ -216,9 +216,20 @@ async fn poll_for_token(
 ) -> Result<super::TokenResponse> {
     let deadline = Instant::now() + Duration::from_secs(expires_in);
     let mut interval = interval.clamp(1, 60);
+    // Distinguish "the user never approved" from "we never got a usable answer"
+    // — a full window of edge 429s/5xx would otherwise be reported as an expiry,
+    // sending the user to re-run a command that is not the problem.
+    let mut backed_off = false;
     loop {
         tokio::time::sleep(Duration::from_secs(interval)).await;
         if Instant::now() >= deadline {
+            if backed_off {
+                bail!(
+                    "gave up waiting for approval: the sign-in service kept rate-limiting \
+                     or failing this device's requests. Check https://status.dairo.app, \
+                     then run `dairo login --device-code` again"
+                );
+            }
             bail!(
                 "the device code expired before the sign-in was approved; \
                  run `dairo login --device-code` again"
@@ -226,7 +237,14 @@ async fn poll_for_token(
         }
         match poll_token_once(http, base, device_code, client_id).await? {
             Poll::Pending => {}
-            Poll::SlowDown => interval += 5,
+            // Back off as RFC 8628 §3.5 asks, but keep the ceiling low enough
+            // that an approval the user already gave is still noticed promptly
+            // — unbounded growth could stretch the gap to ~90s inside the
+            // 15-minute window.
+            Poll::SlowDown => {
+                backed_off = true;
+                interval = (interval + 5).min(30);
+            }
             Poll::Token(token) => return Ok(token),
         }
     }
@@ -295,13 +313,16 @@ fn oauth_error_code(value: &Value) -> Option<&str> {
 }
 
 /// True when `uri` is a URL this process may hand to the system browser: https
-/// (or loopback http for a dev backend), and — because the launch target comes
-/// from the SERVER's response rather than from us — on a host related to the
-/// configured OAuth base. Without this a hostile `DAIRO_OAUTH_BASE_URL` (a
-/// poisoned shell profile or CI env) could make `dairo login` launch an
-/// arbitrary URL, and on macOS `open` hands file:// and custom schemes to
-/// whatever application is registered for them.
-fn is_same_origin_https(uri: &str, base: &Url) -> bool {
+/// (or loopback http for a dev backend) on a host under the same registrable
+/// suffix as the configured OAuth base.
+///
+/// The launch target comes from the SERVER's response, so this bounds what a
+/// compromised or buggy authorization server can make `dairo login` open —
+/// notably file:// and custom schemes, which macOS `open` hands to whatever
+/// application claims them. It is NOT a defense against a hostile
+/// `DAIRO_OAUTH_BASE_URL`: whoever sets the base also controls the response,
+/// and can simply answer with a URL under their own suffix.
+fn is_launchable_verification_uri(uri: &str, base: &Url) -> bool {
     let Ok(parsed) = Url::parse(uri) else {
         return false;
     };
@@ -354,6 +375,31 @@ pub fn is_headless_environment() -> bool {
     false
 }
 
+/// Terminal browsers that `webbrowser` runs in the FOREGROUND, blocking this
+/// process until the user quits them. `$BROWSER` wins over every other
+/// launcher on unix, so a desktop Linux user who set it to one of these would
+/// otherwise hand the whole terminal to a full-screen browser and the device
+/// poll loop would never start. Mirrors webbrowser's own TEXT_BROWSERS list.
+const TEXT_BROWSERS: &[&str] = &[
+    "lynx", "links", "links2", "elinks", "w3m", "eww", "netrik", "retawq", "curl", "wget",
+];
+
+/// True when `$BROWSER` names a terminal browser (so we must not auto-open).
+fn browser_env_is_text_browser() -> bool {
+    std::env::var("BROWSER").is_ok_and(|value| names_text_browser(&value))
+}
+
+/// True when a `$BROWSER`-style value (colon-separated commands, each possibly
+/// with arguments and a path) names a terminal browser. Pure so it is testable
+/// without mutating process-wide environment state under parallel tests.
+fn names_text_browser(browser: &str) -> bool {
+    browser.split(':').any(|entry| {
+        let command = entry.split_whitespace().next().unwrap_or_default();
+        let basename = command.rsplit('/').next().unwrap_or_default();
+        TEXT_BROWSERS.contains(&basename)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -387,5 +433,65 @@ mod tests {
             DEVICE_GRANT_TYPE,
             "urn:ietf:params:oauth:grant-type:device_code"
         );
+    }
+
+    #[test]
+    fn only_launches_https_urls_related_to_the_configured_base() {
+        let base = Url::parse("https://mcp.dairo.app").unwrap();
+        // The real verification page: sibling host under the same site.
+        assert!(is_launchable_verification_uri(
+            "https://platform.dairo.app/activate?user_code=BCDF-GHJK",
+            &base
+        ));
+        // A compromised/buggy server must not redirect the launch off-site.
+        assert!(!is_launchable_verification_uri(
+            "https://evil.example/activate",
+            &base
+        ));
+        // Lookalike host that merely CONTAINS the base's name.
+        assert!(!is_launchable_verification_uri(
+            "https://dairo.app.evil.test/x",
+            &base
+        ));
+        // Non-https, and schemes the OS would hand to a registered app.
+        assert!(!is_launchable_verification_uri(
+            "http://platform.dairo.app/x",
+            &base
+        ));
+        assert!(!is_launchable_verification_uri("file:///etc/passwd", &base));
+        assert!(!is_launchable_verification_uri("not a url", &base));
+    }
+
+    #[test]
+    fn loopback_dev_base_allows_a_loopback_verification_page() {
+        // A local dev backend serves its own verification page on loopback;
+        // the https requirement is relaxed there exactly as in the transport
+        // guard, so auto-open keeps working against a dev stack.
+        let base = Url::parse("http://localhost:3000").unwrap();
+        assert!(is_launchable_verification_uri(
+            "http://localhost:3000/activate",
+            &base
+        ));
+        assert!(!is_launchable_verification_uri(
+            "https://evil.example/activate",
+            &base
+        ));
+    }
+
+    #[test]
+    fn text_browser_env_suppresses_the_auto_open() {
+        // `webbrowser` runs these in the foreground and blocks the poll loop.
+        for value in ["w3m", "/usr/bin/lynx", "links2 -g", "elinks:firefox"] {
+            assert!(
+                names_text_browser(value),
+                "expected `{value}` to be treated as a blocking text browser"
+            );
+        }
+        for value in ["firefox", "/usr/bin/google-chrome", "open -a Safari", ""] {
+            assert!(
+                !names_text_browser(value),
+                "expected `{value}` to be treated as a real browser"
+            );
+        }
     }
 }
