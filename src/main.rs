@@ -1105,11 +1105,21 @@ async fn run_login(
     } else {
         auth::login(&oauth_base_url, &args.scope, config_path).await?
     };
-    // Never print the token; only the granted scopes and where it was stored.
-    println!(
-        "Signed in. Token saved to {}.",
-        outcome.config_path.display()
-    );
+    // Never print the token; only the account, the granted scopes, and where it
+    // was stored. Naming the account matters most for the device flow: the
+    // approval happens on another machine, so if the one-time code leaked
+    // before approval, someone else's account could have granted it — and the
+    // CLI would otherwise operate inside that stranger's workspace silently.
+    match outcome.account_email.as_deref() {
+        Some(email) => println!(
+            "Signed in as {email}. Token saved to {}.",
+            outcome.config_path.display()
+        ),
+        None => println!(
+            "Signed in. Token saved to {}.",
+            outcome.config_path.display()
+        ),
+    }
     if outcome.scopes.is_empty() {
         println!("Granted scopes: (none reported)");
     } else {

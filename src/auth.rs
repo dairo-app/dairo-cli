@@ -65,6 +65,12 @@ const MAX_REQUEST_BYTES: usize = 16 * 1024;
 pub struct LoginOutcome {
     pub scopes: Vec<String>,
     pub config_path: std::path::PathBuf,
+    /// The account the minted key belongs to, when the server reported it.
+    /// Populated for the device grant, where the approval happens on a
+    /// different machine and could — if the one-time code leaked in the window
+    /// before approval — have been granted by someone else's account. Printing
+    /// it makes that immediately visible.
+    pub account_email: Option<String>,
 }
 
 /// Runs the browser OAuth login end to end and persists the resulting token.
@@ -164,6 +170,7 @@ pub async fn login(base_url: &str, scope: &str, config_path: &Path) -> Result<Lo
     Ok(LoginOutcome {
         scopes: config.scopes.clone().unwrap_or(scopes),
         config_path: config_path.to_path_buf(),
+        account_email: token.account_email,
     })
 }
 
@@ -315,6 +322,9 @@ fn build_authorize_url(
 struct TokenResponse {
     access_token: String,
     scope: Option<String>,
+    /// The account the key belongs to, when the server names it (device grant
+    /// only — see `LoginOutcome::account_email`).
+    account_email: Option<String>,
 }
 
 impl TokenResponse {
@@ -382,9 +392,15 @@ fn token_from_success_body(value: &serde_json::Value) -> Result<TokenResponse> {
         .and_then(serde_json::Value::as_str)
         .filter(|scope| !scope.trim().is_empty())
         .map(str::to_string);
+    let account_email = value
+        .get("account_email")
+        .and_then(serde_json::Value::as_str)
+        .filter(|email| !email.trim().is_empty())
+        .map(str::to_string);
     Ok(TokenResponse {
         access_token,
         scope,
+        account_email,
     })
 }
 
@@ -801,14 +817,39 @@ mod tests {
         let token = TokenResponse {
             access_token: "secret".to_string(),
             scope: Some("messages:read webhooks:write".to_string()),
+            account_email: None,
         };
         assert_eq!(token.scopes(), vec!["messages:read", "webhooks:write"]);
 
         let none = TokenResponse {
             access_token: "secret".to_string(),
             scope: None,
+            account_email: None,
         };
         assert!(none.scopes().is_empty());
+    }
+
+    #[test]
+    fn parses_the_device_grant_account_email() {
+        // The device grant echoes the approving account so the CLI can print
+        // "Signed in as ..." — the signal that catches an approval by someone
+        // else's account after a leaked one-time code.
+        let body = serde_json::json!({
+            "access_token": "dairo_live_x",
+            "scope": "messages:read",
+            "account_email": "owner@example.com",
+        });
+        let token = token_from_success_body(&body).unwrap();
+        assert_eq!(token.account_email.as_deref(), Some("owner@example.com"));
+
+        // The PKCE exchange omits it; that must stay a clean None, not "".
+        let without = serde_json::json!({ "access_token": "dairo_live_x" });
+        assert_eq!(
+            token_from_success_body(&without).unwrap().account_email,
+            None
+        );
+        let blank = serde_json::json!({ "access_token": "x", "account_email": "  " });
+        assert_eq!(token_from_success_body(&blank).unwrap().account_email, None);
     }
 
     #[test]

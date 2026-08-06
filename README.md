@@ -20,8 +20,14 @@ Get an API key at [dairo.app](https://dairo.app), then sign in:
 
 ```sh
 dairo login                       # browser OAuth (recommended)
-export DAIRO_API_KEY="dairo_..."  # ...or set a key directly for CI / headless
+dairo login --device-code         # SSH / containers: enter a code from any device
+export DAIRO_API_KEY="dairo_..."  # ...or set a key directly for CI
 ```
+
+`dairo login` switches to the device-code flow on its own when it cannot open a
+browser (SSH session, display-less Linux): it prints a one-time code to enter at
+[platform.dairo.app/activate](https://platform.dairo.app/activate), then waits
+for you to approve the sign-in.
 
 ## Example
 

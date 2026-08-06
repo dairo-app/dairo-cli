@@ -78,11 +78,20 @@ pub async fn login_device(base_url: &str, scope: &str, config_path: &Path) -> Re
     println!("Then open this page on any device and enter the code:");
     println!("  {}", authorization.verification_uri);
     println!();
-    // Best-effort convenience when a browser DOES exist (e.g. an explicit
-    // --device-code on a desktop): open the prefilled page. Failure is the
-    // expected headless case and needs no message — the URL is already printed.
-    if let Some(complete) = authorization.verification_uri_complete.as_deref() {
-        let _ = webbrowser::open(complete);
+    // Best-effort convenience ONLY on a machine that plainly has a desktop
+    // browser (an explicit `--device-code` on a laptop). Never in a headless
+    // environment: with BROWSER=w3m/lynx set — common on exactly the SSH boxes
+    // this flow targets — `webbrowser::open` runs the text browser in the
+    // FOREGROUND and blocks until the user quits it, so the poll loop would
+    // never start. The URL is already printed either way.
+    if !is_headless_environment() {
+        if let Some(complete) = authorization
+            .verification_uri_complete
+            .as_deref()
+            .filter(|uri| is_same_origin_https(uri, &base))
+        {
+            let _ = webbrowser::open(complete);
+        }
     }
     let expires_in = authorization.expires_in.clamp(60, MAX_EXPIRES_IN_SECONDS);
     println!(
@@ -117,6 +126,7 @@ pub async fn login_device(base_url: &str, scope: &str, config_path: &Path) -> Re
     Ok(LoginOutcome {
         scopes: config.scopes.clone().unwrap_or(scopes),
         config_path: config_path.to_path_buf(),
+        account_email: token.account_email,
     })
 }
 
@@ -264,6 +274,12 @@ async fn poll_token_once(
              run `dairo login --device-code` again"
         ),
         Some("access_denied") => bail!("the sign-in request was denied on the verification page"),
+        // A rate-limited or unavailable EDGE answers in the Dairo envelope, not
+        // the RFC shape, so it lands here. Those are recoverable — several
+        // logins behind one NAT/CI egress IP can share the per-IP /oauth
+        // budget — so back off and keep waiting instead of killing a sign-in
+        // the user is about to approve. The deadline still bounds the loop.
+        _ if status.as_u16() == 429 || status.is_server_error() => Ok(Poll::SlowDown),
         _ => bail!(
             "device login failed ({status}): {}",
             oauth_error_message(&value)
@@ -276,6 +292,39 @@ async fn poll_token_once(
 /// {...}}`) yields `None` and is handled by the prose fallback.
 fn oauth_error_code(value: &Value) -> Option<&str> {
     value.get("error").and_then(Value::as_str)
+}
+
+/// True when `uri` is a URL this process may hand to the system browser: https
+/// (or loopback http for a dev backend), and — because the launch target comes
+/// from the SERVER's response rather than from us — on a host related to the
+/// configured OAuth base. Without this a hostile `DAIRO_OAUTH_BASE_URL` (a
+/// poisoned shell profile or CI env) could make `dairo login` launch an
+/// arbitrary URL, and on macOS `open` hands file:// and custom schemes to
+/// whatever application is registered for them.
+fn is_same_origin_https(uri: &str, base: &Url) -> bool {
+    let Ok(parsed) = Url::parse(uri) else {
+        return false;
+    };
+    let host = parsed.host_str().unwrap_or_default();
+    let is_loopback = matches!(host, "localhost" | "127.0.0.1" | "::1");
+    if parsed.scheme() != "https" && !is_loopback {
+        return false;
+    }
+    // The verification page is a sibling host of the OAuth base
+    // (mcp.dairo.app -> platform.dairo.app), so compare the registrable
+    // suffix rather than requiring an exact host match.
+    let base_host = base.host_str().unwrap_or_default();
+    registrable_suffix(host) == registrable_suffix(base_host)
+}
+
+/// Last two labels of a hostname (`platform.dairo.app` -> `dairo.app`).
+/// Loopback names have no dots and compare as themselves.
+fn registrable_suffix(host: &str) -> String {
+    let labels: Vec<&str> = host.split('.').collect();
+    if labels.len() < 2 {
+        return host.to_ascii_lowercase();
+    }
+    labels[labels.len() - 2..].join(".").to_ascii_lowercase()
 }
 
 /// `{base}/oauth/device/code`, preserving any base path prefix.
