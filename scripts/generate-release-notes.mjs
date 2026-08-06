@@ -212,9 +212,74 @@ async function generateWithVertex() {
   if (!text) {
     throw new Error("Vertex AI returned no structured release-note payload.");
   }
-  return JSON.parse(text);
+  return parseModelJson(text);
 }
 
-const generated = await generateWithVertex();
-writeFileSync(out, renderNotes(generated));
-console.log(`Generated structured release notes with Vertex AI ${model}.`);
+/**
+ * Parses the model's JSON, repairing the one malformation a schema-constrained
+ * response still produces: a RAW newline (or tab) inside a string literal,
+ * which `JSON.parse` rejects outright. Seen on v0.0.14, where a bullet wrapped
+ * mid-sentence and failed the whole release after all nine target builds had
+ * already succeeded. Escaping is applied only to control characters inside
+ * strings, so well-formed output parses on the first attempt and is untouched.
+ */
+export function parseModelJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    const repaired = escapeControlCharsInStrings(text);
+    try {
+      return JSON.parse(repaired);
+    } catch {
+      // Surface the ORIGINAL parse error: it points at the real position in
+      // the model output rather than at the repaired copy.
+      throw error;
+    }
+  }
+}
+
+/** Escapes raw control characters that appear inside JSON string literals. */
+function escapeControlCharsInStrings(text) {
+  const ESCAPES = { "\n": "\\n", "\r": "\\r", "\t": "\\t", "\b": "\\b", "\f": "\\f" };
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (const ch of text) {
+    if (escaped) {
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\" && inString) {
+      out += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      out += ch;
+      continue;
+    }
+    if (inString && (ESCAPES[ch] || ch < " ")) {
+      out += ESCAPES[ch] ?? `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+// Importing this module for its unit tests must not fire a live Vertex call.
+if (!process.env.RELEASE_NOTES_TEST_IMPORT) {
+  // One retry: a parse failure that survives repair is usually a bad sample,
+  // and a fresh generation costs seconds versus failing a whole release.
+  let generated;
+  try {
+    generated = await generateWithVertex();
+  } catch (error) {
+    console.warn(`Release-note generation failed (${error.message}); retrying once.`);
+    generated = await generateWithVertex();
+  }
+  writeFileSync(out, renderNotes(generated));
+  console.log(`Generated structured release notes with Vertex AI ${model}.`);
+}
