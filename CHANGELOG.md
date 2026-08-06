@@ -2,6 +2,20 @@
 
 All notable Dairo CLI changes are tracked here.
 
+## 0.0.15 - 2026-08-06
+
+### Fixed
+
+- `dairo login --device-code` no longer stays slow after a transient back-off.
+  The poll interval only ever increased, so one `slow_down` added 5 seconds to
+  every remaining poll of that sign-in — including the poll after you had
+  already approved on the other device. It now steps back down to the cadence
+  the server advertises.
+
+The server side of the same fix is already live: device sign-in is polled every
+2 seconds instead of 5, so approval is picked up sooner. That half needs no CLI
+upgrade — the server tells the CLI how often to poll.
+
 ## 0.0.14 - 2026-08-06
 
 ### Added
