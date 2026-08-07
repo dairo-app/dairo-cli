@@ -3,7 +3,7 @@
   "description": "Derived from the canonical dairo.openapi.json. Regenerate via scripts/gen-canonical-operations.py; do not hand-edit.",
   "openapiVersion": "3.1.0",
   "specVersion": "1.0.0",
-  "operationCount": 138,
+  "operationCount": 140,
   "operations": [
     {
       "method": "GET",
@@ -1187,6 +1187,16 @@
     },
     {
       "method": "GET",
+      "operationId": "getLetterRequirements",
+      "parameters": [],
+      "path": "/v1/letters/requirements",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
       "operationId": "listLetterTemplates",
       "parameters": [],
       "path": "/v1/letters/templates",
@@ -1247,6 +1257,16 @@
       "path": "/v1/letters/templates/{id}/preview",
       "scopes": [
         "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "verifyLetter",
+      "parameters": [],
+      "path": "/v1/letters/verify",
+      "scopes": [
+        "letters:read"
       ],
       "contractSource": "openapi"
     },

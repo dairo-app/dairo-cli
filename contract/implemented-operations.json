@@ -2,7 +2,7 @@
   "name": "dairo-cli-implemented-api-contract",
   "openapiVersion": "3.1.0",
   "coverage": "implemented-subset",
-  "operationCount": 138,
+  "operationCount": 140,
   "operations": [
     {
       "method": "GET",
@@ -22,6 +22,26 @@
       "scopes": [
         "agents:read"
       ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createAgent",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/agents",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAgentJwks",
+      "parameters": [],
+      "path": "/v1/agents/jwks",
+      "scopes": [],
       "contractSource": "openapi"
     },
     {
@@ -76,6 +96,21 @@
       "contractSource": "openapi"
     },
     {
+      "method": "DELETE",
+      "operationId": "deleteAgent",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
       "method": "GET",
       "operationId": "getAgent",
       "parameters": [
@@ -85,6 +120,51 @@
         }
       ],
       "path": "/v1/agents/{id}",
+      "scopes": [
+        "agents:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "bindAgent",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/bindings",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "clearAgentReputation",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/reputation",
+      "scopes": [
+        "agents:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAgentReputation",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/agents/{id}/reputation",
       "scopes": [
         "agents:read"
       ],
@@ -124,6 +204,36 @@
       "path": "/v1/api-keys/{apiKeyId}",
       "scopes": [
         "keys:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchApiKey",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "apiKeyId"
+        }
+      ],
+      "path": "/v1/api-keys/{apiKeyId}",
+      "scopes": [
+        "keys:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAttachment",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "attachmentId"
+        }
+      ],
+      "path": "/v1/attachments/{attachmentId}",
+      "scopes": [
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -182,12 +292,121 @@
     },
     {
       "method": "GET",
+      "operationId": "listAudiences",
+      "parameters": [],
+      "path": "/v1/audiences",
+      "scopes": [
+        "audiences:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createAudience",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/audiences",
+      "scopes": [
+        "audiences:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteAudience",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "audienceId"
+        }
+      ],
+      "path": "/v1/audiences/{audienceId}",
+      "scopes": [
+        "audiences:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getAudience",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "audienceId"
+        }
+      ],
+      "path": "/v1/audiences/{audienceId}",
+      "scopes": [
+        "audiences:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "addAudienceMembers",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "audienceId"
+        }
+      ],
+      "path": "/v1/audiences/{audienceId}/members",
+      "scopes": [
+        "audiences:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "sendToAudience",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "audienceId"
+        }
+      ],
+      "path": "/v1/audiences/{audienceId}/send",
+      "scopes": [
+        "audiences:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
       "operationId": "listAuditLogs",
       "parameters": [
         {},
         {}
       ],
       "path": "/v1/audit-logs",
+      "scopes": [
+        "account:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "exportAuditLedger",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "from"
+        },
+        {
+          "in": "query",
+          "name": "to"
+        },
+        {
+          "in": "query",
+          "name": "after"
+        },
+        {
+          "in": "query",
+          "name": "format"
+        }
+      ],
+      "path": "/v1/audit-logs/export",
       "scopes": [
         "account:read"
       ],
@@ -242,6 +461,21 @@
       "path": "/v1/buckets/{bucketId}",
       "scopes": [
         "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchBucket",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}",
+      "scopes": [
+        "buckets:write"
       ],
       "contractSource": "openapi"
     },
@@ -344,6 +578,59 @@
         }
       ],
       "path": "/v1/buckets/{bucketId}/objects/{objectId}/finalize",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listShareLinks",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        },
+        {
+          "in": "path",
+          "name": "objectId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/objects/{objectId}/share-links",
+      "scopes": [
+        "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createShareLink",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        },
+        {
+          "in": "path",
+          "name": "objectId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/objects/{objectId}/share-links",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createShareBundle",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "bucketId"
+        }
+      ],
+      "path": "/v1/buckets/{bucketId}/share-links",
       "scopes": [
         "buckets:write"
       ],
@@ -491,6 +778,26 @@
     },
     {
       "method": "GET",
+      "operationId": "listDashboardOrganizations",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/dashboard/organizations",
+      "scopes": [],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createDashboardOrganization",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/dashboard/organizations",
+      "scopes": [],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
       "operationId": "listDomains",
       "parameters": [],
       "path": "/v1/domains",
@@ -527,21 +834,6 @@
       "contractSource": "openapi"
     },
     {
-      "method": "POST",
-      "operationId": "verifyDomain",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "domain"
-        }
-      ],
-      "path": "/v1/domains/{domain}/verify",
-      "scopes": [
-        "domains:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
       "method": "PATCH",
       "operationId": "patchDomain",
       "parameters": [
@@ -558,47 +850,16 @@
     },
     {
       "method": "POST",
-      "operationId": "sendMessage",
-      "parameters": [
-        {}
-      ],
-      "path": "/v1/messages",
-      "scopes": [
-        "messages:send"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "cancelOutboundMessage",
+      "operationId": "verifyDomain",
       "parameters": [
         {
           "in": "path",
-          "name": "messageId"
+          "name": "domain"
         }
       ],
-      "path": "/v1/messages/{messageId}/cancel",
+      "path": "/v1/domains/{domain}/verify",
       "scopes": [
-        "messages:send"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listOutboundEvents",
-      "parameters": [
-        {
-          "in": "query",
-          "name": "limit"
-        },
-        {
-          "in": "path",
-          "name": "messageId"
-        }
-      ],
-      "path": "/v1/messages/{messageId}/events",
-      "scopes": [
-        "messages:read"
+        "domains:write"
       ],
       "contractSource": "openapi"
     },
@@ -702,6 +963,21 @@
     {
       "method": "DELETE",
       "operationId": "deleteInbox",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "inbox"
+        }
+      ],
+      "path": "/v1/inboxes/{inbox}",
+      "scopes": [
+        "inboxes:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchInbox",
       "parameters": [
         {
           "in": "path",
@@ -866,497 +1142,6 @@
     },
     {
       "method": "POST",
-      "operationId": "priceLetter",
-      "parameters": [],
-      "path": "/v1/letters/price",
-      "scopes": [
-        "letters:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getLetter",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        }
-      ],
-      "path": "/v1/letters/{id}",
-      "scopes": [
-        "letters:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "cancelLetter",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        }
-      ],
-      "path": "/v1/letters/{id}/cancel",
-      "scopes": [
-        "letters:send"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listLetterEvents",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        },
-        {},
-        {}
-      ],
-      "path": "/v1/letters/{id}/events",
-      "scopes": [
-        "letters:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listAudiences",
-      "parameters": [],
-      "path": "/v1/audiences",
-      "scopes": [
-        "audiences:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "createAudience",
-      "parameters": [
-        {}
-      ],
-      "path": "/v1/audiences",
-      "scopes": [
-        "audiences:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "DELETE",
-      "operationId": "deleteAudience",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "audienceId"
-        }
-      ],
-      "path": "/v1/audiences/{audienceId}",
-      "scopes": [
-        "audiences:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getAudience",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "audienceId"
-        }
-      ],
-      "path": "/v1/audiences/{audienceId}",
-      "scopes": [
-        "audiences:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "addAudienceMembers",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "audienceId"
-        }
-      ],
-      "path": "/v1/audiences/{audienceId}/members",
-      "scopes": [
-        "audiences:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "sendToAudience",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "audienceId"
-        }
-      ],
-      "path": "/v1/audiences/{audienceId}/send",
-      "scopes": [
-        "audiences:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getMcpCatalog",
-      "parameters": [
-        {
-          "in": "query",
-          "name": "for"
-        }
-      ],
-      "path": "/v1/mcp/catalog",
-      "scopes": [],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listMessages",
-      "parameters": [
-        {},
-        {},
-        {
-          "in": "query",
-          "name": "inboxId"
-        },
-        {
-          "in": "query",
-          "name": "threadId"
-        },
-        {
-          "in": "query",
-          "name": "direction"
-        },
-        {
-          "in": "query",
-          "name": "channel"
-        }
-      ],
-      "path": "/v1/messages",
-      "scopes": [
-        "messages:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "batchDeleteMessages",
-      "parameters": [],
-      "path": "/v1/messages/batch-delete",
-      "scopes": [
-        "messages:read"
-      ]
-    },
-    {
-      "method": "GET",
-      "operationId": "getMessage",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "messageId"
-        }
-      ],
-      "path": "/v1/messages/{messageId}",
-      "scopes": [
-        "messages:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listTemplates",
-      "parameters": [],
-      "path": "/v1/templates",
-      "scopes": [
-        "templates:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "createTemplate",
-      "parameters": [
-        {}
-      ],
-      "path": "/v1/templates",
-      "scopes": [
-        "templates:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "DELETE",
-      "operationId": "deleteTemplate",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "idOrSlug"
-        }
-      ],
-      "path": "/v1/templates/{idOrSlug}",
-      "scopes": [
-        "templates:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getTemplate",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "idOrSlug"
-        },
-        {
-          "in": "query",
-          "name": "version"
-        }
-      ],
-      "path": "/v1/templates/{idOrSlug}",
-      "scopes": [
-        "templates:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "PATCH",
-      "operationId": "updateTemplate",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "idOrSlug"
-        }
-      ],
-      "path": "/v1/templates/{idOrSlug}",
-      "scopes": [
-        "templates:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listTemplateVersions",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "idOrSlug"
-        }
-      ],
-      "path": "/v1/templates/{idOrSlug}/versions",
-      "scopes": [
-        "templates:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "publishTemplateVersion",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "idOrSlug"
-        }
-      ],
-      "path": "/v1/templates/{idOrSlug}/versions",
-      "scopes": [
-        "templates:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getTemplateVersion",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "idOrSlug"
-        },
-        {
-          "in": "path",
-          "name": "version"
-        }
-      ],
-      "path": "/v1/templates/{idOrSlug}/versions/{version}",
-      "scopes": [
-        "templates:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listThreads",
-      "parameters": [
-        {},
-        {},
-        {
-          "in": "query",
-          "name": "inboxId"
-        }
-      ],
-      "path": "/v1/threads",
-      "scopes": [
-        "messages:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getThread",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "threadId"
-        }
-      ],
-      "path": "/v1/threads/{threadId}",
-      "scopes": [
-        "messages:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listWebhooks",
-      "parameters": [],
-      "path": "/v1/webhooks",
-      "scopes": [
-        "webhooks:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "createWebhook",
-      "parameters": [
-        {}
-      ],
-      "path": "/v1/webhooks",
-      "scopes": [
-        "webhooks:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "DELETE",
-      "operationId": "deleteWebhook",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "webhook"
-        }
-      ],
-      "path": "/v1/webhooks/{webhook}",
-      "scopes": [
-        "webhooks:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "whoami",
-      "parameters": [],
-      "path": "/v1/whoami",
-      "scopes": [
-        "__any__"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listShareLinks",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "bucketId"
-        },
-        {
-          "in": "path",
-          "name": "objectId"
-        }
-      ],
-      "path": "/v1/buckets/{bucketId}/objects/{objectId}/share-links",
-      "scopes": [
-        "buckets:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "createShareLink",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "bucketId"
-        },
-        {
-          "in": "path",
-          "name": "objectId"
-        }
-      ],
-      "path": "/v1/buckets/{bucketId}/objects/{objectId}/share-links",
-      "scopes": [
-        "buckets:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "createShareBundle",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "bucketId"
-        }
-      ],
-      "path": "/v1/buckets/{bucketId}/share-links",
-      "scopes": [
-        "buckets:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "DELETE",
-      "operationId": "revokeShareLink",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "shareLinkId"
-        }
-      ],
-      "path": "/v1/share-links/{shareLinkId}",
-      "scopes": [
-        "buckets:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listShareLinkOpens",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "shareLinkId"
-        },
-        {
-          "in": "query",
-          "name": "limit"
-        }
-      ],
-      "path": "/v1/share-links/{shareLinkId}/opens",
-      "scopes": [
-        "buckets:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
       "operationId": "createLetterBatch",
       "parameters": [],
       "path": "/v1/letters/batches",
@@ -1375,6 +1160,26 @@
         }
       ],
       "path": "/v1/letters/batches/{id}",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "priceLetter",
+      "parameters": [],
+      "path": "/v1/letters/price",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getLetterRequirements",
+      "parameters": [],
+      "path": "/v1/letters/requirements",
       "scopes": [
         "letters:read"
       ],
@@ -1447,6 +1252,156 @@
     },
     {
       "method": "POST",
+      "operationId": "verifyLetter",
+      "parameters": [],
+      "path": "/v1/letters/verify",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getLetter",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/{id}",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "cancelLetter",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        }
+      ],
+      "path": "/v1/letters/{id}/cancel",
+      "scopes": [
+        "letters:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listLetterEvents",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id"
+        },
+        {},
+        {}
+      ],
+      "path": "/v1/letters/{id}/events",
+      "scopes": [
+        "letters:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getMcpCatalog",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "for"
+        }
+      ],
+      "path": "/v1/mcp/catalog",
+      "scopes": [],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listMessages",
+      "parameters": [
+        {},
+        {},
+        {
+          "in": "query",
+          "name": "inboxId"
+        },
+        {
+          "in": "query",
+          "name": "threadId"
+        },
+        {
+          "in": "query",
+          "name": "direction"
+        },
+        {
+          "in": "query",
+          "name": "channel"
+        }
+      ],
+      "path": "/v1/messages",
+      "scopes": [
+        "messages:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "sendMessage",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/messages",
+      "scopes": [
+        "messages:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "batchDeleteMessages",
+      "parameters": [],
+      "path": "/v1/messages/batch-delete",
+      "scopes": [
+        "messages:read"
+      ]
+    },
+    {
+      "method": "GET",
+      "operationId": "getMessage",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}",
+      "scopes": [
+        "messages:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "cancelOutboundMessage",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}/cancel",
+      "scopes": [
+        "messages:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
       "operationId": "editTelegramMessage",
       "parameters": [
         {
@@ -1457,6 +1412,25 @@
       "path": "/v1/messages/{messageId}/edit",
       "scopes": [
         "messages:send"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listOutboundEvents",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "limit"
+        },
+        {
+          "in": "path",
+          "name": "messageId"
+        }
+      ],
+      "path": "/v1/messages/{messageId}/events",
+      "scopes": [
+        "messages:read"
       ],
       "contractSource": "openapi"
     },
@@ -1491,287 +1465,6 @@
       "contractSource": "openapi"
     },
     {
-      "method": "PATCH",
-      "operationId": "patchWebhook",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "webhook"
-        }
-      ],
-      "path": "/v1/webhooks/{webhook}",
-      "scopes": [
-        "webhooks:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listWebhookDeliveries",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "webhook"
-        }
-      ],
-      "path": "/v1/webhooks/{webhook}/deliveries",
-      "scopes": [
-        "webhooks:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "redriveWebhookDelivery",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "webhook"
-        },
-        {
-          "in": "path",
-          "name": "delivery"
-        }
-      ],
-      "path": "/v1/webhooks/{webhook}/deliveries/{delivery}/redrive",
-      "scopes": [
-        "webhooks:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "pauseWebhook",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "webhook"
-        }
-      ],
-      "path": "/v1/webhooks/{webhook}/pause",
-      "scopes": [
-        "webhooks:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "pingWebhook",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "webhook"
-        }
-      ],
-      "path": "/v1/webhooks/{webhook}/ping",
-      "scopes": [
-        "webhooks:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "resumeWebhook",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "webhook"
-        }
-      ],
-      "path": "/v1/webhooks/{webhook}/resume",
-      "scopes": [
-        "webhooks:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "createAgent",
-      "parameters": [
-        {}
-      ],
-      "path": "/v1/agents",
-      "scopes": [
-        "agents:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getAgentJwks",
-      "parameters": [],
-      "path": "/v1/agents/jwks",
-      "scopes": [],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "bindAgent",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        }
-      ],
-      "path": "/v1/agents/{id}/bindings",
-      "scopes": [
-        "agents:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getAgentReputation",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        }
-      ],
-      "path": "/v1/agents/{id}/reputation",
-      "scopes": [
-        "agents:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "DELETE",
-      "operationId": "clearAgentReputation",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        }
-      ],
-      "path": "/v1/agents/{id}/reputation",
-      "scopes": [
-        "agents:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "DELETE",
-      "operationId": "deleteAgent",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "id"
-        }
-      ],
-      "path": "/v1/agents/{id}",
-      "scopes": [
-        "agents:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "PATCH",
-      "operationId": "patchApiKey",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "apiKeyId"
-        }
-      ],
-      "path": "/v1/api-keys/{apiKeyId}",
-      "scopes": [
-        "keys:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "getAttachment",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "attachmentId"
-        }
-      ],
-      "path": "/v1/attachments/{attachmentId}",
-      "scopes": [
-        "messages:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "exportAuditLedger",
-      "parameters": [
-        {
-          "in": "query",
-          "name": "from"
-        },
-        {
-          "in": "query",
-          "name": "to"
-        },
-        {
-          "in": "query",
-          "name": "after"
-        },
-        {
-          "in": "query",
-          "name": "format"
-        }
-      ],
-      "path": "/v1/audit-logs/export",
-      "scopes": [
-        "account:read"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "PATCH",
-      "operationId": "patchBucket",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "bucketId"
-        }
-      ],
-      "path": "/v1/buckets/{bucketId}",
-      "scopes": [
-        "buckets:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listDashboardOrganizations",
-      "parameters": [
-        {}
-      ],
-      "path": "/v1/dashboard/organizations",
-      "scopes": [],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "POST",
-      "operationId": "createDashboardOrganization",
-      "parameters": [
-        {}
-      ],
-      "path": "/v1/dashboard/organizations",
-      "scopes": [],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "PATCH",
-      "operationId": "patchInbox",
-      "parameters": [
-        {
-          "in": "path",
-          "name": "inbox"
-        }
-      ],
-      "path": "/v1/inboxes/{inbox}",
-      "scopes": [
-        "inboxes:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
       "method": "GET",
       "operationId": "getNotificationPreferences",
       "parameters": [],
@@ -1788,37 +1481,6 @@
       "path": "/v1/notifications/preferences",
       "scopes": [
         "account:write"
-      ],
-      "contractSource": "openapi"
-    },
-    {
-      "method": "GET",
-      "operationId": "listTelegramVoices",
-      "parameters": [
-        {
-          "in": "query",
-          "name": "language"
-        },
-        {
-          "in": "query",
-          "name": "q"
-        },
-        {
-          "in": "query",
-          "name": "featured"
-        },
-        {
-          "in": "query",
-          "name": "limit"
-        },
-        {
-          "in": "query",
-          "name": "offset"
-        }
-      ],
-      "path": "/v1/telegram/voices",
-      "scopes": [
-        "__any__"
       ],
       "contractSource": "openapi"
     },
@@ -2017,12 +1679,370 @@
       "contractSource": "openapi"
     },
     {
+      "method": "DELETE",
+      "operationId": "revokeShareLink",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "shareLinkId"
+        }
+      ],
+      "path": "/v1/share-links/{shareLinkId}",
+      "scopes": [
+        "buckets:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listShareLinkOpens",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "shareLinkId"
+        },
+        {
+          "in": "query",
+          "name": "limit"
+        }
+      ],
+      "path": "/v1/share-links/{shareLinkId}/opens",
+      "scopes": [
+        "buckets:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
       "method": "POST",
       "operationId": "slackOauthStart",
       "parameters": [],
       "path": "/v1/slack/oauth/start",
       "scopes": [
         "inboxes:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listTelegramVoices",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "language"
+        },
+        {
+          "in": "query",
+          "name": "q"
+        },
+        {
+          "in": "query",
+          "name": "featured"
+        },
+        {
+          "in": "query",
+          "name": "limit"
+        },
+        {
+          "in": "query",
+          "name": "offset"
+        }
+      ],
+      "path": "/v1/telegram/voices",
+      "scopes": [
+        "__any__"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listTemplates",
+      "parameters": [],
+      "path": "/v1/templates",
+      "scopes": [
+        "templates:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createTemplate",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/templates",
+      "scopes": [
+        "templates:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}",
+      "scopes": [
+        "templates:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        },
+        {
+          "in": "query",
+          "name": "version"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}",
+      "scopes": [
+        "templates:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "updateTemplate",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}",
+      "scopes": [
+        "templates:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listTemplateVersions",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}/versions",
+      "scopes": [
+        "templates:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "publishTemplateVersion",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}/versions",
+      "scopes": [
+        "templates:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getTemplateVersion",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "idOrSlug"
+        },
+        {
+          "in": "path",
+          "name": "version"
+        }
+      ],
+      "path": "/v1/templates/{idOrSlug}/versions/{version}",
+      "scopes": [
+        "templates:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listThreads",
+      "parameters": [
+        {},
+        {},
+        {
+          "in": "query",
+          "name": "inboxId"
+        }
+      ],
+      "path": "/v1/threads",
+      "scopes": [
+        "messages:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "getThread",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "threadId"
+        }
+      ],
+      "path": "/v1/threads/{threadId}",
+      "scopes": [
+        "messages:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listWebhooks",
+      "parameters": [],
+      "path": "/v1/webhooks",
+      "scopes": [
+        "webhooks:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "createWebhook",
+      "parameters": [
+        {}
+      ],
+      "path": "/v1/webhooks",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "deleteWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "PATCH",
+      "operationId": "patchWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "listWebhookDeliveries",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/deliveries",
+      "scopes": [
+        "webhooks:read"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "redriveWebhookDelivery",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        },
+        {
+          "in": "path",
+          "name": "delivery"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/deliveries/{delivery}/redrive",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "pauseWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/pause",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "pingWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/ping",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "POST",
+      "operationId": "resumeWebhook",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhook"
+        }
+      ],
+      "path": "/v1/webhooks/{webhook}/resume",
+      "scopes": [
+        "webhooks:write"
+      ],
+      "contractSource": "openapi"
+    },
+    {
+      "method": "GET",
+      "operationId": "whoami",
+      "parameters": [],
+      "path": "/v1/whoami",
+      "scopes": [
+        "__any__"
       ],
       "contractSource": "openapi"
     }

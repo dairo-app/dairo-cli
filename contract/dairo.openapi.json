@@ -173,7 +173,7 @@
         "tags": [
           "Letters"
         ],
-        "summary": "List letter templates (most recent first).",
+        "summary": "List letter templates (most recent first)",
         "operationId": "listLetterTemplates",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -260,13 +260,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Returns the account's letter templates, newest first, up to 100 in one response (no cursor). List items omit the `html` body to keep the payload small — fetch a single template to read it. Requires the `letters:read` scope."
       },
       "post": {
         "tags": [
           "Letters"
         ],
-        "summary": "Create a reusable letter template.",
+        "summary": "Create a reusable letter template",
         "operationId": "createLetterTemplate",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -363,7 +364,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Stores a reusable letter design: `html` carries the body and branding, with `{{placeholder}}` variables filled per letter at send time. A template never contains a recipient — Dairo composites the recipient from each letter's `to` address into the envelope window when the letter is rendered, so leave that area blank. `variables` optionally declares the placeholders (a JSON array or object, 16 KB max); `status` is `active` or `archived` and defaults to `active`. Requires the `letters:send` scope. Render a proof with `POST /v1/letters/templates/{id}/preview` before sending."
       }
     },
     "/v1/letters/templates/{id}": {
@@ -371,7 +373,7 @@
         "tags": [
           "Letters"
         ],
-        "summary": "Get one letter template (with its full HTML body).",
+        "summary": "Get one letter template (with its full HTML body)",
         "operationId": "getLetterTemplate",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -468,13 +470,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Returns a single `letter_template`, including the full `html` body that list items omit. Responds `404` when the id does not exist or belongs to another account. Requires the `letters:read` scope."
       },
       "patch": {
         "tags": [
           "Letters"
         ],
-        "summary": "Update a letter template.",
+        "summary": "Update a letter template",
         "operationId": "updateLetterTemplate",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -581,7 +584,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Applies a partial update: provide at least one of `name`, `html`, `variables`, or `status` — an empty request is a `400`, and `name`/`html` cannot be set to empty strings. Set `status` to `archived` to retire a template without deleting it, or back to `active` to reuse it; letters already sent from it are unaffected. Returns the updated `letter_template`, or `404` when the id is unknown. Requires the `letters:send` scope."
       }
     },
     "/v1/letters/templates/{id}/preview": {
@@ -589,7 +593,7 @@
         "tags": [
           "Letters"
         ],
-        "summary": "Render a proof of a letter template with a sample recipient.",
+        "summary": "Render a template proof with a sample recipient",
         "operationId": "previewLetterTemplate",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -696,7 +700,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Renders the template with a fixed sample recipient and returns the composited proof as `pdfBase64` — nothing is created, printed, or billed. Pass `templateData` to fill the `{{placeholder}}` variables and `addressPlacement` (`left`, the default, or `right`) to check either window position. Use the proof to verify layout and page count before fanning the template out with `POST /v1/letters/batches`. Requires the `letters:send` scope."
       }
     },
     "/v1/letters/batches": {
@@ -704,7 +709,7 @@
         "tags": [
           "Letters"
         ],
-        "summary": "Send one letter template to many recipients in a single call.",
+        "summary": "Send one template to many recipients",
         "operationId": "createLetterBatch",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -801,7 +806,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Fans one stored template out to up to 1,000 recipients, creating one letter per recipient rendered with that recipient's `templateData`. The whole request is validated up front — one malformed address, an unsupported `to.country`, or an unknown `templateId` (`404`) rejects the batch with nothing created. `from`, `print`, `delivery`, `paymentSlip`, `autoSend`, `notifications`, and `metadata` are shared by every member letter; only the address and `templateData` vary per recipient. Returns `{ id, total, status: \"queued\" }` immediately, then rendering, printing, and posting proceed asynchronously — each member follows the normal lifecycle and emits `letter.status_changed` webhook events carrying its `batchId`. Each letter is priced and billed individually; list the members with `GET /v1/letters?batchId=...` and watch the rollup on `GET /v1/letters/batches/{id}`. Requires the `letters:send` scope."
       }
     },
     "/v1/letters/batches/{id}": {
@@ -809,7 +815,7 @@
         "tags": [
           "Letters"
         ],
-        "summary": "Get a batch with its live per-status rollup.",
+        "summary": "Get a batch with its live per-status rollup",
         "operationId": "getLetterBatch",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -906,7 +912,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Returns the `letter_batch` with a live rollup of its member letters: `statusCounts` maps each letter status to a count, and `completed` counts letters in a terminal state (`delivered`, `undeliverable`, `canceled`, or `failed`). The batch is finished when `completed` equals `total`. List the individual letters with `GET /v1/letters?batchId=...`; responds `404` when the batch id is unknown. Requires the `letters:read` scope."
       }
     },
     "/v1/account/residency": {
@@ -9192,7 +9199,7 @@
         "tags": [
           "Letters"
         ],
-        "summary": "List physical-mail letters (paginated).",
+        "summary": "List physical-mail letters (paginated)",
         "operationId": "listLetters",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -9312,13 +9319,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Returns the workspace's letters newest first, `limit` per page (default 20, max 100), with an opaque `pagination.nextCursor` to pass back as `cursor` for the next page. Filter with `status` (one lifecycle value such as `in_transit`), `country` (ISO 3166-1 alpha-2, case-insensitive), and `batchId`; filters combine. List items carry only the recipient's `city` and `country` — fetch a single letter for the full address and its event timeline."
       },
       "post": {
         "tags": [
           "Letters"
         ],
-        "summary": "Create (and queue) a physical-mail letter.",
+        "summary": "Create (and queue) a physical-mail letter",
         "operationId": "createLetter",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -9420,7 +9428,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Queues a PDF to be printed, enveloped, and posted to `to`. Provide exactly one source: `pdfBase64` (a real PDF, max 25 MB decoded) or `file`, which reuses a PDF already stored in Dairo by `attachmentId` or `objectId`. Print options default to `mode: \"grayscale\"`, `sides: \"simplex\"`, `addressPlacement: \"left\"`, and `delivery: \"economy\"`; an unsupported `to.country` is a `422`. With `autoSend: true` (the default) the letter returns as `queued` and proceeds asynchronously, emitting a `letter.status_changed` webhook event on every transition; `autoSend: false` stores a `draft` that is never mailed. Send an `Idempotency-Key` header so a retried request returns the already-created letter instead of mailing a second copy. Each mailed letter is billed at its own priced amount — [get an exact quote](/letters/pricing) with `POST /v1/letters/price` first."
       }
     },
     "/v1/letters/price": {
@@ -9428,7 +9437,7 @@
         "tags": [
           "Letters"
         ],
-        "summary": "Price a physical-mail letter without creating it.",
+        "summary": "Price a physical-mail letter without creating it",
         "operationId": "priceLetter",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -9525,7 +9534,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Returns the exact price of a letter without creating one — no side effects, nothing stored. Provide `country` plus either `pageCount` (minimum 1) or `pdfBase64`, in which case Dairo counts the pages of the actual file; `print` and `delivery` default to the same values as the create call (`grayscale`, `simplex`, `economy`). The response is a `letter_price` whose lowercase `currency` and `amount` are what the letter is billed when mailed. The quote runs the same destination and option validation as `POST /v1/letters`, so a successful quote also confirms the combination is sendable. Requires only the `letters:read` scope, so a read-only key can quote prices."
       }
     },
     "/v1/letters/{id}": {
@@ -9533,7 +9543,7 @@
         "tags": [
           "Letters"
         ],
-        "summary": "Get one letter with its delivery-event timeline.",
+        "summary": "Get one letter with its delivery-event timeline",
         "operationId": "getLetter",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -9630,7 +9640,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Returns the full `letter`, including the complete `to`/`from` addresses (list items carry only city and country), the `price`, the `trackingNumber` once assigned, and an inline `events` timeline holding the 100 most recent events, newest first. Fetching an in-flight letter refreshes its delivery status, so polling this endpoint always reflects current tracking; the [status lifecycle](/letters/status-lifecycle) explains each value. Responds `404` when the id is unknown or belongs to another workspace."
       }
     },
     "/v1/letters/{id}/cancel": {
@@ -9638,7 +9649,7 @@
         "tags": [
           "Letters"
         ],
-        "summary": "Cancel a letter that has not yet been dispatched.",
+        "summary": "Cancel a letter that has not yet been dispatched",
         "operationId": "cancelLetter",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -9735,7 +9746,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Cancels a letter and returns it with `status: \"canceled\"`. A letter is cancelable while it is `draft`, `queued`, `processing`, `printable`, or `submitted`; once it is `in_transit` or in a terminal state the call responds `409` with code `letter_not_cancelable`, and an unknown id is a `404`. Cancellation is a status transition, so it emits a `letter.status_changed` webhook event."
       }
     },
     "/v1/letters/{id}/events": {
@@ -9743,7 +9755,7 @@
         "tags": [
           "Letters"
         ],
-        "summary": "List a letter's delivery events.",
+        "summary": "List a letter's delivery events",
         "operationId": "listLetterEvents",
         "x-dairo-status": "live",
         "x-dairo-scopes": [
@@ -9846,7 +9858,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Returns the letter's delivery timeline as `letter_event` objects, newest first, capped at the 100 most recent. Each event carries a `type` in the same vocabulary as the letter `status` (for example `in_transit` or `delivered`), plus optional `code`, `description`, `location`, and `occurredAt`/`recordedAt` timestamps. The same timeline is embedded as `events` on `GET /v1/letters/{id}`, so a separate call is only needed when you want events without the letter. Responds `404` when the letter id is unknown."
       }
     },
     "/v1/buckets": {
@@ -15051,6 +15064,188 @@
           "phone:call"
         ]
       }
+    },
+    "/v1/letters/verify": {
+      "post": {
+        "tags": [
+          "Letters"
+        ],
+        "summary": "Verify a letter PDF's layout before sending",
+        "operationId": "verifyLetter",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "letters:read"
+        ],
+        "description": "Layout-verifies a letter BEFORE it is sent and returns a structured verdict — no side effects, nothing stored, nothing mailed, nothing charged. Checks: every page is A4 portrait; the recipient address sits inside the address window (left x=22mm y=60mm 85.5×25.5mm; right x=118mm — mm from the top-left corner; REGISTERED letters use the registered window y=67–90mm below the carrier's label band); the franking keep-out, 5mm edge band, 15mm bottom-left corner, and left-margin routing-code zone are clear; fonts are embedded; no interactive form fields; and, when `to` is provided, the address PRINTED in the PDF matches the intended recipient (the carrier mails to what is printed). Accepts the same document sources as the create — pass the SAME `delivery` and `payment` you will send with, so the `templateId` source verifies the exact PDF a create with the same inputs would mail. Every agent should call this before a real send and fix every `fail` (and review every `warn`). Requires only `letters:read`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LetterVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetterVerification"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/letters/requirements": {
+      "get": {
+        "tags": [
+          "Letters"
+        ],
+        "summary": "Get the letter layout spec and starter templates",
+        "operationId": "getLetterRequirements",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "letters:read"
+        ],
+        "description": "Returns the machine-readable compliance spec for physical letters: the exact A4 geometry (address windows, franking/edge/corner keep-outs, all in mm from the top-left corner), the PDF rules (embed fonts, no encryption, A4 portrait), the recommended verify→price→dryRun→send workflow, and ready-made COMPLIANT starter templates whose `html` can be stored via `POST /v1/letters/templates` verbatim. Static and deterministic — agents composing physical mail should fetch this first instead of relying on prior knowledge of postal layout standards.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetterRequirements"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -16430,7 +16625,7 @@
           "fileName",
           "to"
         ],
-        "description": "Exactly one of pdfBase64 or file must be provided.",
+        "description": "Exactly one document source must be provided: `pdfBase64`, `file`, or `templateId`. Validate any letter first with `POST /v1/letters/verify`; `GET /v1/letters/requirements` has the full layout spec and compliant starter templates.",
         "properties": {
           "pdfBase64": {
             "type": [
@@ -16478,6 +16673,55 @@
           "metadata": {
             "type": "object",
             "additionalProperties": true
+          },
+          "templateId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A stored letter template id. Dairo renders the template (filled with `templateData`) and composites the `to` recipient into the address window — the third document source, mutually exclusive with `pdfBase64`/`file`. Required for the structured `payment` object."
+          },
+          "templateData": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true,
+            "description": "Values for the template's `{{placeholder}}` variables. Ignored unless `templateId` is set."
+          },
+          "dryRun": {
+            "type": "boolean",
+            "default": false,
+            "description": "When true the letter is validated, rendered, and priced exactly like a real send but is NEVER created, mailed, or charged — the response is a non-persisted `status:\"preview\"` object. The per-request no-send rehearsal."
+          },
+          "notifications": {
+            "type": "boolean",
+            "default": true,
+            "description": "Email the account owner a status update at notable delivery milestones."
+          },
+          "paymentSlip": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "qr",
+              "sepaDe",
+              "sepaAt",
+              null
+            ],
+            "description": "Bring-your-own-slip flag for a `pdfBase64`/`file` letter whose PDF already contains the slip artwork: `qr` (Swiss QR-bill), `sepaDe`, or `sepaAt`. Omit/null for a normal letter. To have Dairo GENERATE the slip use the structured `payment` object (template letters only)."
+          },
+          "payment": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LetterPayment"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Structured payment object — Dairo GENERATES the payment slip (Swiss QR-bill / SEPA Zahlschein + GiroCode) and composites it full-width at the page bottom. Honored ONLY with `templateId`; pairing it with `pdfBase64`/`file` is a 400."
           }
         }
       },
@@ -17933,6 +18177,52 @@
             "items": {
               "$ref": "#/components/schemas/LetterEvent"
             }
+          },
+          "paymentSlip": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "qr",
+              "sepaDe",
+              "sepaAt",
+              null
+            ],
+            "description": "The chosen payment-slip overlay, or null for a normal letter."
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "True for a validate/price-only letter that is never mailed or charged."
+          },
+          "notifications": {
+            "type": "boolean",
+            "description": "Owner milestone-email preference for this letter."
+          },
+          "payment": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LetterPayment"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The structured payment object the slip was generated from (owner records), or null."
+          },
+          "undeliverableReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Human-readable reason when the letter reached `undeliverable`; null otherwise."
+          },
+          "batchId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The owning batch id for a batch-member letter; null for a single send. Pairs with the `?batchId=` list filter."
           }
         }
       },
@@ -22276,6 +22566,413 @@
             "type": "string",
             "format": "uuid",
             "description": "Dairo storage object holding the call audio."
+          }
+        }
+      },
+      "LetterPayment": {
+        "type": "object",
+        "required": [
+          "type",
+          "creditor",
+          "amount"
+        ],
+        "description": "A generated payment slip: `qr` = Swiss QR-bill (CHF), `sepaDe`/`sepaAt` = SEPA Zahlschein + GiroCode (EUR). The debtor defaults to the letter recipient.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "qr",
+              "sepaDe",
+              "sepaAt"
+            ]
+          },
+          "creditor": {
+            "type": "object",
+            "required": [
+              "name",
+              "iban",
+              "country"
+            ],
+            "description": "The payee (account holder).",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "iban": {
+                "type": "string"
+              },
+              "bic": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "street": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "houseNumber": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "postalCode": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "city": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "country": {
+                "type": "string",
+                "description": "ISO 3166-1 alpha-2."
+              }
+            }
+          },
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Amount > 0, at most 2 decimals."
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "CHF",
+              "EUR",
+              null
+            ],
+            "description": "Must match `type` (qr => CHF, sepa* => EUR); omitted = inferred."
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Structured payment reference."
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Unstructured remittance info (Verwendungszweck)."
+          },
+          "debtor": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LetterPaymentParty"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "LetterPaymentParty": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "street": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "houseNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "postalCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 3166-1 alpha-2."
+          }
+        }
+      },
+      "LetterVerifyRequest": {
+        "type": "object",
+        "description": "Exactly one document source must be provided: `pdfBase64`, `file`, or `templateId` (with `templateData` + `to` — the render composites the recipient). Passing `to` is strongly recommended: it enables the printed-address match check.",
+        "properties": {
+          "pdfBase64": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Base64-encoded PDF to verify (max 4 MB for verification)."
+          },
+          "file": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LetterFileRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "templateId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Verify a stored template's render. Requires `to`."
+          },
+          "templateData": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          },
+          "to": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PostalAddress"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The intended recipient — enables the printed-address match check. Required with `templateId`."
+          },
+          "from": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PostalAddress"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional return address (template path only)."
+          },
+          "print": {
+            "$ref": "#/components/schemas/LetterPrintOptions"
+          },
+          "maxPages": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Optional page-count ceiling enforced as a fail check."
+          },
+          "delivery": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LetterDelivery"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pass the SAME delivery class you will send with. `registered` letters use a DIFFERENT address geometry — the carrier prints its registered-mail label into y=50–67mm, so the recipient block must sit in y=67–90mm — and are verified against it."
+          },
+          "payment": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LetterPayment"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The structured payment object the create will carry. Template letters are rendered WITH the generated slip so the verified PDF is the exact PDF the create would mail. Template-path only (mirrors the create's rule)."
+          }
+        }
+      },
+      "LetterVerificationCheck": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "message"
+        ],
+        "description": "One layout check verdict. `fail` blocks a compliant send; `warn` is a risk to review; `skipped` means the check was not applicable.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable check id, e.g. `page_size`, `address_window`, `address_match`, `franking_zone`, `edge_clearance`, `fonts_embedded`."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "warn",
+              "fail",
+              "skipped"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "Agent-readable finding, with expected geometry in mm where relevant."
+          },
+          "expected": {
+            "description": "Machine-usable expected value, when applicable."
+          },
+          "actual": {
+            "description": "Machine-usable observed value, when applicable."
+          }
+        }
+      },
+      "LetterVerification": {
+        "type": "object",
+        "required": [
+          "object",
+          "valid",
+          "checks"
+        ],
+        "description": "The structured layout verdict for a letter PDF.",
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "letter_verification"
+            ]
+          },
+          "valid": {
+            "type": "boolean",
+            "description": "True when NO check failed. Warnings may still be present."
+          },
+          "pageCount": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "widthMm": {
+                "type": "number"
+              },
+              "heightMm": {
+                "type": "number"
+              }
+            }
+          },
+          "addressPlacement": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "left",
+              "right",
+              null
+            ],
+            "description": "The window where the recipient address was detected, or null when none was found."
+          },
+          "addressLines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The text lines detected inside the address window, top to bottom."
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LetterVerificationCheck"
+            }
+          },
+          "summary": {
+            "type": "string"
+          },
+          "agentHint": {
+            "type": "string",
+            "description": "The recommended next step."
+          }
+        }
+      },
+      "LetterRequirements": {
+        "type": "object",
+        "description": "The machine-readable letter compliance spec: exact A4 address-window and keep-out coordinates (mm), PDF rules, the verify→price→dryRun→send workflow, and ready-made compliant starter templates (`starterTemplates[].html` can be POSTed to `/v1/letters/templates` verbatim).",
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "letter_requirements"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "pageSetup": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "addressWindow": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "keepOuts": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "bodyLayout": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "pdfRules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "workflow": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "starterTemplates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "endpoints": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "agentHint": {
+            "type": "string"
           }
         }
       }

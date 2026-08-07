@@ -1237,12 +1237,14 @@ async fn run_letter(
             cursor,
             status,
             country,
+            batch_id,
         } => {
             let query = LetterListQuery {
                 limit,
                 cursor: cursor.and_then(non_empty_trimmed),
                 status: status.map(|s| s.as_str().to_string()),
                 country: country.and_then(non_empty_trimmed),
+                batch_id: batch_id.and_then(non_empty_trimmed),
             };
             let response = client.list_letters(&query).await?;
             output::print_json(&response, format)
@@ -1265,6 +1267,15 @@ async fn run_letter(
         LetterCommand::Price(args) => {
             let request = build_letter_price_request(&args)?;
             let response = client.price_letter(&request).await?;
+            output::print_json(&response, format)
+        }
+        LetterCommand::Verify(args) => {
+            let body = build_letter_verify_body(&args)?;
+            let response = client.verify_letter(&body).await?;
+            output::print_json(&response, format)
+        }
+        LetterCommand::Requirements => {
+            let response = client.letter_requirements().await?;
             output::print_json(&response, format)
         }
         LetterCommand::Batch { command } => run_letter_batch(client, command, format).await,
@@ -2101,6 +2112,9 @@ fn build_create_letter_request(args: &LetterSendArgs) -> Result<CreateLetterRequ
         }
         _ => None,
     };
+    // The template's `{{placeholder}}` values (wire `templateData`). Without
+    // them a template letter renders every placeholder EMPTY — and still mails.
+    let template_data = parse_template_data(args.template_data.as_deref())?;
 
     // The bare bring-your-own-slip flag (--payment-slip) and the structured slip
     // (--payment-type) are mutually exclusive at the CLI; when a structured slip
@@ -2118,6 +2132,7 @@ fn build_create_letter_request(args: &LetterSendArgs) -> Result<CreateLetterRequ
         to,
         from,
         template_id,
+        template_data,
         print,
         delivery,
         payment_slip,
@@ -2289,6 +2304,78 @@ fn build_letter_price_request(args: &LetterPriceArgs) -> Result<LetterPriceReque
 /// Builds the recipient [`PostalAddress`] from the `--to-*` flags, enforcing the
 /// contract's "either street or PO box is required" rule client-side so a
 /// malformed request never goes out. `country` is guaranteed present by clap.
+/// Parses the optional `--template-data` JSON into the wire `templateData`
+/// object. A non-object is rejected locally (the backend would 400 anyway).
+fn parse_template_data(raw: Option<&str>) -> Result<Option<serde_json::Value>> {
+    match raw.map(str::trim) {
+        Some(raw) if !raw.is_empty() => {
+            let value: serde_json::Value =
+                serde_json::from_str(raw).context("--template-data must be valid JSON")?;
+            anyhow::ensure!(value.is_object(), "--template-data must be a JSON object");
+            Ok(Some(value))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Assembles the `POST /v1/letters/verify` body from the parsed `verify` args.
+/// Mirrors the send builder's source handling (one of --pdf / --attachment-id /
+/// --template-id, guaranteed by the clap `verify_source` group) so the verified
+/// document is the exact one a `letter send` with the same flags would mail.
+fn build_letter_verify_body(args: &cli::LetterVerifyArgs) -> Result<serde_json::Value> {
+    let mut body = serde_json::Map::new();
+    let template_id = args.template_id.clone().and_then(non_empty_trimmed);
+    match (&args.pdf, &args.attachment_id, &template_id) {
+        (Some(path), _, _) => {
+            let bytes = read_letter_pdf(path)?;
+            body.insert(
+                "pdfBase64".to_string(),
+                serde_json::Value::String(BASE64_STANDARD.encode(bytes)),
+            );
+        }
+        (None, Some(attachment_id), _) => {
+            body.insert(
+                "file".to_string(),
+                serde_json::json!({ "attachmentId": attachment_id.trim() }),
+            );
+        }
+        (None, None, Some(id)) => {
+            body.insert(
+                "templateId".to_string(),
+                serde_json::Value::String(id.clone()),
+            );
+        }
+        (None, None, None) => {
+            anyhow::bail!(
+                "provide a letter source: --pdf <PATH>, --attachment-id, or --template-id"
+            )
+        }
+    }
+    if let Some(data) = parse_template_data(args.template_data.as_deref())? {
+        body.insert("templateData".to_string(), data);
+    }
+    let to = build_recipient_address(&args.recipient)?;
+    body.insert("to".to_string(), serde_json::to_value(&to)?);
+    if let Some(from) = build_sender_address(&args.sender)? {
+        body.insert("from".to_string(), serde_json::to_value(&from)?);
+    }
+    if let Some(print) =
+        build_letter_print_options(&args.print, args.print.address_placement.is_some())
+    {
+        body.insert("print".to_string(), serde_json::to_value(&print)?);
+    }
+    if let Some(delivery) = args.delivery {
+        body.insert(
+            "delivery".to_string(),
+            serde_json::Value::String(delivery.as_str().to_string()),
+        );
+    }
+    if let Some(max_pages) = args.max_pages {
+        body.insert("maxPages".to_string(), serde_json::Value::from(max_pages));
+    }
+    Ok(serde_json::Value::Object(body))
+}
+
 fn build_recipient_address(args: &RecipientArgs) -> Result<PostalAddress> {
     let street = args.to_street.clone().and_then(non_empty_trimmed);
     let po_box = args.to_po_box.clone().and_then(non_empty_trimmed);

@@ -335,6 +335,11 @@ pub struct CreateLetterRequest {
     /// client-side). Omitted from the wire request when unset.
     #[serde(rename = "templateId", skip_serializing_if = "Option::is_none")]
     pub template_id: Option<String>,
+    /// Values filling the template's `{{placeholders}}` (the wire
+    /// `templateData`). Only meaningful on the Dairo-render path; omitted from
+    /// the wire request when unset.
+    #[serde(rename = "templateData", skip_serializing_if = "Option::is_none")]
+    pub template_data: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub print: Option<LetterPrintOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -511,6 +516,8 @@ pub struct LetterListQuery {
     pub cursor: Option<String>,
     pub status: Option<String>,
     pub country: Option<String>,
+    /// Filter to the member letters of one batch (`?batchId=`).
+    pub batch_id: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -1406,6 +1413,9 @@ pub(crate) fn apply_letter_query(url: &mut Url, query: &LetterListQuery) {
     }
     if let Some(value) = &query.country {
         pairs.append_pair("country", value);
+    }
+    if let Some(value) = &query.batch_id {
+        pairs.append_pair("batchId", value);
     }
 }
 

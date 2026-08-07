@@ -1796,6 +1796,10 @@ pub enum LetterCommand {
         /// Filter to a recipient ISO 3166-1 alpha-2 country code.
         #[arg(long)]
         country: Option<String>,
+        /// Filter to the member letters of one batch (a `bat_…` id from
+        /// `letter batch create`).
+        #[arg(long = "batch-id", value_name = "BATCH_ID")]
+        batch_id: Option<String>,
     },
     /// Get one letter plus its delivery timeline (scope `letters:read`).
     Get { id: String },
@@ -1816,6 +1820,19 @@ pub enum LetterCommand {
     /// Provide either `--page-count` (cheap preview) or `--pdf <PATH>` (exact,
     /// since page count drives the price).
     Price(LetterPriceArgs),
+    /// Verify a letter's layout BEFORE sending it (scope `letters:read`).
+    /// Same sources as `send` (one of `--pdf` / `--attachment-id` /
+    /// `--template-id`): checks A4 portrait, the recipient address inside the
+    /// envelope window, the printed address against the `--to-*` flags, the
+    /// franking/edge keep-outs, embedded fonts, and (with
+    /// `--delivery registered`) the registered-mail geometry. Nothing is
+    /// created, mailed, or charged. Fix every `fail` before `letter send`.
+    Verify(LetterVerifyArgs),
+    /// Print the machine-readable letter layout requirements: exact address-
+    /// window and keep-out coordinates in mm, PDF rules, the safe sending
+    /// workflow, and ready-made compliant starter templates whose `html` can be
+    /// stored verbatim with `letter template create` (scope `letters:read`).
+    Requirements,
     /// Create and inspect bulk letter batches rendered once per recipient.
     Batch {
         #[command(subcommand)]
@@ -2035,6 +2052,11 @@ pub struct LetterSendArgs {
     /// slip; mutually exclusive with `--pdf` / `--attachment-id`.
     #[arg(long = "template-id", value_name = "TEMPLATE_ID")]
     pub template_id: Option<String>,
+    /// Values for the template's `{{placeholders}}` as a JSON object (the wire
+    /// `templateData`). Only meaningful with `--template-id`; without it every
+    /// placeholder renders empty.
+    #[arg(long = "template-data", value_name = "JSON", requires = "template_id")]
+    pub template_data: Option<String>,
     /// Overlay a bring-your-own payment slip on the supplied PDF: a Swiss QR-bill
     /// (`qr`), a German SEPA slip (`sepaDe`), or an Austrian SEPA slip (`sepaAt`).
     /// This only selects the paper for a slip your PDF already carries; to have
@@ -2065,6 +2087,46 @@ pub struct LetterSendArgs {
     /// decoded byte length are shown).
     #[arg(long = "dry-run")]
     pub dry_run: bool,
+}
+
+/// Flags for `letter verify` — the pre-send layout check. Mirrors the `send`
+/// source flags so the verified document is the exact one a send would mail.
+#[derive(Debug, Args)]
+#[command(group(
+    ArgGroup::new("verify_source")
+        .required(true)
+        .multiple(false)
+        .args(["pdf", "attachment_id", "template_id"])
+))]
+pub struct LetterVerifyArgs {
+    /// PDF file to verify. Read and base64-encoded locally (max 4 MB for
+    /// verification).
+    #[arg(long = "pdf", value_name = "PATH")]
+    pub pdf: Option<PathBuf>,
+    /// Verify an existing Dairo attachment as the letter PDF.
+    #[arg(long = "attachment-id", value_name = "ATTACHMENT_ID")]
+    pub attachment_id: Option<String>,
+    /// Verify a stored template's render: the exact PDF `letter send
+    /// --template-id` would mail with the same `--to-*` recipient.
+    #[arg(long = "template-id", value_name = "TEMPLATE_ID")]
+    pub template_id: Option<String>,
+    /// Values for the template's `{{placeholders}}` as a JSON object.
+    #[arg(long = "template-data", value_name = "JSON", requires = "template_id")]
+    pub template_data: Option<String>,
+    #[command(flatten)]
+    pub recipient: RecipientArgs,
+    #[command(flatten)]
+    pub sender: SenderArgs,
+    #[command(flatten)]
+    pub print: LetterPrintArgs,
+    /// Delivery class the letter WILL be sent with. `registered` letters are
+    /// verified against the registered-mail address geometry (recipient below
+    /// 67mm, label band clear).
+    #[arg(long)]
+    pub delivery: Option<LetterDelivery>,
+    /// Fail verification when the PDF has more than this many pages.
+    #[arg(long = "max-pages", value_name = "N")]
+    pub max_pages: Option<u32>,
 }
 
 #[derive(Debug, Args)]
@@ -4986,12 +5048,14 @@ mod tests {
                         cursor,
                         status,
                         country,
+                        batch_id,
                     },
             } => {
                 assert_eq!(limit, Some(50));
                 assert_eq!(cursor.as_deref(), Some("cur_1"));
                 assert_eq!(status, Some(LetterStatus::InTransit));
                 assert_eq!(country.as_deref(), Some("CH"));
+                assert_eq!(batch_id, None);
             }
             _ => panic!("expected letter list command"),
         }

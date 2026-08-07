@@ -1338,6 +1338,32 @@ impl ApiClient {
         .await
     }
 
+    /// Layout-verifies a letter BEFORE it is sent (`POST /v1/letters/verify`,
+    /// scope `letters:read`): structured pass/warn/fail checks with nothing
+    /// created, mailed, or charged. The body is assembled as
+    /// `serde_json::Value` (free-form `templateData`), matching the batch
+    /// convention. Returns the `letter_verification` object.
+    pub async fn verify_letter(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::POST,
+            &["v1", "letters", "verify"],
+            Some(body),
+        )?)
+        .await
+    }
+
+    /// Fetches the machine-readable letter layout requirements + compliant
+    /// starter templates (`GET /v1/letters/requirements`, scope
+    /// `letters:read`). Static and deterministic.
+    pub async fn letter_requirements(&self) -> Result<serde_json::Value> {
+        self.execute_json(self.build_request(
+            Method::GET,
+            &["v1", "letters", "requirements"],
+            None::<&()>,
+        )?)
+        .await
+    }
+
     /// Creates a bulk letter batch, rendering one stored template per recipient
     /// (`POST /v1/letters/batches`, scope `letters:send`). The body is assembled
     /// as `serde_json::Value` (the recipient array carries free-form
@@ -3907,6 +3933,7 @@ mod tests {
             },
             from: None,
             template_id: None,
+            template_data: None,
             print: Some(LetterPrintOptions {
                 mode: Some("grayscale".to_string()),
                 sides: Some("duplex".to_string()),
@@ -3963,6 +3990,7 @@ mod tests {
                 ..Default::default()
             },
             from: None,
+            template_data: None,
             template_id: Some("tmpl_invoice".to_string()),
             print: None,
             delivery: None,
@@ -4039,6 +4067,7 @@ mod tests {
             },
             from: None,
             template_id: None,
+            template_data: None,
             print: None,
             delivery: None,
             payment_slip: None,
@@ -4108,6 +4137,7 @@ mod tests {
             },
             from: None,
             template_id: None,
+            template_data: None,
             print: None,
             delivery: None,
             payment_slip: None,
@@ -4190,6 +4220,7 @@ mod tests {
                 cursor: Some("cur_1".to_string()),
                 status: Some("in_transit".to_string()),
                 country: Some("CH".to_string()),
+                batch_id: Some("bat_1".to_string()),
             },
         );
         let query = request.url().query().unwrap();
