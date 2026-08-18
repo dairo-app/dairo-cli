@@ -43,7 +43,12 @@ tokio = { version = "1.45", features = ["macros", "rt-multi-thread", "time", "si
 toml = "0.8"
 url = "2.5"
 uuid = { version = "1.17", features = ["v4", "v5"] }
-webbrowser = "1.0"
+# `hardened` refuses anything that is not http(s). Every URL we open is an
+# https endpoint, two of them straight out of a server response, and
+# RUSTSEC-2026-0257 was an argument injection through a non-http(s) URL — so
+# there is nothing to lose and a whole class of input to reject (defence in
+# depth on top of the 1.2.2 fix).
+webbrowser = { version = "1.2.2", features = ["hardened"] }
 zip = { version = "6", default-features = false, features = ["deflate-flate2"] }
 
 [features]
