@@ -967,10 +967,40 @@ pub struct LedgerEvent {
     pub data: serde_json::Value,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MessageAddress {
     pub address: String,
     pub name: Option<String>,
+}
+
+/// The API returns `from` as an object (`{"address", "name"}`) on the per-message
+/// reads but as a bare string on the folded outbound list view that backs
+/// `messages list --direction outbound`. Accept both shapes so one view's flatter
+/// encoding cannot fail the whole response.
+impl<'de> Deserialize<'de> for MessageAddress {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Bare(String),
+            Object {
+                address: String,
+                #[serde(default)]
+                name: Option<String>,
+            },
+        }
+
+        Ok(match Repr::deserialize(deserializer)? {
+            Repr::Bare(address) => MessageAddress {
+                address,
+                name: None,
+            },
+            Repr::Object { address, name } => MessageAddress { address, name },
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -982,8 +1012,12 @@ pub struct Message {
     pub channel: String,
     #[serde(rename = "inboxId")]
     pub inbox_id: String,
-    #[serde(rename = "threadId")]
+    /// Omitted entirely by the folded outbound list view (`--direction outbound`),
+    /// which returns the `outbound_messages` ledger shape rather than the full
+    /// message. Defaulted so that view still decodes; nothing renders these.
+    #[serde(default, rename = "threadId")]
     pub thread_id: Option<String>,
+    #[serde(default)]
     pub direction: String,
     pub status: String,
     pub from: MessageAddress,
@@ -1005,9 +1039,9 @@ pub struct Message {
     pub has_html: bool,
     #[serde(default, rename = "hasAttachments")]
     pub has_attachments: bool,
-    #[serde(rename = "receivedAt")]
+    #[serde(default, rename = "receivedAt")]
     pub received_at: Option<String>,
-    #[serde(rename = "createdAt")]
+    #[serde(default, rename = "createdAt")]
     pub created_at: Option<String>,
     #[serde(default)]
     pub attachments: Vec<MessageAttachment>,
@@ -1510,5 +1544,27 @@ impl ErrorBody {
             Some(code) if !code.trim().is_empty() => format!("[{}] {}", code, self.message),
             _ => self.message,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn message_address_accepts_the_object_form() {
+        let parsed: MessageAddress =
+            serde_json::from_str(r#"{"address":"luka-labs@dairo.app","name":"Luka Labs"}"#)
+                .expect("object form should deserialize");
+        assert_eq!(parsed.address, "luka-labs@dairo.app");
+        assert_eq!(parsed.name.as_deref(), Some("Luka Labs"));
+    }
+
+    #[test]
+    fn message_address_accepts_the_bare_string_the_outbound_view_returns() {
+        let parsed: MessageAddress = serde_json::from_str(r#""luka-labs@dairo.app""#)
+            .expect("bare string form should deserialize");
+        assert_eq!(parsed.address, "luka-labs@dairo.app");
+        assert_eq!(parsed.name, None);
     }
 }
