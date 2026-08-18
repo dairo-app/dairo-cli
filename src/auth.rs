@@ -46,11 +46,21 @@ pub use device::{is_headless_environment, login_device};
 /// "Dairo MCP", humanized from the DCR-issued generic `dairo-mcp-*` client_id.
 const CLIENT_NAME: &str = "Dairo CLI";
 
-/// Default scope set for `dairo login`. The backend accepts the `admin`
-/// convenience bundle (see `api_key_scopes.rs::expand_bundle`), which expands to
-/// the full enforced scope matrix — so the resulting key can drive every CLI
-/// command.
-pub const DEFAULT_LOGIN_SCOPE: &str = "admin";
+/// Default scope set for `dairo login`: the backend's MCP OAuth tier 1 (LUK-74),
+/// which is what the consent screen pre-ticks anyway.
+///
+/// This used to be the `admin` convenience bundle, and `admin` is now REJECTED
+/// on the OAuth path — a one-word request for all 33 scopes behind a consent
+/// screen showing a single line was the hole that ticket closed. Requesting the
+/// tier explicitly keeps `dairo login` working and makes the default grant match
+/// what the user is actually shown.
+///
+/// Commands outside this set (`dairo domain`, `dairo api-key`, `dairo phone`, …)
+/// need a wider login: `dairo login --scope "domains:read domains:write"`, or
+/// tick the extra rows on the consent screen — both mint the same key.
+pub const DEFAULT_LOGIN_SCOPE: &str = "messages:read messages:send inboxes:read inboxes:write \
+     templates:read templates:write audiences:read audiences:write contacts:read contacts:write \
+     buckets:read buckets:write events:read account:read";
 
 /// Overall budget for the whole interactive flow waiting on the browser
 /// callback. Generous enough for a human to sign in, bounded so a never-arriving
@@ -729,9 +739,39 @@ mod tests {
             normalize_scope_arg("messages:read, messages:send  webhooks:write"),
             vec!["messages:read", "messages:send", "webhooks:write"]
         );
+        // Tokenizing is all this does — the server decides what is acceptable,
+        // and it rejects `admin` on the OAuth path (LUK-74).
         assert_eq!(normalize_scope_arg("admin"), vec!["admin"]);
         assert_eq!(normalize_scope_arg("a a a"), vec!["a"]);
         assert!(normalize_scope_arg("   ").is_empty());
+    }
+
+    #[test]
+    fn default_login_scope_is_the_explicit_tier_one_set() {
+        // `dairo login` must not send the `admin` bundle: the backend now 400s on
+        // it over OAuth. This is the tier-1 set the consent screen pre-ticks, so
+        // the default login and the default consent agree.
+        let scopes = normalize_scope_arg(DEFAULT_LOGIN_SCOPE);
+        assert!(!scopes.iter().any(|scope| scope == "admin"));
+        assert_eq!(
+            scopes,
+            vec![
+                "messages:read",
+                "messages:send",
+                "inboxes:read",
+                "inboxes:write",
+                "templates:read",
+                "templates:write",
+                "audiences:read",
+                "audiences:write",
+                "contacts:read",
+                "contacts:write",
+                "buckets:read",
+                "buckets:write",
+                "events:read",
+                "account:read",
+            ]
+        );
     }
 
     #[test]
