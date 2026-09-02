@@ -89,85 +89,17 @@
     {
       "name": "Contacts",
       "description": "Channel-agnostic address book: contacts + their handles."
+    },
+    {
+      "name": "Phone",
+      "description": "Outbound AI phone calls and phone-number provisioning."
+    },
+    {
+      "name": "Slack",
+      "description": "Slack project connections for the unified inbox (OAuth install flow)."
     }
   ],
   "paths": {
-    "/v1/slack/oauth/start": {
-      "post": {
-        "tags": [
-          "Slack"
-        ],
-        "summary": "Mint a Slack \"Add to Slack\" install URL.",
-        "description": "Returns a signed https://slack.com/oauth/v2/authorize URL to embed as an \"Add to Slack\" button. The signed state ties the resulting workspace binding to the calling account: when the customer approves the install, the OAuth callback creates (or reconnects) a channel:\"slack\" inbox bound to that workspace, and inbound @mentions/DMs then fire the existing message.received webhook. The state expires after 10 minutes; mint per click. Requires a configured Slack app (slack_not_configured otherwise).",
-        "operationId": "slackOauthStart",
-        "x-dairo-status": "live",
-        "x-dairo-scopes": [
-          "inboxes:write"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SlackOauthStartResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/letters/templates": {
       "get": {
         "tags": [
@@ -2375,6 +2307,7 @@
       "patch": {
         "operationId": "patchApiKey",
         "summary": "Update an API key's name and/or IP allowlist.",
+        "description": "Updates the mutable fields of the key identified by `apiKeyId`: its `name`, its `allowedIps`, or both. Send at least one of the two — a request with neither returns `400`. Supplying `allowedIps` replaces the entire allowlist under the same up-to-50 IPv4/IPv6-or-CIDR validation used on create; pass an empty array to clear it and allow any IP, or omit the field to leave the current allowlist unchanged. Neither field is nullable here: an explicit `null` on `name` or `allowedIps` returns `400` rather than being silently ignored. A key's `scopes` and secret are immutable here, so to change granted scopes you create a replacement key and revoke the old one. Requires the `keys:write` scope; an unknown `apiKeyId` returns `404`, and the updated key object is returned on success.",
         "tags": [
           "API Keys"
         ],
@@ -2388,6 +2321,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateApiKeyRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -5200,7 +5143,7 @@
           "Conversation Autopilot"
         ],
         "summary": "Register a durable await_verification wait on an inbox.",
-        "description": "Open a durable wait that watches the inbox's inbound mail for an OTP/code/confirmation, extracted by regex/pattern (V1). Returns immediately with a waitId and status 'pending'; the outcome arrives as a verification.resolved / verification.expired event on your webhook and the durable event ledger, or by polling the wait. Idempotent on idempotencyKey.",
+        "description": "Open a durable background wait that watches the inbox's inbound mail and, using a natural-language `instruction`, has an EU-resident AI decide which email is the awaited one and extract the requested value. Returns immediately with a waitId and status 'pending'; the outcome arrives as a verification.resolved (carrying the extracted `result`) / verification.expired event on your webhook and the durable event ledger, or by polling the wait. Idempotent on idempotencyKey.",
         "operationId": "registerVerificationWait",
         "x-dairo-status": "live",
         "requestBody": {
@@ -9320,7 +9263,7 @@
             }
           }
         },
-        "description": "Returns the workspace's letters newest first, `limit` per page (default 20, max 100), with an opaque `pagination.nextCursor` to pass back as `cursor` for the next page. Filter with `status` (one lifecycle value such as `in_transit`), `country` (ISO 3166-1 alpha-2, case-insensitive), and `batchId`; filters combine. List items carry only the recipient's `city` and `country` — fetch a single letter for the full address and its event timeline."
+        "description": "Returns the project's letters newest first, `limit` per page (default 20, max 100), with an opaque `pagination.nextCursor` to pass back as `cursor` for the next page. Filter with `status` (one lifecycle value such as `in_transit`), `country` (ISO 3166-1 alpha-2, case-insensitive), and `batchId`; filters combine. List items carry only the recipient's `city` and `country` — fetch a single letter for the full address and its event timeline."
       },
       "post": {
         "tags": [
@@ -9641,7 +9584,7 @@
             }
           }
         },
-        "description": "Returns the full `letter`, including the complete `to`/`from` addresses (list items carry only city and country), the `price`, the `trackingNumber` once assigned, and an inline `events` timeline holding the 100 most recent events, newest first. Fetching an in-flight letter refreshes its delivery status, so polling this endpoint always reflects current tracking; the [status lifecycle](/letters/status-lifecycle) explains each value. Responds `404` when the id is unknown or belongs to another workspace."
+        "description": "Returns the full `letter`, including the complete `to`/`from` addresses (list items carry only city and country), the `price`, the `trackingNumber` once assigned, and an inline `events` timeline holding the 100 most recent events, newest first. Fetching an in-flight letter refreshes its delivery status, so polling this endpoint always reflects current tracking; the [status lifecycle](/letters/status-lifecycle) explains each value. Responds `404` when the id is unknown or belongs to another project."
       }
     },
     "/v1/letters/{id}/cancel": {
@@ -11713,7 +11656,7 @@
           "Organizations"
         ],
         "summary": "List the organizations the authenticated dashboard user belongs to, with their role in each.",
-        "description": "Dashboard (JWT) surface. Returns every workspace the caller is a member of plus their role — the org switcher list. Honors the X-Dairo-Org active-org selector header on the dashboard surface generally; this list endpoint itself is membership-derived and not org-scoped.",
+        "description": "Dashboard (JWT) surface. Returns every project the caller is a member of plus their role — the org switcher list. Honors the X-Dairo-Org active-org selector header on the dashboard surface generally; this list endpoint itself is membership-derived and not org-scoped.",
         "operationId": "listDashboardOrganizations",
         "x-dairo-status": "internal",
         "security": [
@@ -11783,8 +11726,8 @@
         "tags": [
           "Organizations"
         ],
-        "summary": "Create a new organization (workspace) owned by the authenticated dashboard user.",
-        "description": "Dashboard (JWT) surface. Mints a new workspace and seeds the caller's owner membership (the explicit counterpart of the signup trigger). The caller becomes the owner of the new org.",
+        "summary": "Create a new organization (project) owned by the authenticated dashboard user.",
+        "description": "Dashboard (JWT) surface. Mints a new project and seeds the caller's owner membership (the explicit counterpart of the signup trigger). The caller becomes the owner of the new org.",
         "operationId": "createDashboardOrganization",
         "x-dairo-status": "internal",
         "security": [
@@ -12294,7 +12237,7 @@
         "tags": [
           "Contacts"
         ],
-        "summary": "Get the workspace self contact.",
+        "summary": "Get the project self contact.",
         "operationId": "getSelfContact",
         "x-dairo-status": "live",
         "responses": {
@@ -13682,19 +13625,21 @@
         "tags": [
           "Phone"
         ],
-        "summary": "List the account's phone numbers.",
+        "summary": "List the phone numbers this account owns.",
         "operationId": "listPhoneNumbers",
         "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "phone:read"
+        ],
         "parameters": [
           {
             "name": "includeReleased",
             "in": "query",
             "required": false,
+            "description": "Include numbers that were released back to the provider pool.",
             "schema": {
-              "type": "boolean",
-              "default": false
-            },
-            "description": "Include released numbers (kept for the audit trail)."
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -13703,7 +13648,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PhoneNumberList"
+                  "$ref": "#/components/schemas/PhoneNumberListResponse"
                 }
               }
             }
@@ -13748,16 +13693,6 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Error",
             "content": {
@@ -13778,18 +13713,18 @@
               }
             }
           }
-        },
-        "x-dairo-scopes": [
-          "phone:read"
-        ]
+        }
       },
       "post": {
         "tags": [
           "Phone"
         ],
-        "summary": "Buy (provision) a phone number.",
+        "summary": "Provision a phone number.",
         "operationId": "buyPhoneNumber",
         "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "phone:write"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -13861,16 +13796,6 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Error",
             "content": {
@@ -13891,10 +13816,7 @@
               }
             }
           }
-        },
-        "x-dairo-scopes": [
-          "phone:write"
-        ]
+        }
       }
     },
     "/v1/phone/numbers/available": {
@@ -13902,42 +13824,47 @@
         "tags": [
           "Phone"
         ],
-        "summary": "Search the provider's purchasable number inventory.",
+        "summary": "Search the provider's inventory for buyable phone numbers.",
         "operationId": "listAvailablePhoneNumbers",
         "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "phone:read"
+        ],
         "parameters": [
           {
             "name": "country",
             "in": "query",
             "required": false,
+            "description": "ISO 3166-1 alpha-2 country code. Defaults to US.",
             "schema": {
               "type": "string",
-              "default": "US"
-            },
-            "description": "ISO 3166-1 alpha-2 country code."
+              "minLength": 2,
+              "maxLength": 2
+            }
           },
           {
             "name": "areaCode",
             "in": "query",
             "required": false,
+            "description": "National destination code (e.g. 415).",
             "schema": {
               "type": "string"
-            },
-            "description": "Restrict to an area code (e.g. 415)."
+            }
           },
           {
             "name": "contains",
             "in": "query",
             "required": false,
+            "description": "Digits the number must contain.",
             "schema": {
               "type": "string"
-            },
-            "description": "Restrict to numbers containing this digit sequence."
+            }
           },
           {
             "name": "type",
             "in": "query",
             "required": false,
+            "description": "Number type.",
             "schema": {
               "type": "string",
               "enum": [
@@ -13946,16 +13873,15 @@
                 "national",
                 "mobile"
               ]
-            },
-            "description": "Number type."
+            }
           },
           {
             "name": "limit",
             "in": "query",
             "required": false,
+            "description": "Maximum results (1-100). Defaults to 10.",
             "schema": {
               "type": "integer",
-              "default": 10,
               "minimum": 1,
               "maximum": 100
             }
@@ -13967,7 +13893,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AvailablePhoneNumberList"
+                  "$ref": "#/components/schemas/AvailablePhoneNumberListResponse"
                 }
               }
             }
@@ -14012,16 +13938,6 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Error",
             "content": {
@@ -14042,10 +13958,7 @@
               }
             }
           }
-        },
-        "x-dairo-scopes": [
-          "phone:read"
-        ]
+        }
       }
     },
     "/v1/phone/numbers/{id}": {
@@ -14053,9 +13966,12 @@
         "tags": [
           "Phone"
         ],
-        "summary": "Get one phone number.",
+        "summary": "Retrieve a phone number.",
         "operationId": "getPhoneNumber",
         "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "phone:read"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -14064,8 +13980,7 @@
             "schema": {
               "type": "string",
               "format": "uuid"
-            },
-            "description": "Phone number id."
+            }
           }
         ],
         "responses": {
@@ -14119,16 +14034,6 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Error",
             "content": {
@@ -14149,29 +14054,17 @@
               }
             }
           }
-        },
-        "x-dairo-scopes": [
-          "phone:read"
-        ]
+        }
       },
       "patch": {
         "tags": [
           "Phone"
         ],
-        "summary": "Bind a phone number to an inbox and/or agent, or edit metadata.",
+        "summary": "Update a phone number's inbox, agent, or metadata.",
         "operationId": "updatePhoneNumber",
         "x-dairo-status": "live",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "description": "Phone number id."
-          }
+        "x-dairo-scopes": [
+          "phone:write"
         ],
         "requestBody": {
           "required": true,
@@ -14183,6 +14076,17 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -14234,16 +14138,6 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Error",
             "content": {
@@ -14264,29 +14158,17 @@
               }
             }
           }
-        },
-        "x-dairo-scopes": [
-          "phone:write"
-        ]
+        }
       },
       "delete": {
         "tags": [
           "Phone"
         ],
-        "summary": "Release a phone number back to the provider pool (irreversible; requires confirm).",
+        "summary": "Release a phone number back to the provider pool. Irreversible.",
         "operationId": "releasePhoneNumber",
         "x-dairo-status": "live",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "description": "Phone number id."
-          }
+        "x-dairo-scopes": [
+          "phone:write"
         ],
         "requestBody": {
           "required": true,
@@ -14298,9 +14180,27 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "responses": {
-          "204": {
-            "description": "Released"
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneNumber"
+                }
+              }
+            }
           },
           "400": {
             "description": "Error",
@@ -14352,16 +14252,6 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Error",
             "content": {
@@ -14382,10 +14272,7 @@
               }
             }
           }
-        },
-        "x-dairo-scopes": [
-          "phone:write"
-        ]
+        }
       }
     },
     "/v1/phone/calls": {
@@ -14393,35 +14280,38 @@
         "tags": [
           "Phone"
         ],
-        "summary": "List outbound calls, newest first.",
+        "summary": "List outbound AI phone calls.",
         "operationId": "listPhoneCalls",
         "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "phone:read"
+        ],
         "parameters": [
           {
             "name": "status",
             "in": "query",
             "required": false,
+            "description": "Filter by call status.",
             "schema": {
               "type": "string"
-            },
-            "description": "Filter to one call status."
+            }
           },
           {
             "name": "to",
             "in": "query",
             "required": false,
+            "description": "Filter by destination number (E.164).",
             "schema": {
               "type": "string"
-            },
-            "description": "Filter to calls placed to this E.164 number."
+            }
           },
           {
             "name": "limit",
             "in": "query",
             "required": false,
+            "description": "Maximum results (1-100). Defaults to 50.",
             "schema": {
               "type": "integer",
-              "default": 50,
               "minimum": 1,
               "maximum": 100
             }
@@ -14433,7 +14323,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PhoneCallList"
+                  "$ref": "#/components/schemas/PhoneCallListResponse"
                 }
               }
             }
@@ -14478,16 +14368,6 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Error",
             "content": {
@@ -14508,10 +14388,7 @@
               }
             }
           }
-        },
-        "x-dairo-scopes": [
-          "phone:read"
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -14520,6 +14397,9 @@
         "summary": "Place an outbound AI phone call.",
         "operationId": "createPhoneCall",
         "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "phone:call"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -14530,6 +14410,11 @@
             }
           }
         },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
         "responses": {
           "201": {
             "description": "Success",
@@ -14591,16 +14476,6 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Error",
             "content": {
@@ -14621,10 +14496,7 @@
               }
             }
           }
-        },
-        "x-dairo-scopes": [
-          "phone:call"
-        ]
+        }
       }
     },
     "/v1/phone/calls/{id}": {
@@ -14632,9 +14504,12 @@
         "tags": [
           "Phone"
         ],
-        "summary": "Get one call.",
+        "summary": "Retrieve a phone call.",
         "operationId": "getPhoneCall",
         "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "phone:read"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -14643,8 +14518,7 @@
             "schema": {
               "type": "string",
               "format": "uuid"
-            },
-            "description": "Call id."
+            }
           }
         ],
         "responses": {
@@ -14698,16 +14572,6 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Error",
             "content": {
@@ -14728,10 +14592,7 @@
               }
             }
           }
-        },
-        "x-dairo-scopes": [
-          "phone:read"
-        ]
+        }
       }
     },
     "/v1/phone/calls/{id}/transcript": {
@@ -14739,9 +14600,12 @@
         "tags": [
           "Phone"
         ],
-        "summary": "Read a call's transcript.",
+        "summary": "Retrieve a call's transcript.",
         "operationId": "getPhoneCallTranscript",
         "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "phone:read"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -14750,8 +14614,7 @@
             "schema": {
               "type": "string",
               "format": "uuid"
-            },
-            "description": "Call id."
+            }
           }
         ],
         "responses": {
@@ -14805,16 +14668,6 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Error",
             "content": {
@@ -14835,10 +14688,7 @@
               }
             }
           }
-        },
-        "x-dairo-scopes": [
-          "phone:read"
-        ]
+        }
       }
     },
     "/v1/phone/calls/{id}/recording": {
@@ -14846,9 +14696,12 @@
         "tags": [
           "Phone"
         ],
-        "summary": "Resolve the Dairo storage object holding a call's recording.",
+        "summary": "Retrieve the storage object holding a call's recording.",
         "operationId": "getPhoneCallRecording",
         "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "phone:read"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -14857,8 +14710,7 @@
             "schema": {
               "type": "string",
               "format": "uuid"
-            },
-            "description": "Call id."
+            }
           }
         ],
         "responses": {
@@ -14912,16 +14764,6 @@
               }
             }
           },
-          "422": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Error",
             "content": {
@@ -14942,10 +14784,7 @@
               }
             }
           }
-        },
-        "x-dairo-scopes": [
-          "phone:read"
-        ]
+        }
       }
     },
     "/v1/phone/calls/{id}/hangup": {
@@ -14953,9 +14792,12 @@
         "tags": [
           "Phone"
         ],
-        "summary": "Hang up a live call.",
+        "summary": "End a live call.",
         "operationId": "hangupPhoneCall",
         "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "phone:call"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -14964,8 +14806,7 @@
             "schema": {
               "type": "string",
               "format": "uuid"
-            },
-            "description": "Call id."
+            }
           }
         ],
         "responses": {
@@ -15029,7 +14870,73 @@
               }
             }
           },
-          "422": {
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/slack/oauth/start": {
+      "post": {
+        "tags": [
+          "Slack"
+        ],
+        "summary": "Mint a Slack \"Add to Slack\" install URL.",
+        "description": "Returns a signed https://slack.com/oauth/v2/authorize URL to embed as an \"Add to Slack\" button. The signed state ties the resulting project binding to the calling account: when the customer approves the install, the OAuth callback creates (or reconnects) a channel:\"slack\" inbox bound to that project, and inbound @mentions/DMs then fire the existing message.received webhook. The state expires after 10 minutes; mint per click. Requires a configured Slack app (slack_not_configured otherwise).",
+        "operationId": "slackOauthStart",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "inboxes:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackOauthStartResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "Error",
             "content": {
               "application/json": {
@@ -15059,10 +14966,576 @@
               }
             }
           }
-        },
+        }
+      }
+    },
+    "/v1/slack/apps": {
+      "get": {
+        "tags": [
+          "Slack"
+        ],
+        "summary": "List your Slack apps.",
+        "description": "Lists the account's tenant Slack apps (managed + BYO), newest first. Secret-free: only the public identity, origin, context mode, ambient mode, and binding status are returned - never the sealed OAuth client/signing secrets.",
+        "operationId": "listSlackApps",
+        "x-dairo-status": "live",
         "x-dairo-scopes": [
-          "phone:call"
-        ]
+          "inboxes:write"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackAppListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Slack"
+        ],
+        "summary": "Create a Slack app (managed or BYO).",
+        "description": "Registers a tenant Slack app so the 'Add to Slack' button, bot identity, and app icon carry your brand. origin='managed' has Dairo mint the app via the Slack App Manifest APIs using your app-configuration token (used once, then dropped - never stored); origin='byo' seals an existing app's clientId/clientSecret/signingSecret. Both secrets are sealed at rest; the response is secret-free. A second account importing the same app is a 409.",
+        "operationId": "createSlackApp",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "inboxes:write"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlackAppCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackApp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/slack/apps/manifest-template": {
+      "get": {
+        "tags": [
+          "Slack"
+        ],
+        "summary": "Get a pasteable Slack app manifest.",
+        "description": "Returns an app manifest to paste into Slack's 'Create app from manifest' flow (the self-setup alternative to a managed create). name and contextMode ('mentions' or 'ambient') tune the display name and whether the app subscribes to ambient channel message events. Read-only.",
+        "operationId": "getSlackAppManifestTemplate",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "inboxes:write"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Display name for the app/bot (default 'Dairo Agent')."
+          },
+          {
+            "name": "contextMode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mentions",
+                "ambient"
+              ]
+            },
+            "description": "'mentions' (@mentions + DMs only) or 'ambient' (also subscribes to channel message events). Default 'mentions'."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackManifestTemplateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/slack/apps/{appId}": {
+      "patch": {
+        "tags": [
+          "Slack"
+        ],
+        "summary": "Update a Slack app's ambient mode.",
+        "description": "Sets ambientMode ('off' or 'store') - the ONLY mutable field. 'store' captures ambient channel chatter into the mailbox for later query WITHOUT firing message.received, and is valid only on a context_mode='ambient' app (a mentions-only app has no ambient stream, so 'store' on one is a 400).",
+        "operationId": "patchSlackApp",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "inboxes:write"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The Slack app id (e.g. A012ABCD0A0)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlackAppPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackAppAmbientResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Slack"
+        ],
+        "summary": "Delete a Slack app.",
+        "description": "Soft-deletes a tenant Slack app the caller owns (keeps the row for the audit trail; frees the app id slot for a re-import). Existing project bindings created through the app are unaffected.",
+        "operationId": "deleteSlackApp",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "inboxes:write"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The Slack app id (e.g. A012ABCD0A0)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackAppDeleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/slack/apps/{appId}/install-url": {
+      "post": {
+        "tags": [
+          "Slack"
+        ],
+        "summary": "Mint an install URL for a specific Slack app.",
+        "description": "Returns a signed https://slack.com/oauth/v2/authorize URL (an 'Add to Slack' button) for THIS app. The signed state carries the app id and ties the resulting project binding to the calling account. Use this when the account has more than one Slack app; POST /v1/slack/oauth/start is the single-app convenience. The state expires after 10 minutes; mint per click.",
+        "operationId": "createSlackAppInstallUrl",
+        "x-dairo-status": "live",
+        "x-dairo-scopes": [
+          "inboxes:write"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The Slack app id (e.g. A012ABCD0A0)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackOauthStartResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/letters/verify": {
@@ -15204,6 +15677,16 @@
               }
             }
           },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Error",
             "content": {
@@ -15290,26 +15773,13 @@
         "name": "X-Dairo-Org",
         "in": "header",
         "required": false,
-        "description": "Active-organization selector. The workspace id the dashboard request acts in; the backend validates membership and falls back to the caller's default/only org when absent or invalid.",
+        "description": "Active-organization selector. The project id the dashboard request acts in; the backend validates membership and falls back to the caller's default/only org when absent or invalid.",
         "schema": {
           "type": "string"
         }
       }
     },
     "schemas": {
-      "SlackOauthStartResponse": {
-        "type": "object",
-        "required": [
-          "url"
-        ],
-        "description": "The signed Slack OAuth install URL to present as an \"Add to Slack\" button.",
-        "properties": {
-          "url": {
-            "type": "string",
-            "description": "https://slack.com/oauth/v2/authorize URL carrying the app's bot scopes and a signed, single-use state (10-minute expiry)."
-          }
-        }
-      },
       "LetterTemplate": {
         "type": "object",
         "required": [
@@ -16033,6 +16503,17 @@
               "type": "string"
             },
             "description": "The key's IP allowlist (IPv4/IPv6 addresses or CIDR ranges), or null when the key authenticates from any IP."
+          },
+          "inboxIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The inbox ids (inboxes.id) this key may send as. Empty or null means the key is unrestricted and may send as any inbox in the project — the default, and what every key minted before this field existed has."
           }
         },
         "additionalProperties": false
@@ -16532,12 +17013,45 @@
             "items": {
               "type": "string",
               "enum": [
-                "messages:send",
-                "messages:read",
+                "account:read",
+                "account:write",
+                "admin",
+                "agents:read",
+                "agents:write",
+                "audiences:read",
+                "audiences:write",
+                "buckets:read",
+                "buckets:write",
+                "budgets:read",
+                "budgets:write",
+                "compliance:read",
+                "compliance:write",
+                "contacts:read",
+                "contacts:write",
+                "domains:read",
                 "domains:write",
-                "webhooks:write",
-                "keys:write"
-              ]
+                "events:read",
+                "events:write",
+                "inboxes:read",
+                "inboxes:write",
+                "keys:read",
+                "keys:write",
+                "letters",
+                "letters:read",
+                "letters:send",
+                "messages",
+                "messages:read",
+                "messages:send",
+                "phone",
+                "phone:call",
+                "phone:read",
+                "phone:write",
+                "templates:read",
+                "templates:write",
+                "webhooks:read",
+                "webhooks:write"
+              ],
+              "description": "A grantable scope, or one of the bundles `messages`, `letters`, `phone`, `admin`, which expand server-side before the allowlist check. A key may only request scopes its own key already holds."
             },
             "minItems": 1
           },
@@ -16550,6 +17064,37 @@
               "type": "string"
             },
             "description": "Optional IPv4/IPv6 addresses or CIDR ranges (up to 50) the key may authenticate from. Deny-by-default: a correct secret from an unlisted IP is rejected with 403. Omit or null for any-IP."
+          },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "test",
+              "live",
+              null
+            ],
+            "default": "live",
+            "description": "Cosmetic LABEL only; picks the secret prefix (`dairo_test_…`/`dairo_live_…`). It does NOT create a sandbox: a `test` key sends real mail, really delivered and really billed. Defaults to `live`."
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional organization to bind the key to. Defaults to the caller's active project; you must be a member of the one you name."
+          },
+          "inboxIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Optional per-inbox restriction: the inbox ids (inboxes.id, up to 100) this key may send as. Enforced server-side on every send, so it binds a raw POST /v1/messages exactly as much as it binds the CLI. Omit, null, or [] for unrestricted (any inbox). A key that is itself restricted may only grant a subset of its own inboxes; a child that requests none inherits the parent's restriction rather than escaping it."
           }
         },
         "additionalProperties": false
@@ -19398,13 +19943,13 @@
             "maxLength": 255,
             "description": "Optional case-insensitive substring matched against the inbound From address (e.g. 'github.com'). Null/absent matches any sender."
           },
-          "pattern": {
+          "instruction": {
             "type": [
               "string",
               "null"
             ],
-            "maxLength": 512,
-            "description": "Optional custom regex with EXACTLY one capture group (the code). Compiled and validated at registration. Absent uses the built-in OTP pattern set."
+            "maxLength": 2000,
+            "description": "Natural-language instruction for the AI matcher: which email to wait for and what to extract (e.g. 'wait for the Telnyx password-reset email and return the reset link'). An EU-resident model evaluates each inbound email against it and, on a match, resolves the wait with the extracted value in `result`. Absent defaults to extracting any verification/OTP/confirmation code."
           },
           "idempotencyKey": {
             "type": [
@@ -19638,6 +20183,11 @@
                 "$ref": "#/components/schemas/TelegramButton"
               }
             }
+          },
+          "dryRun": {
+            "type": "boolean",
+            "default": false,
+            "description": "Per-request dry run, at parity with the letters API's dryRun. When true the request is validated and the sending inbox resolved exactly as a real send would be, then a non-persisted MessagePreview (status \"preview\") is returned: nothing is created, queued, handed to the provider, metered, or billed. Absent or false is a normal send. Test mode is scoped to the REQUEST, not to the API key — an API key's `environment` label has no effect on delivery."
           }
         },
         "anyOf": [
@@ -20454,18 +21004,26 @@
               "null"
             ]
           },
-          "pattern": {
+          "instruction": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The natural-language matcher instruction this wait was registered with."
+          },
+          "result": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The value the AI matcher extracted per the instruction (present once resolved) — a code, a link, or a quoted line."
           },
           "code": {
             "type": [
               "string",
               "null"
             ],
-            "description": "The extracted verification code (present once resolved)."
+            "description": "Legacy alias of `result`, kept for OTP callers (present once resolved)."
           },
           "from": {
             "type": [
@@ -20693,7 +21251,7 @@
           "userId": {
             "type": "string"
           },
-          "workspaceId": {
+          "projectId": {
             "type": [
               "string",
               "null"
@@ -21378,7 +21936,7 @@
       },
       "Organization": {
         "type": "object",
-        "description": "An organization (workspace) the account belongs to, with the caller's role.",
+        "description": "An organization (project) the account belongs to, with the caller's role.",
         "required": [
           "id",
           "role"
@@ -21535,7 +22093,7 @@
             "type": "string",
             "format": "uuid"
           },
-          "workspaceId": {
+          "projectId": {
             "type": "string",
             "format": "uuid"
           },
@@ -21592,7 +22150,7 @@
             "type": "string",
             "format": "uuid"
           },
-          "workspaceId": {
+          "projectId": {
             "type": "string",
             "format": "uuid"
           },
@@ -21605,7 +22163,7 @@
               "string",
               "null"
             ],
-            "description": "@-referenceable handle, unique per workspace."
+            "description": "@-referenceable handle, unique per project."
           },
           "displayName": {
             "type": "string"
@@ -21620,7 +22178,7 @@
           },
           "isSelf": {
             "type": "boolean",
-            "description": "The workspace self contact (the \"@me\" recipient)."
+            "description": "The project self contact (the \"@me\" recipient)."
           },
           "info": {
             "type": [
@@ -21954,41 +22512,39 @@
         "required": [
           "object",
           "id",
-          "phone_number",
-          "status"
+          "phoneNumber",
+          "countryCode",
+          "numberType",
+          "status",
+          "createdAt"
         ],
         "properties": {
           "object": {
             "type": "string",
-            "enum": [
-              "phone_number"
-            ]
+            "const": "phone_number"
           },
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "phone_number": {
+          "phoneNumber": {
             "type": "string",
             "description": "E.164."
           },
-          "country_code": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "countryCode": {
+            "type": "string"
           },
-          "number_type": {
-            "type": [
-              "string",
-              "null"
+          "numberType": {
+            "type": "string",
+            "enum": [
+              "local",
+              "toll_free",
+              "national",
+              "mobile"
             ]
           },
           "capabilities": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": "array",
             "items": {
               "type": "string"
             }
@@ -21996,90 +22552,65 @@
           "status": {
             "type": "string",
             "enum": [
-              "active",
               "pending",
+              "active",
               "releasing",
               "released",
               "failed"
-            ]
+            ],
+            "description": "`pending` means the provider reserved the number but regulatory documents are still outstanding (common for German local numbers). It is not an error."
           },
-          "inbox_id": {
+          "inboxId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "When set, inbound SMS to this number lands in that inbox."
+          },
+          "agentId": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
           },
-          "agent_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "monthly_cost_usd": {
+          "monthlyCostUsd": {
             "type": [
               "number",
               "null"
             ]
           },
-          "setup_cost_usd": {
+          "setupCostUsd": {
             "type": [
               "number",
               "null"
             ]
           },
           "requirements": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "description": "Outstanding regulatory requirements ({ status, items })."
+            "type": "object",
+            "description": "Outstanding regulatory requirements, when `status` is `pending`."
           },
           "metadata": {
             "type": "object"
           },
-          "purchased_at": {
+          "purchasedAt": {
             "type": [
               "string",
               "null"
             ],
             "format": "date-time"
           },
-          "released_at": {
+          "releasedAt": {
             "type": [
               "string",
               "null"
             ],
             "format": "date-time"
           },
-          "created_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          }
-        }
-      },
-      "PhoneNumberList": {
-        "type": "object",
-        "required": [
-          "object",
-          "data"
-        ],
-        "properties": {
-          "object": {
+          "createdAt": {
             "type": "string",
-            "enum": [
-              "list"
-            ]
-          },
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PhoneNumber"
-            }
+            "format": "date-time"
           }
         }
       },
@@ -22088,30 +22619,24 @@
         "required": [
           "object",
           "phoneNumber",
+          "countryCode",
+          "numberType",
           "purchasable"
         ],
         "properties": {
           "object": {
             "type": "string",
-            "enum": [
-              "phone_number.available"
-            ]
+            "const": "phone_number.available"
           },
           "phoneNumber": {
             "type": "string",
-            "description": "E.164; masked (e.g. +16313------) when purchasable is false."
+            "description": "E.164. Partially masked (e.g. `+16313------`) when `purchasable` is false."
           },
           "countryCode": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "numberType": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "locality": {
             "type": [
@@ -22126,10 +22651,7 @@
             ]
           },
           "capabilities": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": "array",
             "items": {
               "type": "string"
             }
@@ -22148,11 +22670,11 @@
           },
           "purchasable": {
             "type": "boolean",
-            "description": "False when the provider account needs more verification before buying."
+            "description": "False when the provider account has not completed identity verification; the number is masked and cannot be bought yet."
           }
         }
       },
-      "AvailablePhoneNumberList": {
+      "PhoneNumberListResponse": {
         "type": "object",
         "required": [
           "object",
@@ -22161,9 +22683,26 @@
         "properties": {
           "object": {
             "type": "string",
-            "enum": [
-              "list"
-            ]
+            "const": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PhoneNumber"
+            }
+          }
+        }
+      },
+      "AvailablePhoneNumberListResponse": {
+        "type": "object",
+        "required": [
+          "object",
+          "data"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "const": "list"
           },
           "data": {
             "type": "array",
@@ -22181,13 +22720,13 @@
         "properties": {
           "phoneNumber": {
             "type": "string",
-            "description": "E.164 number returned by an availability search."
+            "description": "E.164, exactly as returned by the availability search."
           }
         }
       },
       "PhoneNumberUpdateRequest": {
         "type": "object",
-        "description": "At least one field is required. inboxId/agentId accept null to unbind.",
+        "description": "At least one property is required. An explicit null unbinds.",
         "properties": {
           "inboxId": {
             "type": [
@@ -22216,7 +22755,8 @@
         "properties": {
           "confirm": {
             "type": "boolean",
-            "description": "Must be true; release is irreversible."
+            "const": true,
+            "description": "Releasing is irreversible: the number returns to the public pool."
           }
         }
       },
@@ -22225,16 +22765,16 @@
         "required": [
           "object",
           "id",
+          "direction",
           "status",
-          "from_number",
-          "to_number"
+          "fromNumber",
+          "toNumber",
+          "createdAt"
         ],
         "properties": {
           "object": {
             "type": "string",
-            "enum": [
-              "phone_call"
-            ]
+            "const": "phone_call"
           },
           "id": {
             "type": "string",
@@ -22243,7 +22783,8 @@
           "direction": {
             "type": "string",
             "enum": [
-              "outbound"
+              "outbound",
+              "inbound"
             ]
           },
           "status": {
@@ -22258,12 +22799,13 @@
               "no_answer",
               "busy",
               "canceled"
-            ]
+            ],
+            "description": "Terminal: completed, failed, no_answer, busy, canceled."
           },
-          "from_number": {
+          "fromNumber": {
             "type": "string"
           },
-          "to_number": {
+          "toNumber": {
             "type": "string"
           },
           "instructions": {
@@ -22296,63 +22838,70 @@
               "null"
             ]
           },
-          "background_audio": {
+          "backgroundAudio": {
             "type": [
               "string",
               "null"
+            ],
+            "enum": [
+              "silence",
+              "office",
+              "none",
+              null
             ]
           },
-          "max_duration_seconds": {
+          "maxDurationSeconds": {
             "type": [
               "integer",
               "null"
             ]
           },
-          "queued_at": {
+          "queuedAt": {
             "type": [
               "string",
               "null"
             ],
             "format": "date-time"
           },
-          "started_at": {
+          "startedAt": {
             "type": [
               "string",
               "null"
             ],
             "format": "date-time"
           },
-          "answered_at": {
+          "answeredAt": {
             "type": [
               "string",
               "null"
             ],
             "format": "date-time"
           },
-          "ended_at": {
+          "endedAt": {
             "type": [
               "string",
               "null"
             ],
             "format": "date-time"
           },
-          "duration_seconds": {
+          "durationSeconds": {
             "type": [
               "integer",
               "null"
             ]
           },
-          "hangup_cause": {
+          "hangupCause": {
             "type": [
               "string",
               "null"
             ]
           },
-          "answered_by": {
+          "answeredBy": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "`human` or `machine`, from answering-machine detection."
           },
           "summary": {
             "type": [
@@ -22360,11 +22909,12 @@
               "null"
             ]
           },
-          "cost_usd": {
+          "costUsd": {
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "description": "Billed per started minute."
           },
           "error": {
             "type": [
@@ -22372,7 +22922,7 @@
               "null"
             ]
           },
-          "webhook_url": {
+          "webhookUrl": {
             "type": [
               "string",
               "null"
@@ -22381,22 +22931,19 @@
           "metadata": {
             "type": "object"
           },
-          "idempotency_key": {
+          "idempotencyKey": {
             "type": [
               "string",
               "null"
             ]
           },
-          "created_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+          "createdAt": {
+            "type": "string",
             "format": "date-time"
           }
         }
       },
-      "PhoneCallList": {
+      "PhoneCallListResponse": {
         "type": "object",
         "required": [
           "object",
@@ -22405,9 +22952,7 @@
         "properties": {
           "object": {
             "type": "string",
-            "enum": [
-              "list"
-            ]
+            "const": "list"
           },
           "data": {
             "type": "array",
@@ -22427,18 +22972,20 @@
         "properties": {
           "to": {
             "type": "string",
-            "description": "E.164 destination."
+            "description": "Destination, E.164. A real phone rings here."
           },
           "from": {
             "type": "string",
-            "description": "E.164 caller id; must be an active number the account owns."
+            "description": "Caller id, E.164. MUST be a number this account owns with status `active`."
           },
           "instructions": {
             "type": "string",
-            "maxLength": 8000
+            "maxLength": 8000,
+            "description": "What the agent should accomplish. Supports {{handlebars}} filled from `variables`."
           },
           "greeting": {
-            "type": "string"
+            "type": "string",
+            "description": "Opening line spoken when the callee answers."
           },
           "voice": {
             "type": "string",
@@ -22462,9 +23009,10 @@
           },
           "maxDurationSeconds": {
             "type": "integer",
-            "minimum": 10,
+            "minimum": 30,
             "maximum": 1800,
-            "default": 600
+            "default": 600,
+            "description": "Hard cap on call length. The provider's own floor is 30 seconds."
           },
           "record": {
             "type": "boolean",
@@ -22472,48 +23020,17 @@
           },
           "variables": {
             "type": "object",
-            "description": "{{handlebars}} variables for instructions/greeting."
+            "description": "Values for {{handlebars}} placeholders."
           },
           "webhookUrl": {
-            "type": "string",
-            "format": "uri"
+            "type": "string"
           },
           "metadata": {
             "type": "object"
           },
           "idempotencyKey": {
             "type": "string",
-            "description": "Also accepted as an Idempotency-Key header."
-          }
-        }
-      },
-      "PhoneCallTranscript": {
-        "type": "object",
-        "required": [
-          "object",
-          "callId",
-          "turns"
-        ],
-        "properties": {
-          "object": {
-            "type": "string",
-            "enum": [
-              "phone_call.transcript"
-            ]
-          },
-          "callId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "turns": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PhoneCallTranscriptTurn"
-            }
-          },
-          "status": {
-            "type": "string",
-            "description": "Present (with empty turns) while the call is still in flight."
+            "description": "A retried request returns the original call rather than dialing the human twice."
           }
         }
       },
@@ -22544,6 +23061,30 @@
           }
         }
       },
+      "PhoneCallTranscript": {
+        "type": "object",
+        "required": [
+          "object",
+          "callId",
+          "turns"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "const": "phone_call.transcript"
+          },
+          "callId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "turns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PhoneCallTranscriptTurn"
+            }
+          }
+        }
+      },
       "PhoneCallRecording": {
         "type": "object",
         "required": [
@@ -22554,9 +23095,7 @@
         "properties": {
           "object": {
             "type": "string",
-            "enum": [
-              "phone_call.recording"
-            ]
+            "const": "phone_call.recording"
           },
           "callId": {
             "type": "string",
@@ -22565,9 +23104,251 @@
           "objectId": {
             "type": "string",
             "format": "uuid",
-            "description": "Dairo storage object holding the call audio."
+            "description": "A Dairo storage object; fetch it through the storage API."
           }
         }
+      },
+      "SlackOauthStartResponse": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "description": "The signed Slack OAuth install URL to present as an \"Add to Slack\" button.",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "https://slack.com/oauth/v2/authorize URL carrying the app's bot scopes and a signed, single-use state (10-minute expiry)."
+          }
+        }
+      },
+      "SlackApp": {
+        "type": "object",
+        "required": [
+          "id",
+          "appId",
+          "clientId",
+          "origin",
+          "contextMode"
+        ],
+        "description": "A tenant Slack app (managed or BYO). Secret-free - the sealed OAuth client/signing secrets are never returned.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Dairo record id."
+          },
+          "appId": {
+            "type": "string",
+            "description": "The Slack app id (e.g. A012ABCD0A0)."
+          },
+          "clientId": {
+            "type": "string",
+            "description": "The OAuth client id (public; it appears in the install URL)."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Display name the app was created with (null for a BYO import)."
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "managed",
+              "byo"
+            ],
+            "description": "'managed' (Dairo minted it via the App Manifest APIs) or 'byo' (imported credentials)."
+          },
+          "contextMode": {
+            "type": "string",
+            "enum": [
+              "mentions",
+              "ambient"
+            ],
+            "description": "'mentions' (@mentions + DMs only) or 'ambient' (also channel message events)."
+          },
+          "ambientMode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "store"
+            ],
+            "description": "'off' (drop ambient chatter) or 'store' (persist it silently, no message.received). Present on list reads; absent on the create response."
+          },
+          "status": {
+            "type": "string",
+            "description": "'active' | 'deleted'. Present on list reads; absent on the create response."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 creation timestamp. Present on list reads; absent on the create response."
+          }
+        }
+      },
+      "SlackAppListResponse": {
+        "type": "object",
+        "required": [
+          "apps"
+        ],
+        "description": "The account's tenant Slack apps.",
+        "properties": {
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SlackApp"
+            }
+          }
+        }
+      },
+      "SlackAppCreateRequest": {
+        "type": "object",
+        "required": [
+          "origin"
+        ],
+        "description": "Create a managed or BYO Slack app. Provide origin='managed' with a configToken, or origin='byo' with the four credential fields.",
+        "properties": {
+          "origin": {
+            "type": "string",
+            "enum": [
+              "managed",
+              "byo"
+            ]
+          },
+          "contextMode": {
+            "type": "string",
+            "enum": [
+              "mentions",
+              "ambient"
+            ],
+            "description": "Default 'mentions'. 'ambient' also subscribes the app to channel message events."
+          },
+          "name": {
+            "type": "string",
+            "description": "managed: display name for the app/bot (optional)."
+          },
+          "configToken": {
+            "type": "string",
+            "description": "managed only: your Slack app-configuration access token (xoxe...). Used once to mint the app, then dropped - never stored."
+          },
+          "appId": {
+            "type": "string",
+            "description": "byo only: the existing Slack app id."
+          },
+          "clientId": {
+            "type": "string",
+            "description": "byo only: the OAuth client id."
+          },
+          "clientSecret": {
+            "type": "string",
+            "description": "byo only: the OAuth client secret (sealed at rest)."
+          },
+          "signingSecret": {
+            "type": "string",
+            "description": "byo only: the signing secret (sealed at rest)."
+          }
+        }
+      },
+      "SlackAppPatchRequest": {
+        "type": "object",
+        "required": [
+          "ambientMode"
+        ],
+        "description": "The only mutable field on a Slack app.",
+        "properties": {
+          "ambientMode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "store"
+            ],
+            "description": "'store' requires a context_mode='ambient' app."
+          }
+        }
+      },
+      "SlackAppAmbientResponse": {
+        "type": "object",
+        "required": [
+          "appId",
+          "contextMode",
+          "ambientMode"
+        ],
+        "description": "A Slack app's ambient state after a patch.",
+        "properties": {
+          "appId": {
+            "type": "string"
+          },
+          "contextMode": {
+            "type": "string",
+            "enum": [
+              "mentions",
+              "ambient"
+            ]
+          },
+          "ambientMode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "store"
+            ]
+          }
+        }
+      },
+      "SlackAppDeleteResponse": {
+        "type": "object",
+        "required": [
+          "appId",
+          "status"
+        ],
+        "description": "Confirmation of a soft-deleted Slack app.",
+        "properties": {
+          "appId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "'deleted'."
+          }
+        }
+      },
+      "SlackManifestTemplateResponse": {
+        "type": "object",
+        "required": [
+          "manifest"
+        ],
+        "description": "A pasteable Slack app manifest for the self-setup flow.",
+        "properties": {
+          "manifest": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The Slack app manifest JSON to paste into Slack's 'Create app from manifest' flow."
+          }
+        }
+      },
+      "UpdateApiKeyRequest": {
+        "type": "object",
+        "description": "At least one of `name`, `allowedIps` or `inboxIds` is required. `scopes` is deliberately absent: scopes are immutable after mint, and revoking is DELETE on this same path. Sending either is a 400 rather than a silently-ignored no-op.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "New display name. Omit to leave it unchanged; `null` is rejected with 400 rather than silently ignored."
+          },
+          "allowedIps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Replaces the whole allowlist; it never merges. Omit the field to leave the current allowlist unchanged, or pass an empty array to clear it so the key may authenticate from any IP. Entries are IPv4/IPv6 addresses or CIDR ranges (up to 50); deny-by-default, so a correct secret from an unlisted IP is rejected with 403. Explicit `null` is rejected with 400 — unlike on create it does not mean `any IP` here, and it used to be a silently-ignored no-op."
+          },
+          "inboxIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Replaces the whole per-inbox restriction; it never merges. Omit to leave it unchanged, or pass an empty array to clear it so the key may send as any inbox. A restricted key may only ever narrow to a subset of its own inboxes — it cannot unpin itself or a sibling. Explicit `null` is rejected with 400: unlike on create it does not mean `unrestricted` here, it would change nothing."
+          }
+        },
+        "additionalProperties": false
       },
       "LetterPayment": {
         "type": "object",
@@ -22973,6 +23754,107 @@
           },
           "agentHint": {
             "type": "string"
+          }
+        }
+      },
+      "MessagePreview": {
+        "type": "object",
+        "description": "The non-persisted result of a dryRun send. No message row exists, so there is no id to join on and no delivery events will ever appear.",
+        "required": [
+          "object",
+          "status",
+          "dryRun",
+          "persisted"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "message"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "preview"
+            ]
+          },
+          "dryRun": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "persisted": {
+            "type": "boolean",
+            "enum": [
+              false
+            ],
+            "description": "Always false. Nothing was written."
+          },
+          "inboxId": {
+            "type": "string",
+            "description": "The resolved sending inbox."
+          },
+          "from": {
+            "type": "string",
+            "description": "The address the real send would have come from."
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "email",
+              "a2a",
+              "telegram",
+              "slack",
+              "sms"
+            ],
+            "description": "The channel a real send of this payload would transit, resolved with the same precedence a real send uses (inbox channel, then an explicit `channel`, then the a2a auto-classifier)."
+          },
+          "subject": {
+            "type": "string"
+          },
+          "to": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cc": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bcc": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recipientCount": {
+            "type": "integer",
+            "description": "to + cc + bcc — the number of billable recipients a real send would have consumed. Quota counts recipients, not messages."
+          },
+          "attachmentCount": {
+            "type": "integer"
+          },
+          "scheduledAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SendMessageWarning"
+            }
+          },
+          "agentHint": {
+            "type": "string",
+            "description": "Plain-language next step for an agent caller."
           }
         }
       }

@@ -48,7 +48,7 @@ Storage:
 Account and access:
   domain         Manage sending domains
   api-key        Manage API keys
-  dashboard      Manage organizations (workspaces) you belong to
+  dashboard      Manage organizations (projects) you belong to
   notifications  Notification email preferences
   auth           Manage stored credentials
   logout         Sign out and revoke the stored token
@@ -279,7 +279,7 @@ pub enum Command {
         #[command(subcommand)]
         command: A2aCommand,
     },
-    /// Manage dashboard organizations (workspaces) you belong to.
+    /// Manage dashboard organizations (projects) you belong to.
     #[command(name = "dashboard")]
     Dashboard {
         #[command(subcommand)]
@@ -432,7 +432,7 @@ impl AuditExportFormat {
 
 #[derive(Debug, Subcommand)]
 pub enum DashboardCommand {
-    /// List and create the organizations (workspaces) you belong to.
+    /// List and create the organizations (projects) you belong to.
     #[command(name = "organizations", alias = "orgs")]
     Organizations {
         #[command(subcommand)]
@@ -444,7 +444,7 @@ pub enum DashboardCommand {
 pub enum DashboardOrgCommand {
     /// List the organizations you belong to, with your role in each.
     List,
-    /// Create a new organization (workspace) you own.
+    /// Create a new organization (project) you own.
     Create {
         /// Display name for the new organization (max 80 chars).
         #[arg(long)]
@@ -1069,7 +1069,7 @@ pub enum ContactCommand {
         /// Human-readable display name (1..=200 chars).
         #[arg(long = "display-name")]
         display_name: String,
-        /// Optional `@`-referenceable handle, unique per workspace.
+        /// Optional `@`-referenceable handle, unique per project.
         #[arg(long)]
         alias: Option<String>,
         /// Contact kind.
@@ -1088,7 +1088,7 @@ pub enum ContactCommand {
         #[arg(long = "handle", value_parser = parse_handle_pair)]
         handles: Vec<(String, String)>,
     },
-    /// Show the workspace self contact / `@me` recipient with its handles (scope `contacts:read`).
+    /// Show the project self contact / `@me` recipient with its handles (scope `contacts:read`).
     Me,
     /// Get one contact including its handles (scope `contacts:read`).
     Get { contact_id: String },

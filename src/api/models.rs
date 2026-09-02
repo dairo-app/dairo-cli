@@ -14,8 +14,8 @@ use url::Url;
 pub struct WhoamiResponse {
     #[serde(rename = "userId")]
     pub user_id: String,
-    #[serde(rename = "workspaceId")]
-    pub workspace_id: Option<String>,
+    #[serde(rename = "projectId", alias = "workspaceId")]
+    pub project_id: Option<String>,
     #[serde(rename = "apiKey")]
     pub api_key: WhoamiApiKey,
     pub plan: String,

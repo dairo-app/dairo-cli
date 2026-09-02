@@ -128,8 +128,8 @@ pub fn print_whoami(response: &WhoamiResponse, format: OutputFormat) -> Result<(
     }
 
     println!("User: {}", response.user_id);
-    if let Some(workspace_id) = &response.workspace_id {
-        println!("Workspace: {workspace_id}");
+    if let Some(project_id) = &response.project_id {
+        println!("Project: {project_id}");
     }
     println!("API key: {}", response.api_key.id);
     println!("Scopes: {}", response.api_key.scopes.join(","));
